@@ -1,7 +1,7 @@
 const STORAGE_KEY = 'itinerary-app-data';
 
 // Fixed Google Maps API key (restrict it to your domain via HTTP referrer restrictions in Google Cloud Console).
-const GOOGLE_MAPS_API_KEY = 'AIzaSyCL_MiyKUK3MkBoZFOfzUqHebXOl88kER8';
+const GOOGLE_MAPS_API_KEY = 'AIzaSyDpcKhIMm0_2uX79oKv1WkvZOSyXhCWX74';
 
 const state = loadState();
 let selectedDayIndex = 0;
