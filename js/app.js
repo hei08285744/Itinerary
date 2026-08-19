@@ -77,10 +77,6 @@ const settingsBtn = document.getElementById('settingsBtn');
 const closeSettingsBtn = document.getElementById('closeSettingsBtn');
 const tripSettings = document.getElementById('tripSettings');
 const dayStrip = document.getElementById('dayStrip');
-const daySlider = document.getElementById('daySlider');
-const dayCounter = document.getElementById('dayCounter');
-const prevDayBtn = document.getElementById('prevDayBtn');
-const nextDayBtn = document.getElementById('nextDayBtn');
 const greetingScript = document.getElementById('greetingScript');
 const greetingTitle = document.getElementById('greetingTitle');
 const greetingSub = document.getElementById('greetingSub');
@@ -604,18 +600,6 @@ function updateActivityExpenseHint(date) {
   const currency = getCurrencyForDestination(getCityForDate(date));
   activityExpenseInput.placeholder = `e.g. 20 ${currency} or $20`;
 }
-
-prevDayBtn.addEventListener('click', () => {
-  selectDay(selectedDayIndex - 1);
-});
-
-nextDayBtn.addEventListener('click', () => {
-  selectDay(selectedDayIndex + 1);
-});
-
-daySlider.addEventListener('input', () => {
-  selectDay(Number(daySlider.value));
-});
 
 function deleteActivity(id) {
   state.activities = state.activities.filter((a) => a.id !== id);
@@ -1251,12 +1235,7 @@ routeModeSelect.addEventListener('change', () => {
 });
 
 function renderGreetingAndDaySelector(days) {
-  daySlider.max = Math.max(days.length - 1, 0);
-  daySlider.value = selectedDayIndex;
-  daySlider.disabled = days.length <= 1;
-
   if (!days.length) {
-    dayCounter.textContent = state.language === 'zh' ? '第 1 天 / 共 1 天' : 'Day 1 / 1';
     greetingTitle.textContent = state.language === 'zh' ? '旅程即將開始' : 'Your trip starts soon';
     greetingSub.textContent = state.language === 'zh' ? '設定日期以開始倒數' : 'Set your trip dates to begin the countdown';
     todayDate.textContent = 'D1 · —';
@@ -1264,10 +1243,6 @@ function renderGreetingAndDaySelector(days) {
     loadTodayWeather('', '');
     return;
   }
-
-  dayCounter.textContent = state.language === 'zh'
-    ? `第 ${selectedDayIndex + 1} 天 / 共 ${days.length} 天`
-    : `Day ${selectedDayIndex + 1} / ${days.length}`;
 
   const selectedDate = days[selectedDayIndex];
   const destination = getCityForDate(selectedDate) || (state.language === 'zh' ? '你的目的地' : 'your destination');
