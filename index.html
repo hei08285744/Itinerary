@@ -54,8 +54,10 @@
       <button id="addCityBtn" class="btn-secondary" type="button" data-i18n="addCity">+ Add city</button>
       <div class="itinerary-file-actions">
         <button id="exportItineraryBtn" class="btn-secondary" type="button" data-i18n="exportItinerary">Download itinerary</button>
-        <button id="importItineraryBtn" class="btn-secondary" type="button" data-i18n="importItinerary">Load itinerary</button>
-        <input id="importItineraryInput" type="file" accept="application/json,.json" hidden>
+        <label class="btn-secondary itinerary-file-picker">
+          <span data-i18n="importItinerary">Load itinerary</span>
+          <input id="importItineraryInput" type="file" accept="application/json,.json">
+        </label>
       </div>
       <button id="closeSettingsBtn" class="btn-primary" type="button" data-i18n="saveClose">Save & Close</button>
     </section>

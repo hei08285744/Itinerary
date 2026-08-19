@@ -89,7 +89,6 @@ const languageSelect = document.getElementById('languageSelect');
 const cityPeriods = document.getElementById('cityPeriods');
 const addCityBtn = document.getElementById('addCityBtn');
 const exportItineraryBtn = document.getElementById('exportItineraryBtn');
-const importItineraryBtn = document.getElementById('importItineraryBtn');
 const importItineraryInput = document.getElementById('importItineraryInput');
 const memberNameInput = document.getElementById('memberNameInput');
 const addMemberBtn = document.getElementById('addMemberBtn');
@@ -298,7 +297,6 @@ exportItineraryBtn.addEventListener('click', () => {
   URL.revokeObjectURL(url);
 });
 
-importItineraryBtn.addEventListener('click', () => importItineraryInput.click());
 importItineraryInput.addEventListener('change', async () => {
   const file = importItineraryInput.files[0];
   importItineraryInput.value = '';
