@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Travel Itinerary Planner</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="top-bar">
+      <div class="top-bar-text">
+        <p class="eyebrow"><span id="topBarBonVoyage">Bon Voyage</span> <span class="dot">·</span> <span id="topBarTripName">My Trip</span></p>
+        <h1><span id="topBarDestination">Your</span> Diary</h1>
+      </div>
+      <div class="top-bar-actions">
+        <select id="languageSelect" class="language-select" aria-label="Language">
+          <option value="en">English</option>
+          <option value="zh">中文</option>
+        </select>
+        <button id="settingsBtn" class="icon-btn" aria-label="Trip settings" type="button">⚙</button>
+      </div>
+    </header>
+
+    <section id="tripSettings" class="trip-settings card hidden">
+      <h2 data-i18n="tripDetails">Trip Details</h2>
+      <div class="trip-info-fields">
+        <label>
+          <span data-i18n="tripName">Trip Name</span>
+          <input type="text" id="tripName" placeholder="e.g. Italy Trip">
+        </label>
+        <label class="primary-city-field">
+          <span data-i18n="destination">Destination</span>
+          <input type="text" id="tripDestination" placeholder="e.g. Italy">
+        </label>
+        <label class="primary-city-field">
+          <span data-i18n="startDate">Start Date</span>
+          <input type="date" id="tripStartDate">
+        </label>
+        <label class="primary-city-field">
+          <span data-i18n="endDate">End Date</span>
+          <input type="date" id="tripEndDate">
+        </label>
+      </div>
+      <div class="members-section">
+        <label for="memberNameInput" data-i18n="members">Trip members</label>
+        <div class="member-add-row">
+          <input type="text" id="memberNameInput" placeholder="e.g. Alex" data-i18n-placeholder="memberPlaceholder">
+          <button id="addMemberBtn" class="btn-secondary" type="button" data-i18n="addMember">+ Add</button>
+        </div>
+        <div id="memberList" class="member-list"></div>
+      </div>
+      <div id="cityPeriods" class="city-periods hidden"></div>
+      <button id="addCityBtn" class="btn-secondary" type="button" data-i18n="addCity">+ Add city</button>
+      <div class="itinerary-file-actions">
+        <button id="exportItineraryBtn" class="btn-secondary" type="button" data-i18n="exportItinerary">Download itinerary</button>
+        <button id="importItineraryBtn" class="btn-secondary" type="button" data-i18n="importItinerary">Load itinerary</button>
+        <input id="importItineraryInput" type="file" accept="application/json,.json" hidden>
+      </div>
+      <button id="closeSettingsBtn" class="btn-primary" type="button" data-i18n="saveClose">Save & Close</button>
+    </section>
+
+    <section class="day-strip-section">
+      <div class="day-strip" id="dayStrip"></div>
+      <div class="day-slider-row">
+        <button id="prevDayBtn" class="arrow-btn" aria-label="Previous day" type="button">‹</button>
+        <input type="range" id="daySlider" class="day-slider" min="0" max="0" value="0">
+        <button id="nextDayBtn" class="arrow-btn" aria-label="Next day" type="button">›</button>
+      </div>
+      <p class="day-counter" id="dayCounter">Day 1 / 1</p>
+    </section>
+
+    <section class="greeting-card">
+      <p class="greeting-script" id="greetingScript">Ciao, traveler!</p>
+      <h2 id="greetingTitle">Your trip starts soon</h2>
+      <p class="greeting-sub" id="greetingSub">Set your dates to begin the countdown</p>
+      <div class="route-visual" aria-hidden="true">
+        <span class="route-icon">📍</span>
+        <span class="route-dash"></span>
+        <span class="route-icon">✈️</span>
+      </div>
+      <div class="today-badge">
+        <div class="today-badge-copy">
+          <span class="today-label" data-i18n="today">TODAY</span>
+          <span class="today-date" id="todayDate">D1 · —</span>
+          <span class="today-location" id="todayLocation">No destination yet</span>
+        </div>
+        <div class="today-weather-panel">
+          <span class="today-weather-description" id="todayWeatherDescription">Forecast</span>
+          <strong class="today-temperature" id="todayTemperature">—°C</strong>
+        </div>
+      </div>
+      <div id="itineraryDays"></div>
+      <p id="emptyState" class="empty-state">No items yet. Add your first item above!</p>
+      <div class="itinerary-header">
+        <div class="itinerary-actions">
+          <button id="addActivityBtn" class="btn-primary" type="button" data-i18n="addItem">+ Add Item</button>
+          <button id="clearDayBtn" class="btn-secondary" data-i18n="clearDay">Clear Day</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="map-card card">
+      <h2 data-i18n="tripMap">Trip Map</h2>
+      <p class="map-status" id="mapStatus">Loading map…</p>
+      <div id="tripMap" class="trip-map"></div>
+      <div class="map-legend" id="mapLegend"></div>
+    </section>
+
+    <section class="route-card card">
+      <h2 data-i18n="route">Route</h2>
+      <label class="route-mode-label">
+        <span data-i18n="travelMode">Travel Mode</span>
+        <select id="routeMode">
+          <option value="DRIVING" data-i18n="driving">Driving</option>
+          <option value="WALKING" data-i18n="walking">Walking</option>
+          <option value="TRANSIT" data-i18n="transit">Transit</option>
+        </select>
+      </label>
+      <p class="route-status" id="routeStatus"></p>
+      <div class="route-list" id="routeList"></div>
+    </section>
+
+    <section class="currency-card card">
+      <h2 data-i18n="wallet">Wallet</h2>
+      <h3 class="currency-section-title" data-i18n="currencyExchange">Currency Exchange</h3>
+      <div class="currency-convert-panel">
+        <div class="currency-box">
+          <span class="currency-box-label">From</span>
+          <select id="currencyFrom" class="currency-select"></select>
+          <input type="number" id="currencyAmount" class="currency-amount-input" value="0">
+        </div>
+        <button type="button" id="currencySwapBtn" class="currency-swap-btn" aria-label="Swap currencies">→</button>
+        <div class="currency-box">
+          <span class="currency-box-label">To</span>
+          <select id="currencyTo" class="currency-select"></select>
+          <span id="currencyResult" class="currency-amount-result">0</span>
+        </div>
+      </div>
+      <p class="currency-rate-status" id="currencyRateStatus"></p>
+      <h3 class="currency-section-title" data-i18n="bills">Bills</h3>
+      <div id="billTabs" class="bill-tabs" role="tablist" aria-label="Bill members"></div>
+      <div class="expense-list" id="expenseList"></div>
+      <button type="button" id="addExpenseBtn" class="btn-add-expense" data-i18n="addExpense">+ Add Expense</button>
+    </section>
+
+    <details class="info-toggle">
+      <summary>Trip Info · Flight Schedule</summary>
+      <div class="info-panel">
+        <label>
+          Departure Flight
+          <input type="text" id="departureFlight" placeholder="e.g. BR087, 19 May 09:20">
+        </label>
+        <label>
+          Return Flight
+          <input type="text" id="returnFlight" placeholder="e.g. BR088, 30 May 21:40">
+        </label>
+      </div>
+    </details>
+
+    <main class="container">
+      <div id="activityModalOverlay" class="modal-overlay hidden">
+        <section class="add-activity card modal-card">
+          <div class="modal-header">
+            <h2 id="activityModalTitle">Add Item</h2>
+            <button id="closeActivityModalBtn" class="icon-btn" type="button" aria-label="Close">&times;</button>
+          </div>
+          <form id="activityForm" class="activity-form">
+            <label>
+              Date
+              <input type="date" id="activityDate" required>
+            </label>
+            <label>
+              Time
+              <input type="time" id="activityTime">
+            </label>
+            <label class="grow">
+              Item Name
+              <input type="text" id="activityTitle" placeholder="e.g. Visit Colosseum">
+            </label>
+            <label>
+              Category
+              <select id="activityCategory">
+                <option value="flight">Flight</option>
+                <option value="sight">Sightseeing</option>
+                <option value="meal">Meal</option>
+                <option value="transport">Transport</option>
+                <option value="hotel">Hotel</option>
+                <option value="shopping">Shopping</option>
+                <option value="other">Other</option>
+              </select>
+            </label>
+            <div id="flightDetails" class="flight-details hidden">
+              <label>
+                Flight Number
+                <input type="text" id="flightNumber" placeholder="e.g. UA 1234">
+              </label>
+              <label>
+                Departure Airport
+                <input type="text" id="flightDeparture" placeholder="e.g. SFO">
+              </label>
+              <label>
+                Arrival Airport
+                <input type="text" id="flightArrival" placeholder="e.g. LIH">
+              </label>
+              <label>
+                Arrival Date
+                <input type="date" id="flightArrivalDate">
+              </label>
+              <label>
+                Arrival Time
+                <input type="time" id="flightArrivalTime">
+              </label>
+              <label>
+                Departure Terminal
+                <input type="text" id="departureTerminal" placeholder="e.g. A">
+              </label>
+              <label>
+                Departure Gate
+                <input type="text" id="departureGate" placeholder="e.g. 2">
+              </label>
+              <label>
+                Arrival Terminal
+                <input type="text" id="arrivalTerminal" placeholder="e.g. B">
+              </label>
+              <label>
+                Arrival Gate
+                <input type="text" id="arrivalGate" placeholder="e.g. 5">
+              </label>
+            </div>
+            <label class="grow">
+              Location
+              <input type="text" id="activityLocation" list="locationSuggestions" placeholder="Search a place or address">
+              <datalist id="locationSuggestions"></datalist>
+            </label>
+            <p class="field-hint hidden" id="placeLookupStatus" aria-live="polite"></p>
+            <label>
+              Rating
+              <input type="number" id="activityRating" min="0" max="5" step="0.1" inputmode="decimal" placeholder="e.g. 4.2">
+            </label>
+            <label class="grow">
+              Address
+              <input type="text" id="activityDescription" placeholder="Place address">
+            </label>
+            <label>
+              Map
+              <select id="activityMapProvider">
+                <option value="google">Google Maps</option>
+                <option value="naver">Naver Maps</option>
+                <option value="kakao">Kakao Map</option>
+              </select>
+            </label>
+            <div id="shoppingDetails" class="shopping-details hidden">
+              <div class="shopping-section-title"><span aria-hidden="true">🛒</span> Shopping list</div>
+              <div class="shopping-product-fields">
+                <input type="text" id="shoppingNameInput" placeholder="Product name">
+                <input type="url" id="shoppingImageInput" placeholder="Small image URL (optional)">
+                <input type="url" id="shoppingProductUrlInput" placeholder="Product URL (optional)">
+                <img id="shoppingImagePreview" class="shopping-input-preview hidden" alt="Product preview">
+                <span id="shoppingImageStatus" class="shopping-image-status" aria-live="polite"></span>
+                <button type="button" id="addShoppingItemBtn" class="btn-secondary">+ Add item</button>
+              </div>
+              <div id="shoppingItemList" class="shopping-item-list"></div>
+            </div>
+            <label>
+              Upfront Payment
+              <input type="text" id="activityExpense" placeholder="e.g. $20 or NT$500">
+            </label>
+            <label>
+              Currency
+              <select id="activityExpenseCurrency"></select>
+            </label>
+            <label>
+              Member
+              <select id="activityBillMember">
+                <option value="">Shared / All members</option>
+              </select>
+            </label>
+            <label class="grow">
+              Remarks
+              <input type="text" id="activityRemarks" placeholder="Optional remarks">
+            </label>
+            <button id="activitySubmitBtn" type="submit" class="btn-primary">Add Item</button>
+          </form>
+        </section>
+      </div>
+    </main>
+
+    <div id="expenseModalOverlay" class="modal-overlay hidden">
+      <section class="add-activity card modal-card">
+        <div class="modal-header">
+          <h2 id="expenseModalTitle">Add Expense</h2>
+          <button id="closeExpenseModalBtn" class="icon-btn" type="button" aria-label="Close">&times;</button>
+        </div>
+        <form id="expenseForm" class="activity-form">
+          <label class="grow">
+            Title
+            <input type="text" id="billTitle" placeholder="e.g. Taxi fare" required>
+          </label>
+          <label>
+            Date
+            <input type="date" id="billDate">
+          </label>
+          <label>
+            Time
+            <input type="time" id="billTime">
+          </label>
+          <label class="grow">
+            Amount
+            <input type="text" id="billAmount" placeholder="e.g. $20 or NT$500" required>
+          </label>
+          <label>
+            Currency
+            <select id="billExpenseCurrency"></select>
+          </label>
+          <label class="grow">
+            Member
+            <select id="billMember">
+              <option value="">Shared / All members</option>
+            </select>
+          </label>
+          <button id="removeExpenseBtn" class="btn-danger hidden" type="button">Remove Expense</button>
+          <button id="expenseSubmitBtn" type="submit" class="btn-primary">Add Expense</button>
+        </form>
+      </section>
+    </div>
+
+    <footer class="app-footer">
+      <p>Your itinerary is saved automatically in this browser.</p>
+    </footer>
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
