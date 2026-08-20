@@ -41,6 +41,15 @@
           <span data-i18n="endDate">End Date</span>
           <input type="date" id="tripEndDate">
         </label>
+        <div class="primary-city-field theme-picker-field">
+          <span data-i18n="theme">Theme</span>
+          <div class="theme-picker" role="group" aria-label="Theme selection">
+            <button class="theme-swatch" type="button" data-theme-option="joy" aria-label="Joy theme" title="Joy theme"></button>
+            <button class="theme-swatch" type="button" data-theme-option="violet" aria-label="Violet Trip theme" title="Violet Trip theme"></button>
+            <button class="theme-swatch" type="button" data-theme-option="cobalt" aria-label="Cobalt Play theme" title="Cobalt Play theme"></button>
+            <button class="theme-swatch" type="button" data-theme-option="coffee" aria-label="Coffee Cat theme" title="Coffee Cat theme"></button>
+          </div>
+        </div>
       </div>
       <div class="members-section">
         <label for="memberNameInput" data-i18n="members">Trip members</label>
@@ -68,18 +77,18 @@
       <button id="closeSettingsBtn" class="btn-primary" type="button" data-i18n="saveClose">Save & Close</button>
     </section>
 
-    <section class="day-strip-section">
+    <section class="day-strip-section app-view" data-app-view="itinerary">
       <div class="day-strip" id="dayStrip"></div>
     </section>
 
-    <section class="greeting-card">
+    <section class="greeting-card app-view" data-app-view="itinerary">
       <p class="greeting-script" id="greetingScript">Ciao, traveler!</p>
       <h2 id="greetingTitle">Your trip starts soon</h2>
       <p class="greeting-sub" id="greetingSub">Set your dates to begin the countdown</p>
       <div class="route-visual" aria-hidden="true">
-        <span class="route-icon">📍</span>
+        <span class="route-icon route-icon-pin"><svg viewBox="0 0 24 24"><path d="M12 21s6-5.4 6-11A6 6 0 0 0 6 10c0 5.6 6 11 6 11Z"/><circle cx="12" cy="10" r="2"/></svg></span>
         <span class="route-dash"></span>
-        <span class="route-icon">✈️</span>
+        <span class="route-icon route-icon-plane"><svg viewBox="0 0 24 24"><path d="m3 13 18-8-6 7 4 5-2 1-5-4-4 5-2-1 2-6Z"/><path d="m12 14 3-2"/></svg></span>
       </div>
       <div class="today-badge">
         <div class="today-badge-copy">
@@ -88,6 +97,7 @@
           <span class="today-location" id="todayLocation">No destination yet</span>
         </div>
         <div class="today-weather-panel">
+            <span class="today-weather-icon" id="todayWeatherIcon" aria-hidden="true">☀</span>
           <span class="today-weather-description" id="todayWeatherDescription">Forecast</span>
           <strong class="today-temperature" id="todayTemperature">—°C</strong>
         </div>
@@ -102,14 +112,14 @@
       </div>
     </section>
 
-    <section class="map-card card">
+    <section class="map-card card app-view" data-app-view="map">
       <h2 data-i18n="tripMap">Trip Map</h2>
       <p class="map-status" id="mapStatus">Loading map…</p>
       <div id="tripMap" class="trip-map"></div>
       <div class="map-legend" id="mapLegend"></div>
     </section>
 
-    <section class="route-card card">
+    <section class="route-card card app-view" data-app-view="map">
       <h2 data-i18n="route">Route</h2>
       <label class="route-mode-label">
         <span data-i18n="travelMode">Travel Mode</span>
@@ -123,7 +133,7 @@
       <div class="route-list" id="routeList"></div>
     </section>
 
-    <section class="currency-card card">
+    <section class="currency-card card app-view" data-app-view="wallet">
       <h2 data-i18n="wallet">Wallet</h2>
       <section class="virtual-card" aria-label="Trip budget card">
         <div class="virtual-card-topline">
@@ -166,7 +176,33 @@
       <button type="button" id="addExpenseBtn" class="btn-add-expense" data-i18n="addExpense">+ Add Expense</button>
     </section>
 
-    <details class="info-toggle">
+    <section class="profile-card card app-view" data-app-view="profile">
+      <div class="profile-identity">
+        <span id="profileInitials" class="profile-avatar">T</span>
+        <div>
+          <p class="profile-kicker" data-i18n="tripProfile">Trip profile</p>
+          <h2 id="profileTripName">My Trip</h2>
+          <p id="profileDestination" class="profile-destination">No destination yet</p>
+        </div>
+      </div>
+      <div class="profile-stats">
+        <div>
+          <strong id="profileDayCount">0</strong>
+          <span data-i18n="days">Days</span>
+        </div>
+        <div>
+          <strong id="profileMemberCount">0</strong>
+          <span data-i18n="members">Trip members</span>
+        </div>
+        <div>
+          <strong id="profileItemCount">0</strong>
+          <span data-i18n="items">Items</span>
+        </div>
+      </div>
+      <button id="editTripProfileBtn" class="btn-secondary profile-edit-btn" type="button" data-i18n="editTrip">Edit trip</button>
+    </section>
+
+    <details class="info-toggle app-view" data-app-view="itinerary">
       <summary>Trip Info · Flight Schedule</summary>
       <div class="info-panel">
         <label>
@@ -346,6 +382,26 @@
         </form>
       </section>
     </div>
+
+    <nav class="app-tab-bar" aria-label="Primary navigation">
+      <span class="app-tab-indicator" aria-hidden="true"></span>
+      <button class="app-tab is-active" type="button" data-app-tab="itinerary" aria-current="page">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h5"/></svg>
+        <span data-i18n="itinerary">Itinerary</span>
+      </button>
+      <button class="app-tab" type="button" data-app-tab="map">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 6 5-2 6 2 5-2v14l-5 2-6-2-5 2zm5-2v14m6-12v14"/></svg>
+        <span data-i18n="tripMap">Trip Map</span>
+      </button>
+      <button class="app-tab" type="button" data-app-tab="wallet">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7a3 3 0 0 1 3-3h11v16H7a3 3 0 0 1-3-3zm0 0h15v9H4m11-4h4"/></svg>
+        <span data-i18n="wallet">Wallet</span>
+      </button>
+      <button class="app-tab" type="button" data-app-tab="profile">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c.8-3.1 3.2-4.7 7-4.7s6.2 1.6 7 4.7"/></svg>
+        <span data-i18n="profile">Profile</span>
+      </button>
+    </nav>
 
     <footer class="app-footer">
       <p>Your itinerary is saved automatically in this browser.</p>

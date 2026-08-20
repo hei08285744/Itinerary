@@ -12,6 +12,7 @@ const tripNameInput = document.getElementById('tripName');
 const tripDestinationInput = document.getElementById('tripDestination');
 const tripStartDateInput = document.getElementById('tripStartDate');
 const tripEndDateInput = document.getElementById('tripEndDate');
+const themeButtons = document.querySelectorAll('[data-theme-option]');
 const departureFlightInput = document.getElementById('departureFlight');
 const returnFlightInput = document.getElementById('returnFlight');
 const mapStatus = document.getElementById('mapStatus');
@@ -81,6 +82,17 @@ const settingsBtn = document.getElementById('settingsBtn');
 const closeSettingsBtn = document.getElementById('closeSettingsBtn');
 const tripSettings = document.getElementById('tripSettings');
 const dayStrip = document.getElementById('dayStrip');
+const appViews = document.querySelectorAll('[data-app-view]');
+const appTabs = document.querySelectorAll('[data-app-tab]');
+const appTabBar = document.querySelector('.app-tab-bar');
+const appTabIndicator = document.querySelector('.app-tab-indicator');
+const profileInitials = document.getElementById('profileInitials');
+const profileTripName = document.getElementById('profileTripName');
+const profileDestination = document.getElementById('profileDestination');
+const profileDayCount = document.getElementById('profileDayCount');
+const profileMemberCount = document.getElementById('profileMemberCount');
+const profileItemCount = document.getElementById('profileItemCount');
+const editTripProfileBtn = document.getElementById('editTripProfileBtn');
 const greetingScript = document.getElementById('greetingScript');
 const greetingTitle = document.getElementById('greetingTitle');
 const greetingSub = document.getElementById('greetingSub');
@@ -89,6 +101,7 @@ const todayLocation = document.getElementById('todayLocation');
 const todayBadge = document.querySelector('.today-badge');
 const todayWeatherDescription = document.getElementById('todayWeatherDescription');
 const todayTemperature = document.getElementById('todayTemperature');
+const todayWeatherIcon = document.getElementById('todayWeatherIcon');
 const languageSelect = document.getElementById('languageSelect');
 const cityPeriods = document.getElementById('cityPeriods');
 const addCityBtn = document.getElementById('addCityBtn');
@@ -100,21 +113,21 @@ const memberList = document.getElementById('memberList');
 
 const TRANSLATIONS = {
   en: {
-    tripDetails: 'Trip Details', tripName: 'Trip Name', destination: 'Destination',
+    tripDetails: 'Trip Details', tripName: 'Trip Name', destination: 'Destination', theme: 'Theme',
     startDate: 'Start Date', endDate: 'End Date', saveClose: 'Save & Close', today: 'TODAY',
     addItem: '+ Add Item', clearDay: 'Clear Day', tripMap: 'Trip Map', route: 'Route',
     travelMode: 'Travel Mode', driving: 'Driving', walking: 'Walking', transit: 'Transit',
-    wallet: 'Wallet', tripBudget: 'Trip budget', totalSpent: 'Total spent', budgetLeft: 'Budget left', currencyExchange: 'Currency Exchange', bills: 'Bills', addExpense: '+ Add Expense',
+    itinerary: 'Itinerary', profile: 'Profile', tripProfile: 'Trip profile', editTrip: 'Edit trip', days: 'Days', items: 'Items', wallet: 'Wallet', tripBudget: 'Trip budget', totalSpent: 'Total spent', budgetLeft: 'Budget left', currencyExchange: 'Currency Exchange', bills: 'Bills', addExpense: '+ Add Expense',
     multipleCities: 'Multiple cities', addCity: '+ Add city', city: 'City', remove: 'Remove', editItem: 'Edit Item',
     members: 'Trip members', addMember: '+ Add', memberPlaceholder: 'e.g. Alex',
     exportItinerary: 'Download itinerary', importItinerary: 'Load itinerary',
   },
   zh: {
-    tripDetails: '行程詳情', tripName: '行程名稱', destination: '目的地',
+    tripDetails: '行程詳情', tripName: '行程名稱', destination: '目的地', theme: '主題',
     startDate: '開始日期', endDate: '結束日期', saveClose: '儲存並關閉', today: '今天',
     addItem: '+ 新增項目', clearDay: '清除當天', tripMap: '行程地圖', route: '路線',
     travelMode: '交通方式', driving: '開車', walking: '步行', transit: '大眾運輸',
-    wallet: '錢包', tripBudget: '旅程預算', totalSpent: '已支出', budgetLeft: '剩餘預算', currencyExchange: '貨幣兌換', bills: '帳單', addExpense: '+ 新增支出',
+    itinerary: '行程', profile: '個人檔案', tripProfile: '行程檔案', editTrip: '編輯行程', days: '天', items: '項目', wallet: '錢包', tripBudget: '旅程預算', totalSpent: '已支出', budgetLeft: '剩餘預算', currencyExchange: '貨幣兌換', bills: '帳單', addExpense: '+ 新增支出',
     multipleCities: '多城市行程', addCity: '+ 新增城市', city: '城市', remove: '移除', editItem: '編輯項目',
     members: '同行成員', addMember: '+ 新增', memberPlaceholder: '例如：小明',
     exportItinerary: '下載行程', importItinerary: '載入行程',
@@ -163,6 +176,7 @@ function loadState() {
     bills: [],
     routeFees: {},
     walletBudget: 0,
+    theme: 'joy',
   };
 }
 
@@ -176,6 +190,8 @@ function init() {
   tripDestinationInput.value = state.tripDestination || '';
   tripStartDateInput.value = state.tripStartDate || '';
   tripEndDateInput.value = state.tripEndDate || '';
+  if (!['joy', 'violet', 'cobalt', 'coffee'].includes(state.theme)) state.theme = 'joy';
+  applyTheme();
   departureFlightInput.value = state.departureFlight || '';
   returnFlightInput.value = state.returnFlight || '';
   if (!state.geocodeCache) state.geocodeCache = {};
@@ -207,6 +223,23 @@ languageSelect.addEventListener('change', () => {
   render();
 });
 
+themeButtons.forEach((button) => {
+  button.addEventListener('click', () => {
+    state.theme = button.dataset.themeOption;
+    applyTheme();
+    saveState();
+  });
+});
+
+function applyTheme() {
+  document.documentElement.dataset.theme = state.theme || 'joy';
+  themeButtons.forEach((button) => {
+    const isSelected = button.dataset.themeOption === state.theme;
+    button.classList.toggle('is-selected', isSelected);
+    button.setAttribute('aria-pressed', String(isSelected));
+  });
+}
+
 settingsBtn.addEventListener('click', () => {
   tripSettings.classList.toggle('hidden');
 });
@@ -214,6 +247,44 @@ settingsBtn.addEventListener('click', () => {
 closeSettingsBtn.addEventListener('click', () => {
   tripSettings.classList.add('hidden');
 });
+
+appTabs.forEach((tab) => {
+  tab.addEventListener('click', () => setActiveAppView(tab.dataset.appTab));
+});
+
+editTripProfileBtn.addEventListener('click', () => {
+  setActiveAppView('itinerary');
+  tripSettings.classList.remove('hidden');
+  tripSettings.scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+
+function setActiveAppView(viewName) {
+  appViews.forEach((view) => {
+    view.classList.toggle('app-view-hidden', view.dataset.appView !== viewName);
+  });
+  appTabs.forEach((tab) => {
+    const isActive = tab.dataset.appTab === viewName;
+    tab.classList.toggle('is-active', isActive);
+    tab.toggleAttribute('aria-current', isActive);
+  });
+  updateAppTabIndicator();
+  if (viewName === 'map' && mapsApiLoaded) {
+    updateMapMarkers();
+  }
+}
+
+function updateAppTabIndicator() {
+  const activeTab = document.querySelector('.app-tab.is-active');
+  if (!activeTab) return;
+  const barBounds = appTabBar.getBoundingClientRect();
+  const tabBounds = activeTab.getBoundingClientRect();
+  appTabBar.style.setProperty('--active-tab-x', `${tabBounds.left - barBounds.left + tabBounds.width / 2}px`);
+  appTabIndicator.innerHTML = activeTab.querySelector('svg').outerHTML;
+}
+
+window.addEventListener('resize', updateAppTabIndicator);
+
+setActiveAppView('itinerary');
 
 addMemberBtn.addEventListener('click', addMember);
 memberNameInput.addEventListener('keydown', (event) => {
@@ -721,6 +792,7 @@ async function loadTodayWeather(dateStr, city) {
   const requestId = ++weatherRequestId;
   todayWeatherDescription.textContent = state.language === 'zh' ? '天氣預報' : 'Forecast';
   todayTemperature.textContent = '—°C';
+  todayWeatherIcon.textContent = '☀';
   todayBadge.className = 'today-badge weather-default';
   if (!city) return;
   const cacheKey = `${city}|${dateStr}`;
@@ -763,6 +835,9 @@ function applyTodayWeather(weather) {
   const weatherClass = value.includes('rain') ? 'weather-rain'
     : value.includes('snow') ? 'weather-snow'
       : value.includes('cloud') ? 'weather-cloudy' : 'weather-sunny';
+  todayWeatherIcon.textContent = weatherClass === 'weather-rain' ? '☂'
+    : weatherClass === 'weather-snow' ? '❄'
+      : weatherClass === 'weather-cloudy' ? '☁' : '☀';
   todayBadge.className = `today-badge ${weatherClass}`;
 }
 
@@ -1283,12 +1358,24 @@ function render() {
   renderTopBar();
   renderDayStrip(days);
   renderGreetingAndDaySelector(days);
+  renderProfile(days);
   renderMapLegend(days);
   if (mapsApiLoaded) updateMapMarkers();
 
   renderItineraryForSelectedDay(days);
   renderRoutePanel(days);
   renderExpenseList();
+}
+
+function renderProfile(days) {
+  const tripName = state.tripName || (state.language === 'zh' ? '我的旅程' : 'My Trip');
+  const destination = state.tripDestination || (state.language === 'zh' ? '尚未設定目的地' : 'No destination yet');
+  profileTripName.textContent = tripName;
+  profileDestination.textContent = destination;
+  profileInitials.textContent = tripName.trim().slice(0, 1).toUpperCase() || 'T';
+  profileDayCount.textContent = days.length;
+  profileMemberCount.textContent = (state.members || []).length;
+  profileItemCount.textContent = (state.activities || []).length;
 }
 
 function getBillEntries() {
