@@ -1434,6 +1434,44 @@ select:focus {
   grid-column: 1 / -1;
 }
 
+@media (max-width: 768px) {
+  .activity-form > .activity-date-field,
+  .activity-form > .activity-time-field {
+    grid-column: 1 / -1;
+  }
+
+  .city-period-dates,
+  .flight-details {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .city-period-dates input[type='date'],
+  .activity-date-field input[type='date'],
+  .activity-time-field input[type='time'],
+  .flight-details input[type='date'],
+  .flight-details input[type='time'] {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    min-height: 42px;
+  }
+
+  .modal-overlay {
+    align-items: flex-end;
+    padding: 0;
+    overflow-y: auto;
+  }
+
+  .modal-card {
+    width: 100%;
+    max-width: none;
+    max-height: min(88dvh, 720px);
+    margin: 0;
+    padding: 1rem 1rem calc(1rem + env(safe-area-inset-bottom));
+    border-radius: 18px 18px 0 0;
+  }
+}
+
 .day-group {
   position: relative;
   padding-left: 0;
