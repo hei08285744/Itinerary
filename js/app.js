@@ -678,7 +678,6 @@ function openActivityModal(activity = null) {
     document.getElementById('activityDate').value = selectedDate;
   }
   activityModalOverlay.classList.remove('hidden');
-  document.getElementById('activityTitle').focus();
 }
 
 function toggleFlightDetails(category) {
@@ -2927,7 +2926,6 @@ function openExpenseModal() {
     document.getElementById('billDate').value = selectedDate;
   }
   expenseModalOverlay.classList.remove('hidden');
-  document.getElementById('billTitle').focus();
 }
 
 function closeExpenseModal() {
