@@ -11,7 +11,6 @@ let destinationClockTimer = null;
 let destinationClockRequestId = 0;
 let currentDestinationCity = '';
 let currentDestinationCoordinates = null;
-const mobileFooter = document.querySelector('.app-tab-bar');
 
 const tripNameInput = document.getElementById('tripName');
 const tripDestinationInput = document.getElementById('tripDestination');
@@ -352,21 +351,6 @@ function updateAppTabIndicator() {
 }
 
 window.addEventListener('resize', updateAppTabIndicator);
-
-function syncMobileFooterViewport() {
-  if (!mobileFooter || !window.visualViewport) return;
-  const viewport = window.visualViewport;
-  const viewportBottom = viewport.offsetTop + viewport.height;
-  const layoutBottomGap = Math.max(0, window.innerHeight - viewportBottom);
-  mobileFooter.style.setProperty('--footer-viewport-bottom', `${layoutBottomGap}px`);
-}
-
-if (window.visualViewport) {
-  window.visualViewport.addEventListener('resize', syncMobileFooterViewport);
-  window.visualViewport.addEventListener('scroll', syncMobileFooterViewport);
-}
-window.addEventListener('resize', syncMobileFooterViewport);
-syncMobileFooterViewport();
 
 setActiveAppView('itinerary');
 

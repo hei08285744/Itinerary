@@ -99,19 +99,6 @@ body {
   color: var(--theme-ink);
 }
 
-body::after {
-  content: '';
-  position: fixed;
-  z-index: 49;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  height: calc(1.2rem + env(safe-area-inset-bottom));
-  background: var(--theme-ink);
-  pointer-events: none;
-  display: none;
-}
-
 h1, h2, h3 {
   font-family: 'Georgia', 'Iowan Old Style', 'Times New Roman', serif;
   font-weight: 500;
@@ -2915,10 +2902,9 @@ select:focus {
 .app-tab-bar {
   --active-tab-index: 0;
   --tab-ball-size: clamp(48px, 13vw, 56px);
-  --footer-viewport-bottom: 0px;
   position: fixed;
   z-index: 50;
-  bottom: calc(0.6rem + var(--footer-viewport-bottom));
+  bottom: 0;
   left: 50%;
   display: grid;
   grid-template-columns: repeat(5, 1fr);
@@ -3567,10 +3553,6 @@ select:focus,
 }
 
 @media (max-width: 640px) {
-  body::after {
-    display: block;
-  }
-
   input,
   select,
   textarea {
@@ -3591,6 +3573,14 @@ select:focus,
 
   .top-bar {
     padding-top: 1.5rem;
+  }
+
+  .app-tab-bar {
+    left: 0;
+    width: 100vw;
+    max-width: none;
+    transform: none;
+    border-radius: 0;
   }
 }
 
