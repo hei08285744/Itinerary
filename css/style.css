@@ -2577,9 +2577,13 @@ select:focus,
   .modal-overlay {
     align-items: flex-start;
     padding: 0.75rem;
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
 
   .modal-card {
+    flex: 0 0 auto;
+    min-height: 0;
     max-height: calc(100dvh - 1.5rem);
     padding: 1rem;
   }
@@ -2753,6 +2757,39 @@ select:focus,
   .activity-form,
   .flight-details {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  input[type='date'],
+  input[type='time'] {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    font-size: 0.9rem;
+  }
+
+  .modal-overlay {
+    padding: 0.5rem;
+  }
+
+  .modal-card {
+    width: 100%;
+    max-height: calc(100dvh - 1rem);
+    padding: 0.85rem;
+  }
+
+  .activity-form {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.65rem;
+  }
+
+  .activity-form label,
+  .flight-details label {
+    width: 100%;
+  }
+
+  .flight-details {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 0.6rem;
   }
 
   .currency-convert-panel {
