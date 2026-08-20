@@ -2710,6 +2710,53 @@ select:focus,
   .flight-times span {
     font-size: 0.65rem;
   }
+
+  .city-period-dates {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.6rem;
+  }
+
+  .city-period-dates label,
+  .city-period-dates input[type='date'] {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .city-period-dates input[type='date'] {
+    min-height: 42px;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.88rem;
+  }
+
+  .modal-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .modal-card {
+    width: 100%;
+    max-width: none;
+    max-height: min(86dvh, 720px);
+    margin: 0;
+    padding: 1rem 1rem calc(1rem + env(safe-area-inset-bottom));
+    border-radius: 18px 18px 0 0;
+    overscroll-behavior: contain;
+  }
+
+  .activity-form,
+  .flight-details {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .activity-form input,
+  .activity-form select,
+  .flight-details input,
+  .flight-details select {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
 }
 
 @media (max-width: 420px) {
