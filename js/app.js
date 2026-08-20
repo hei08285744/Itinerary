@@ -29,6 +29,7 @@ const activityLocationInput = document.getElementById('activityLocation');
 const activityRatingInput = document.getElementById('activityRating');
 const activityDescriptionInput = document.getElementById('activityDescription');
 const activityMapProviderInput = document.getElementById('activityMapProvider');
+const activityNaverUrlInput = document.getElementById('activityNaverUrl');
 const activityExpenseInput = document.getElementById('activityExpense');
 const activityExpenseCurrencyInput = document.getElementById('activityExpenseCurrency');
 const activityBillMemberInput = document.getElementById('activityBillMember');
@@ -74,6 +75,14 @@ let currentPlaceAddress = '';
 const routeList = document.getElementById('routeList');
 const routeStatus = document.getElementById('routeStatus');
 const routeModeSelect = document.getElementById('routeMode');
+const savedRoutePanel = document.getElementById('savedRoutePanel');
+const savedRoutePlatform = document.getElementById('savedRoutePlatform');
+const spotASelect = document.getElementById('spotASelect');
+const spotBSelect = document.getElementById('spotBSelect');
+const spotRouteStatus = document.getElementById('spotRouteStatus');
+const spotRouteResult = document.getElementById('spotRouteResult');
+const spotFareGrid = document.getElementById('spotFareGrid');
+const saveSuggestedRouteBtn = document.getElementById('saveSuggestedRouteBtn');
 
 const topBarTripName = document.getElementById('topBarTripName');
 const topBarDestination = document.getElementById('topBarDestination');
@@ -105,8 +114,28 @@ const todayWeatherIcon = document.getElementById('todayWeatherIcon');
 const languageSelect = document.getElementById('languageSelect');
 const cityPeriods = document.getElementById('cityPeriods');
 const addCityBtn = document.getElementById('addCityBtn');
-const exportItineraryBtn = document.getElementById('exportItineraryBtn');
-const importItineraryInput = document.getElementById('importItineraryInput');
+const profileImportItineraryInput = document.getElementById('profileImportItineraryInput');
+const profileExportItineraryBtn = document.getElementById('profileExportItineraryBtn');
+const newTripBtn = document.getElementById('newTripBtn');
+const profileTripLibrary = document.getElementById('profileTripLibrary');
+const shoppingHaulList = document.getElementById('shoppingHaulList');
+const shoppingHaulCount = document.getElementById('shoppingHaulCount');
+const shoppingHaulProgress = document.getElementById('shoppingHaulProgress');
+const shoppingHaulForm = document.getElementById('shoppingHaulForm');
+const shoppingHaulActivity = document.getElementById('shoppingHaulActivity');
+const shoppingHaulName = document.getElementById('shoppingHaulName');
+const shoppingHaulImage = document.getElementById('shoppingHaulImage');
+const shoppingHaulUrl = document.getElementById('shoppingHaulUrl');
+const shoppingHaulModal = document.getElementById('shoppingHaulModal');
+const openShoppingHaulFormBtn = document.getElementById('openShoppingHaulFormBtn');
+const closeShoppingHaulFormBtn = document.getElementById('closeShoppingHaulFormBtn');
+const shoppingHaulModalTitle = document.getElementById('shoppingHaulModalTitle');
+const shoppingHaulTotal = document.getElementById('shoppingHaulTotal');
+const shoppingHaulDone = document.getElementById('shoppingHaulDone');
+const shoppingHaulRemaining = document.getElementById('shoppingHaulRemaining');
+const shoppingHaulPercent = document.getElementById('shoppingHaulPercent');
+let editingShoppingItem = null;
+let editingShoppingActivity = null;
 const memberNameInput = document.getElementById('memberNameInput');
 const addMemberBtn = document.getElementById('addMemberBtn');
 const memberList = document.getElementById('memberList');
@@ -115,22 +144,22 @@ const TRANSLATIONS = {
   en: {
     tripDetails: 'Trip Details', tripName: 'Trip Name', destination: 'Destination', theme: 'Theme', settings: 'Settings', language: 'Language',
     startDate: 'Start Date', endDate: 'End Date', saveClose: 'Save & Close', today: 'TODAY',
-    addItem: '+ Add Item', clearDay: 'Clear Day', tripMap: 'Trip Map', route: 'Route',
-    travelMode: 'Travel Mode', driving: 'Driving', walking: 'Walking', transit: 'Transit',
-    itinerary: 'Itinerary', profile: 'Profile', tripProfile: 'Trip profile', editTrip: 'Edit trip', days: 'Days', items: 'Items', wallet: 'Wallet', tripBudget: 'Trip budget', totalSpent: 'Total spent', budgetLeft: 'Budget left', currencyExchange: 'Currency Exchange', bills: 'Bills', addExpense: '+ Add Expense',
+    addItem: '+ Add Item', clearDay: 'Clear Day', tripMap: 'Trip Map', route: 'Route', suggestedRoute: 'Suggested route · Google Maps', bestTravelMode: 'Best travel mode', spotA: 'Spot A', spotB: 'Spot B', saveRoute: 'Save route', savedRoutes: 'Saved routes',
+    travelMode: 'Travel Mode', driving: 'Driving', automobile: 'Automobile', walking: 'Walking', transit: 'Transit', mapPlatform: 'Map platform',
+    itinerary: 'Itinerary', profile: 'Profile', tripProfile: 'Trip profile', editTrip: 'Edit trip', tripFiles: 'Trip Files', tripFilesHint: 'Load another saved itinerary to replace this trip.', loadAnotherTrip: 'Load another trip', trips: 'Trips', currentTrip: 'Current trip', removeSavedTrip: 'Remove saved trip', removeSavedTripConfirm: 'Remove this saved trip?', days: 'Days', items: 'Items', wallet: 'Wallet', tripBudget: 'Trip budget', totalSpent: 'Total spent', budgetLeft: 'Budget left', currencyExchange: 'Currency Exchange', bills: 'Bills', addExpense: '+ Add Expense',
     multipleCities: 'Multiple cities', addCity: '+ Add city', city: 'City', remove: 'Remove', editItem: 'Edit Item',
-    members: 'Trip members', addMember: '+ Add', memberPlaceholder: 'e.g. Alex',
-    exportItinerary: 'Download itinerary', importItinerary: 'Load itinerary',
+    members: 'Trip members', addMember: '+ Add', memberPlaceholder: 'e.g. Alex', shoppingHaul: 'Shopping Haul', shoppingHaulKicker: 'Shopping haul', shoppingHaulHint: 'Keep every shopping target in one place.', targetItems: 'Target items',
+    exportItinerary: 'Download trip', importItinerary: 'Load itinerary', newTrip: '+ New trip',
   },
   zh: {
     tripDetails: '行程詳情', tripName: '行程名稱', destination: '目的地', theme: '主題', settings: '設定', language: '語言',
     startDate: '開始日期', endDate: '結束日期', saveClose: '儲存並關閉', today: '今天',
-    addItem: '+ 新增項目', clearDay: '清除當天', tripMap: '行程地圖', route: '路線',
-    travelMode: '交通方式', driving: '開車', walking: '步行', transit: '大眾運輸',
-    itinerary: '行程', profile: '個人檔案', tripProfile: '行程檔案', editTrip: '編輯行程', days: '天', items: '項目', wallet: '錢包', tripBudget: '旅程預算', totalSpent: '已支出', budgetLeft: '剩餘預算', currencyExchange: '貨幣兌換', bills: '帳單', addExpense: '+ 新增支出',
+    addItem: '+ 新增項目', clearDay: '清除當天', tripMap: '行程地圖', route: '路線', suggestedRoute: '建議路線 · Google 地圖', bestTravelMode: '最佳交通方式', spotA: '地點 A', spotB: '地點 B', saveRoute: '儲存路線', savedRoutes: '已儲存路線',
+    travelMode: '交通方式', driving: '開車', automobile: '汽車', walking: '步行', transit: '大眾運輸', mapPlatform: '地圖平台',
+    itinerary: '行程', profile: '個人檔案', tripProfile: '行程檔案', editTrip: '編輯行程', tripFiles: '行程檔案', tripFilesHint: '載入另一個已儲存的行程以取代目前行程。', loadAnotherTrip: '載入其他行程', trips: '行程', currentTrip: '目前行程', removeSavedTrip: '移除已儲存行程', removeSavedTripConfirm: '要移除這個已儲存行程嗎？', days: '天', items: '項目', wallet: '錢包', tripBudget: '旅程預算', totalSpent: '已支出', budgetLeft: '剩餘預算', currencyExchange: '貨幣兌換', bills: '帳單', addExpense: '+ 新增支出',
     multipleCities: '多城市行程', addCity: '+ 新增城市', city: '城市', remove: '移除', editItem: '編輯項目',
-    members: '同行成員', addMember: '+ 新增', memberPlaceholder: '例如：小明',
-    exportItinerary: '下載行程', importItinerary: '載入行程',
+    members: '同行成員', addMember: '+ 新增', memberPlaceholder: '例如：小明', shoppingHaul: '購物清單', shoppingHaulKicker: '購物整理', shoppingHaulHint: '把所有想買的商品集中在這裡。', targetItems: '目標商品',
+    exportItinerary: '下載行程', importItinerary: '載入行程', newTrip: '+ 新行程',
   },
 };
 
@@ -177,11 +206,33 @@ function loadState() {
     routeFees: {},
     walletBudget: 0,
     theme: 'joy',
+    savedRoutes: [],
   };
 }
 
 function saveState() {
+  syncCurrentTripToLibrary();
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function createTripId() {
+  return `trip-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function createTripSnapshot() {
+  const snapshot = { ...state };
+  delete snapshot.tripLibrary;
+  delete snapshot.activeTripId;
+  return snapshot;
+}
+
+function syncCurrentTripToLibrary() {
+  if (!Array.isArray(state.tripLibrary)) state.tripLibrary = [];
+  if (!state.activeTripId) state.activeTripId = createTripId();
+  const snapshot = { id: state.activeTripId, savedAt: new Date().toISOString(), data: createTripSnapshot() };
+  const index = state.tripLibrary.findIndex((trip) => trip.id === state.activeTripId);
+  if (index >= 0) state.tripLibrary[index] = snapshot;
+  else state.tripLibrary.unshift(snapshot);
 }
 
 function init() {
@@ -198,9 +249,12 @@ function init() {
   if (!state.bills) state.bills = [];
   if (!state.routeFees) state.routeFees = {};
   if (!isFinite(Number(state.walletBudget))) state.walletBudget = 0;
+  if (!Array.isArray(state.savedRoutes)) state.savedRoutes = [];
   walletBudgetInput.value = state.walletBudget;
   if (!Array.isArray(state.cities)) state.cities = [];
   if (!Array.isArray(state.members)) state.members = [];
+  if (!Array.isArray(state.tripLibrary)) state.tripLibrary = [];
+  if (!state.activeTripId) state.activeTripId = createTripId();
   if (!state.cities.length && (state.tripDestination || state.tripStartDate || state.tripEndDate)) {
     state.cities = [{ destination: state.tripDestination, startDate: state.tripStartDate, endDate: state.tripEndDate }];
   }
@@ -210,6 +264,7 @@ function init() {
     state.tripEndDate = state.cities[0].endDate || '';
   }
   state.multipleCities = state.cities.length > 1;
+  syncCurrentTripToLibrary();
   renderCityPeriods();
   renderMembers();
   selectedDayIndex = closestDayIndexToToday();
@@ -363,7 +418,7 @@ addCityBtn.addEventListener('click', () => {
   render();
 });
 
-exportItineraryBtn.addEventListener('click', () => {
+function downloadItinerary() {
   const exportData = { ...state, exportedAt: new Date().toISOString(), formatVersion: 1 };
   const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -373,11 +428,34 @@ exportItineraryBtn.addEventListener('click', () => {
   link.download = filename;
   link.click();
   URL.revokeObjectURL(url);
+}
+
+profileExportItineraryBtn.addEventListener('click', downloadItinerary);
+
+newTripBtn.addEventListener('click', () => {
+  saveState();
+  const tripLibrary = state.tripLibrary || [];
+  const language = state.language || 'en';
+  const theme = state.theme || 'joy';
+  Object.keys(state).forEach((key) => delete state[key]);
+  Object.assign(state, {
+    tripName: '', tripDestination: '', tripStartDate: '', tripEndDate: '', multipleCities: false,
+    cities: [], members: [], language, departureFlight: '', returnFlight: '', geocodeCache: {},
+    activities: [], bills: [], routeFees: {}, walletBudget: 0, theme, savedRoutes: [],
+    tripLibrary, activeTripId: createTripId(),
+  });
+  saveState();
+  selectedDayIndex = 0;
+  setActiveAppView('itinerary');
+  tripSettings.classList.remove('hidden');
+  init();
 });
 
-importItineraryInput.addEventListener('change', async () => {
-  const file = importItineraryInput.files[0];
-  importItineraryInput.value = '';
+profileImportItineraryInput.addEventListener('change', () => loadItineraryFile(profileImportItineraryInput));
+
+async function loadItineraryFile(input) {
+  const file = input.files[0];
+  input.value = '';
   if (!file) return;
   try {
     const imported = JSON.parse(await file.text());
@@ -388,6 +466,8 @@ importItineraryInput.addEventListener('change', async () => {
       ? '載入檔案會覆蓋目前行程，確定要繼續嗎？'
       : 'Loading this file will replace the current itinerary. Continue?';
     if (!confirm(message)) return;
+    const tripLibrary = state.tripLibrary || [];
+    Object.keys(state).forEach((key) => delete state[key]);
     Object.assign(state, imported);
     delete state.exportedAt;
     delete state.formatVersion;
@@ -397,13 +477,15 @@ importItineraryInput.addEventListener('change', async () => {
     if (!Array.isArray(state.cities)) state.cities = [];
     if (!state.geocodeCache) state.geocodeCache = {};
     if (!state.routeFees) state.routeFees = {};
+    state.tripLibrary = tripLibrary;
+    state.activeTripId = createTripId();
     state.multipleCities = state.cities.length > 1;
     saveState();
     init();
   } catch (error) {
     alert(state.language === 'zh' ? '無法載入行程檔案。' : 'Could not load this itinerary file.');
   }
-});
+}
 
 function syncPrimaryCity() {
   if (!Array.isArray(state.cities)) state.cities = [];
@@ -499,6 +581,7 @@ activityForm.addEventListener('submit', (e) => {
     billMember: activityBillMemberInput.value,
     address: activityDescriptionInput.value.trim() || currentPlaceAddress,
     mapProvider: activityMapProviderInput.value || 'google',
+    naverUrl: activityNaverUrlInput.value.trim(),
     shoppingItems: category === 'shopping' ? shoppingItemsDraft : [],
     flightNumber: document.getElementById('flightNumber').value.trim(),
     flightDeparture: document.getElementById('flightDeparture').value.trim(),
@@ -564,6 +647,7 @@ function openActivityModal(activity = null) {
     document.getElementById('activityRating').value = activity.rating || '';
     document.getElementById('activityDescription').value = activity.address || activity.description || '';
     activityMapProviderInput.value = activity.mapProvider || 'google';
+    activityNaverUrlInput.value = activity.naverUrl || '';
     document.getElementById('activityExpense').value = activity.expense || '';
     activityExpenseCurrencyInput.value = getExpenseCurrency(activity.expense) || activityExpenseCurrencyInput.value;
     activityBillMemberInput.value = activity.billMember || '';
@@ -922,6 +1006,54 @@ let mapsApiLoaded = false;
 let mapsApiLoading = false;
 let placeAutocomplete = null;
 
+const TRAVEL_MAP_STYLES = [
+  {
+    featureType: 'administrative',
+    elementType: 'labels.text.fill',
+    stylers: [{ color: '#56635f' }],
+  },
+  {
+    featureType: 'landscape',
+    elementType: 'geometry.fill',
+    stylers: [{ color: '#f3f0e8' }],
+  },
+  {
+    featureType: 'poi',
+    elementType: 'geometry.fill',
+    stylers: [{ color: '#e3eedf' }],
+  },
+  {
+    featureType: 'poi',
+    elementType: 'labels.text',
+    stylers: [{ visibility: 'off' }],
+  },
+  {
+    featureType: 'road',
+    elementType: 'geometry',
+    stylers: [{ color: '#ffffff' }],
+  },
+  {
+    featureType: 'road',
+    elementType: 'geometry.stroke',
+    stylers: [{ color: '#dedbd2' }],
+  },
+  {
+    featureType: 'road.highway',
+    elementType: 'geometry.fill',
+    stylers: [{ color: '#f7d7a8' }],
+  },
+  {
+    featureType: 'transit',
+    elementType: 'geometry',
+    stylers: [{ color: '#d8e4e0' }],
+  },
+  {
+    featureType: 'water',
+    elementType: 'geometry.fill',
+    stylers: [{ color: '#b9e3e8' }],
+  },
+];
+
 function loadGoogleMaps(apiKey) {
   if (!apiKey || mapsApiLoaded || mapsApiLoading) return;
   if (apiKey === 'YOUR_GOOGLE_MAPS_API_KEY' || apiKey.length < 20) {
@@ -946,8 +1078,12 @@ function loadGoogleMaps(apiKey) {
     map = new google.maps.Map(tripMapEl, {
       center: { lat: 20, lng: 0 },
       zoom: 2,
+      disableDefaultUI: true,
       streetViewControl: false,
       fullscreenControl: false,
+      mapTypeControl: false,
+      keyboardShortcuts: false,
+      styles: TRAVEL_MAP_STYLES,
     });
     geocoder = new google.maps.Geocoder();
     placesService = new google.maps.places.PlacesService(map);
@@ -955,12 +1091,13 @@ function loadGoogleMaps(apiKey) {
     setupPlaceAutocomplete();
     tripMapEl.style.display = 'block';
     updateMapMarkers();
+    renderSpotRouteSelectors(getTripDays());
     renderDayStrip(getTripDays());
     if (activityLocationInput.value.trim()) lookupPlaceDetails();
   };
 
   const script = document.createElement('script');
-  script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&libraries=places&callback=__initTripMap`;
+  script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&libraries=places,geometry&callback=__initTripMap`;
   script.async = true;
   script.onerror = () => {
     mapsApiLoading = false;
@@ -1101,10 +1238,13 @@ function updateMapMarkers() {
   clearMarkers();
 
   const days = getTripDays();
-  const locatable = state.activities.filter((a) => a.location && days.includes(a.date));
+  const selectedDate = days[selectedDayIndex];
+  const locatable = state.activities.filter((a) => a.location && a.date === selectedDate);
 
   if (!locatable.length) {
-    mapStatus.textContent = 'Add a city/location to your activities to see pins here.';
+    mapStatus.textContent = state.language === 'zh'
+      ? '這一天尚未新增地點。'
+      : 'Add a location to this day to see its pin here.';
     mapStatus.style.display = 'block';
     return;
   }
@@ -1145,11 +1285,225 @@ function updateMapMarkers() {
   });
 }
 
+let suggestedRouteRenderer = null;
+let suggestedMarkers = [];
+let suggestedPolyline = null;
+let currentSuggestedRoute = null;
+
+function renderSpotRouteSelectors(days) {
+  if (suggestedRouteRenderer) suggestedRouteRenderer.setMap(null);
+  clearSuggestedGeometry();
+  const selectedDate = days[selectedDayIndex];
+  const spots = state.activities
+    .filter((activity) => activity.date === selectedDate && activity.location)
+    .sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+  const previousA = spotASelect.value;
+  const previousB = spotBSelect.value;
+  spotASelect.innerHTML = '';
+  spotBSelect.innerHTML = '';
+  spots.forEach((spot) => {
+    const label = spot.location;
+    spotASelect.add(new Option(label, spot.id));
+    spotBSelect.add(new Option(label, spot.id));
+  });
+  if (spots.length < 2) {
+    spotASelect.disabled = true;
+    spotBSelect.disabled = true;
+    spotRouteStatus.textContent = state.language === 'zh' ? '需要至少兩個地點' : 'Add two locations';
+    spotRouteResult.textContent = '';
+    spotFareGrid.innerHTML = '';
+    currentSuggestedRoute = null;
+    saveSuggestedRouteBtn.disabled = true;
+    return;
+  }
+  spotASelect.disabled = false;
+  spotBSelect.disabled = false;
+  spotASelect.value = spots.some((spot) => spot.id === previousA) ? previousA : spots[0].id;
+  spotBSelect.value = spots.some((spot) => spot.id === previousB && spot.id !== spotASelect.value)
+    ? previousB
+    : spots.find((spot) => spot.id !== spotASelect.value).id;
+  spotRouteStatus.textContent = mapsApiLoaded ? '' : 'Map API loading…';
+  requestSuggestedRoute();
+}
+
+function requestSuggestedRoute() {
+  if (!directionsService || !spotASelect.value || !spotBSelect.value || spotASelect.value === spotBSelect.value) return;
+  const from = state.activities.find((activity) => activity.id === spotASelect.value);
+  const to = state.activities.find((activity) => activity.id === spotBSelect.value);
+  if (!from || !to) return;
+  const city = getCityForDate(from.date);
+  const origin = city ? `${from.location}, ${city}` : from.location;
+  const destination = city ? `${to.location}, ${city}` : to.location;
+  const mode = routeModeSelect.value;
+  spotRouteStatus.textContent = state.language === 'zh' ? '規劃中…' : 'Planning…';
+  spotRouteResult.textContent = '';
+  spotFareGrid.innerHTML = '';
+  currentSuggestedRoute = null;
+  saveSuggestedRouteBtn.disabled = true;
+  directionsService.route({ origin, destination, travelMode: google.maps.TravelMode[mode] }, (result, status) => {
+    if (status !== 'OK' || !result.routes.length) {
+      spotRouteStatus.textContent = state.language === 'zh'
+        ? `找不到路線（${status}）`
+        : `Route unavailable (${status})`;
+      geocodeSuggestedSpots(from, to, mode);
+      return;
+    }
+    if (!suggestedRouteRenderer) {
+      suggestedRouteRenderer = new google.maps.DirectionsRenderer({ suppressMarkers: false, preserveViewport: false });
+    }
+    suggestedRouteRenderer.setMap(map);
+    clearSuggestedGeometry();
+    suggestedRouteRenderer.setDirections(result);
+    map.fitBounds(result.routes[0].bounds);
+    const leg = result.routes[0].legs[0];
+    spotRouteStatus.textContent = state.language === 'zh' ? '建議路線' : 'Suggested route';
+    spotRouteResult.textContent = `${leg.distance.text} · ${leg.duration.text}`;
+    renderFareEstimates(Number(leg.distance.value) || 0, leg.duration.text, false);
+    currentSuggestedRoute = buildSuggestedRoute(from, to, mode, leg.distance.text, leg.duration.text, false, leg.start_location, leg.end_location);
+    saveSuggestedRouteBtn.disabled = false;
+  });
+}
+
+function buildSuggestedRoute(from, to, mode, distance, duration, estimated, fromPosition = null, toPosition = null) {
+  const fromCity = getCityForDate(from.date);
+  const toCity = getCityForDate(to.date);
+  const currency = getCurrencyForDestination(fromCity || toCity);
+  return {
+    id: `route-${Date.now().toString(36)}`,
+    fromTitle: from.title || from.location,
+    toTitle: to.title || to.location,
+    fromLocation: from.location,
+    toLocation: to.location,
+    fromCity,
+    toCity,
+    fromCoordinates: fromPosition ? { lat: fromPosition.lat(), lng: fromPosition.lng() } : null,
+    toCoordinates: toPosition ? { lat: toPosition.lat(), lng: toPosition.lng() } : null,
+    mode,
+    distance,
+    duration,
+    taxiFare: estimateTaxiFare(distance, currency),
+    taxiCurrency: currency,
+    estimated,
+    savedAt: new Date().toISOString(),
+  };
+}
+
+function estimateTaxiFare(distance, currency) {
+  const distanceValue = Number.parseFloat(String(distance).replace(',', '.')) || 0;
+  const fareRules = {
+    KRW: { base: 4800, perKm: 700 },
+    TWD: { base: 85, perKm: 25 },
+    JPY: { base: 500, perKm: 100 },
+    CNY: { base: 14, perKm: 2.4 },
+  };
+  const rule = fareRules[currency] || { base: 4, perKm: 2.2 };
+  return `${currency} ${Math.round(rule.base + distanceValue * rule.perKm).toLocaleString()}`;
+}
+
+function renderFareEstimates(distanceMeters, durationText, isEstimate) {
+  const km = distanceMeters / 1000;
+  spotFareGrid.innerHTML = `
+    <div class="spot-fare-card"><span>Distance</span><strong>${km.toFixed(1)} km</strong></div>
+    <div class="spot-fare-card"><span>ETA</span><strong>${durationText}</strong></div>`;
+}
+
+function clearSuggestedGeometry() {
+  suggestedMarkers.forEach((marker) => marker.setMap(null));
+  suggestedMarkers = [];
+  if (suggestedPolyline) {
+    suggestedPolyline.setMap(null);
+    suggestedPolyline = null;
+  }
+}
+
+function geocodeSuggestedSpots(from, to, mode) {
+  if (!geocoder || !map) return;
+  const city = getCityForDate(from.date);
+  const bounds = new google.maps.LatLngBounds();
+  const positions = [];
+  clearSuggestedGeometry();
+  [from, to].forEach((spot, index) => {
+    const query = city ? `${spot.location}, ${city}` : spot.location;
+    geocoder.geocode({ address: query }, (results, status) => {
+      if (status !== 'OK' || !results[0]) return;
+      const position = results[0].geometry.location;
+      const marker = new google.maps.Marker({
+        position,
+        map,
+        title: `${index === 0 ? 'Spot A' : 'Spot B'} · ${spot.title}`,
+        label: {
+          text: index === 0 ? 'A' : 'B',
+          color: '#fff',
+          fontWeight: '700',
+        },
+      });
+      suggestedMarkers.push(marker);
+      positions[index] = position;
+      bounds.extend(position);
+      map.fitBounds(bounds);
+      if (positions.filter(Boolean).length === 2) {
+        requestCoordinateRoute(positions, from, to, mode);
+      }
+    });
+  });
+}
+
+function requestCoordinateRoute(positions, from, to, mode) {
+  directionsService.route({
+    origin: positions[0],
+    destination: positions[1],
+    travelMode: google.maps.TravelMode[mode],
+  }, (result, status) => {
+    if (status === 'OK' && result.routes.length) {
+      if (!suggestedRouteRenderer) suggestedRouteRenderer = new google.maps.DirectionsRenderer({ suppressMarkers: false, preserveViewport: false });
+      clearSuggestedGeometry();
+      suggestedRouteRenderer.setMap(map);
+      suggestedRouteRenderer.setDirections(result);
+      map.fitBounds(result.routes[0].bounds);
+      const leg = result.routes[0].legs[0];
+      spotRouteStatus.textContent = state.language === 'zh' ? '建議路線' : 'Suggested route';
+      spotRouteResult.textContent = `${leg.distance.text} · ${leg.duration.text}`;
+      renderFareEstimates(Number(leg.distance.value) || 0, leg.duration.text, false);
+      currentSuggestedRoute = buildSuggestedRoute(from, to, mode, leg.distance.text, leg.duration.text, false, leg.start_location, leg.end_location);
+      saveSuggestedRouteBtn.disabled = false;
+      return;
+    }
+    const distance = google.maps.geometry?.spherical?.computeDistanceBetween
+      ? google.maps.geometry.spherical.computeDistanceBetween(positions[0], positions[1]) * 1.25
+      : 0;
+    const speed = mode === 'WALKING' ? 5 : mode === 'TRANSIT' ? 28 : 35;
+    const minutes = Math.max(1, Math.round((distance / 1000 / speed) * 60));
+    const duration = minutes >= 60 ? `${Math.floor(minutes / 60)}h ${minutes % 60}m` : `${minutes} min`;
+    suggestedPolyline = new google.maps.Polyline({ path: positions, geodesic: true, strokeColor: '#d94b73', strokeOpacity: 0.85, strokeWeight: 5, map });
+    spotRouteStatus.textContent = state.language === 'zh' ? '估算路線' : 'Estimated route';
+    spotRouteResult.textContent = `${(distance / 1000).toFixed(1)} km · ${duration}`;
+    renderFareEstimates(distance, duration, true);
+    currentSuggestedRoute = buildSuggestedRoute(from, to, mode, `${(distance / 1000).toFixed(1)} km`, duration, true, positions[0], positions[1]);
+    saveSuggestedRouteBtn.disabled = false;
+  });
+}
+
+spotASelect.addEventListener('change', requestSuggestedRoute);
+spotBSelect.addEventListener('change', requestSuggestedRoute);
+
+saveSuggestedRouteBtn.addEventListener('click', () => {
+  if (!currentSuggestedRoute) return;
+  if (!Array.isArray(state.savedRoutes)) state.savedRoutes = [];
+  state.savedRoutes = [currentSuggestedRoute, ...state.savedRoutes.filter((route) => route.fromLocation !== currentSuggestedRoute.fromLocation || route.toLocation !== currentSuggestedRoute.toLocation)];
+  saveState();
+  renderSavedRoutes();
+  spotRouteStatus.textContent = state.language === 'zh' ? '已保存路線' : 'Route saved';
+});
+
 function renderMapLegend(days) {
   mapLegend.innerHTML = '';
   days.forEach((dateStr, index) => {
-    const chip = document.createElement('span');
+    const chip = document.createElement('button');
+    chip.type = 'button';
     chip.className = 'legend-chip';
+    chip.classList.toggle('selected', index === selectedDayIndex);
+    chip.setAttribute('aria-pressed', String(index === selectedDayIndex));
+    chip.addEventListener('click', () => selectDay(index));
 
     const dot = document.createElement('span');
     dot.className = 'legend-dot';
@@ -1248,6 +1602,7 @@ function fetchRouteDistance(from, to, mode, infoEl) {
 
 // Renders the travel legs between the selected day's located items with distance/time and an editable transport fee.
 function renderRoutePanel(days) {
+  if (!routeList || !routeStatus) return;
   routeList.innerHTML = '';
 
   const selectedDate = days[selectedDayIndex];
@@ -1312,6 +1667,7 @@ function renderRoutePanel(days) {
 
 routeModeSelect.addEventListener('change', () => {
   renderRoutePanel(getTripDays());
+  requestSuggestedRoute();
 });
 
 function renderGreetingAndDaySelector(days) {
@@ -1359,13 +1715,181 @@ function render() {
   renderDayStrip(days);
   renderGreetingAndDaySelector(days);
   renderProfile(days);
+  renderSpotRouteSelectors(days);
   renderMapLegend(days);
   if (mapsApiLoaded) updateMapMarkers();
 
   renderItineraryForSelectedDay(days);
+  renderShoppingHaul();
   renderRoutePanel(days);
   renderExpenseList();
 }
+
+function renderShoppingHaul() {
+  shoppingHaulList.innerHTML = '';
+  const allShoppingActivities = state.activities
+    .filter((activity) => activity.category === 'shopping')
+    .sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.time || '').localeCompare(b.time || ''));
+  shoppingHaulActivity.innerHTML = '';
+  allShoppingActivities.forEach((activity) => {
+    shoppingHaulActivity.add(new Option(`${activity.title} · ${activity.date || 'No date'}`, activity.id));
+  });
+  openShoppingHaulFormBtn.disabled = !allShoppingActivities.length;
+  const shoppingActivities = state.activities
+    .filter((activity) => activity.category === 'shopping' && Array.isArray(activity.shoppingItems) && activity.shoppingItems.length)
+    .sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.time || '').localeCompare(b.time || ''));
+  const items = shoppingActivities.flatMap((activity) => activity.shoppingItems.map((item) => ({ item, activity })));
+  const doneCount = items.filter(({ item }) => item.done).length;
+  const progress = items.length ? Math.round((doneCount / items.length) * 100) : 0;
+  shoppingHaulCount.textContent = `${doneCount}/${items.length}`;
+  shoppingHaulProgress.style.width = `${progress}%`;
+  shoppingHaulTotal.textContent = items.length;
+  shoppingHaulDone.textContent = doneCount;
+  shoppingHaulRemaining.textContent = items.length - doneCount;
+  shoppingHaulPercent.textContent = `${progress}%`;
+
+  if (!items.length) {
+    const empty = document.createElement('div');
+    empty.className = 'shopping-haul-empty';
+    empty.textContent = state.language === 'zh'
+      ? '在活動分類選擇「購物」，即可新增目標商品。'
+      : 'Create a Shopping activity to add target items here.';
+    shoppingHaulList.appendChild(empty);
+    return;
+  }
+
+  shoppingActivities.forEach((activity) => {
+    const group = document.createElement('section');
+    group.className = 'shopping-haul-group';
+    const heading = document.createElement('div');
+    heading.className = 'shopping-haul-group-heading';
+    heading.innerHTML = `<strong>${activity.title}</strong><span>${activity.date || ''}</span>`;
+    group.appendChild(heading);
+
+    activity.shoppingItems.forEach((item) => {
+      const row = document.createElement('div');
+      row.className = `shopping-haul-item${item.done ? ' done' : ''}`;
+      const details = document.createElement('div');
+      details.className = 'shopping-haul-item-details';
+      if (item.image) {
+        const image = document.createElement('img');
+        image.src = item.image;
+        image.alt = '';
+        details.appendChild(image);
+      } else {
+        const imagePlaceholder = document.createElement('span');
+        imagePlaceholder.className = 'shopping-haul-item-image-placeholder';
+        imagePlaceholder.textContent = '◎';
+        details.appendChild(imagePlaceholder);
+      }
+      const copy = item.url ? document.createElement('a') : document.createElement('span');
+      copy.className = 'shopping-haul-item-copy';
+      copy.textContent = item.name;
+      if (item.url) {
+        copy.href = item.url;
+        copy.target = '_blank';
+        copy.rel = 'noopener noreferrer';
+      }
+      details.appendChild(copy);
+
+      const quantityWrap = document.createElement('div');
+      quantityWrap.className = 'shopping-haul-quantity';
+      const quantity = Math.max(1, Number(item.quantity) || 1);
+      const decrease = document.createElement('button');
+      decrease.type = 'button';
+      decrease.textContent = '−';
+      decrease.setAttribute('aria-label', `Decrease ${item.name} quantity`);
+      decrease.disabled = quantity <= 1;
+      decrease.addEventListener('click', () => {
+        item.quantity = Math.max(1, quantity - 1);
+        saveState();
+        render();
+      });
+      const quantityValue = document.createElement('strong');
+      quantityValue.textContent = quantity;
+      const increase = document.createElement('button');
+      increase.type = 'button';
+      increase.textContent = '+';
+      increase.setAttribute('aria-label', `Increase ${item.name} quantity`);
+      increase.addEventListener('click', () => {
+        item.quantity = quantity + 1;
+        saveState();
+        render();
+      });
+      quantityWrap.append(decrease, quantityValue, increase);
+
+      const status = document.createElement('input');
+      status.type = 'checkbox';
+      status.className = 'shopping-haul-status-checkbox';
+      status.checked = Boolean(item.done);
+      status.setAttribute('aria-label', `Mark ${item.name} as collected`);
+      status.addEventListener('change', () => {
+        item.done = status.checked;
+        saveState();
+        render();
+      });
+      const editButton = document.createElement('button');
+      editButton.type = 'button';
+      editButton.className = 'edit-btn shopping-haul-edit';
+      editButton.textContent = 'Edit';
+      editButton.setAttribute('aria-label', `Edit ${item.name}`);
+      editButton.addEventListener('click', () => {
+        editingShoppingItem = item;
+        editingShoppingActivity = activity;
+        shoppingHaulActivity.value = activity.id;
+        shoppingHaulActivity.disabled = true;
+        shoppingHaulName.value = item.name || '';
+        shoppingHaulImage.value = item.image || '';
+        shoppingHaulUrl.value = item.url || '';
+        shoppingHaulModalTitle.textContent = 'Edit target item';
+        shoppingHaulModal.classList.remove('hidden');
+        shoppingHaulName.focus();
+      });
+      row.append(details, quantityWrap, status, editButton);
+      group.appendChild(row);
+    });
+    shoppingHaulList.appendChild(group);
+  });
+}
+
+shoppingHaulForm.addEventListener('submit', (event) => {
+  event.preventDefault();
+  const activity = state.activities.find((item) => item.id === shoppingHaulActivity.value);
+  const name = shoppingHaulName.value.trim();
+  if ((!activity && !editingShoppingActivity) || !name) return;
+  const targetActivity = editingShoppingActivity || activity;
+  if (editingShoppingItem) {
+    editingShoppingItem.name = name;
+    editingShoppingItem.image = shoppingHaulImage.value.trim();
+    editingShoppingItem.url = shoppingHaulUrl.value.trim();
+  } else {
+    if (!Array.isArray(targetActivity.shoppingItems)) targetActivity.shoppingItems = [];
+    targetActivity.shoppingItems.push({ name, image: shoppingHaulImage.value.trim(), url: shoppingHaulUrl.value.trim(), quantity: 1, total: '', done: false });
+  }
+  saveState();
+  shoppingHaulForm.reset();
+  shoppingHaulActivity.disabled = false;
+  editingShoppingItem = null;
+  editingShoppingActivity = null;
+  shoppingHaulModalTitle.textContent = 'Add target item';
+  shoppingHaulModal.classList.add('hidden');
+  render();
+});
+
+openShoppingHaulFormBtn.addEventListener('click', () => {
+  editingShoppingItem = null;
+  editingShoppingActivity = null;
+  shoppingHaulActivity.disabled = false;
+  shoppingHaulForm.reset();
+  shoppingHaulModalTitle.textContent = 'Add target item';
+  shoppingHaulModal.classList.remove('hidden');
+  shoppingHaulActivity.focus();
+});
+
+closeShoppingHaulFormBtn.addEventListener('click', () => shoppingHaulModal.classList.add('hidden'));
+shoppingHaulModal.addEventListener('click', (event) => {
+  if (event.target === shoppingHaulModal) shoppingHaulModal.classList.add('hidden');
+});
 
 function renderProfile(days) {
   const tripName = state.tripName || (state.language === 'zh' ? '我的旅程' : 'My Trip');
@@ -1376,6 +1900,151 @@ function renderProfile(days) {
   profileDayCount.textContent = days.length;
   profileMemberCount.textContent = (state.members || []).length;
   profileItemCount.textContent = (state.activities || []).length;
+  renderTripLibrary();
+  renderSavedRoutes();
+}
+
+function renderSavedRoutes() {
+  renderSavedRoutePanel();
+}
+
+function getSavedRouteUrl(route, provider) {
+  const originName = route.fromCity ? `${route.fromLocation}, ${route.fromCity}` : route.fromLocation;
+  const destinationName = route.toCity ? `${route.toLocation}, ${route.toCity}` : route.toLocation;
+  const fromCoordinates = route.fromCoordinates || state.geocodeCache?.[originName];
+  const toCoordinates = route.toCoordinates || state.geocodeCache?.[destinationName];
+  const origin = encodeURIComponent(originName);
+  const destination = encodeURIComponent(destinationName);
+  const mode = String(route.mode || 'DRIVING').toLowerCase();
+
+  if (provider === 'naver') {
+    const from = fromCoordinates;
+    const to = toCoordinates;
+    const naverMode = mode === 'transit' ? 'publictransit' : mode === 'walking' ? 'walk' : 'car';
+    if (from && to) {
+      return `https://map.naver.com/p/directions/${from.lng},${from.lat},${encodeURIComponent(route.fromLocation)}/${to.lng},${to.lat},${encodeURIComponent(route.toLocation)}/-/${naverMode}`;
+    }
+    return `https://map.naver.com/p/search/${origin}`;
+  }
+  if (provider === 'kakao') {
+    const from = fromCoordinates;
+    const to = toCoordinates;
+    if (from && to) {
+      return `https://map.kakao.com/?sX=${from.lng}&sY=${from.lat}&sName=${encodeURIComponent(route.fromLocation)}&eX=${to.lng}&eY=${to.lat}&eName=${encodeURIComponent(route.toLocation)}`;
+    }
+    return `https://map.kakao.com/?sName=${origin}&eName=${destination}`;
+  }
+  return `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&travelmode=${mode}`;
+}
+
+function renderTripLibrary() {
+  profileTripLibrary.innerHTML = '';
+  (state.tripLibrary || []).forEach((trip) => {
+    const tripData = trip.data || {};
+    const entry = document.createElement('div');
+    entry.className = `profile-trip-entry${trip.id === state.activeTripId ? ' is-current' : ''}`;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'profile-trip-select';
+    button.disabled = trip.id === state.activeTripId;
+    const tripName = document.createElement('strong');
+    tripName.textContent = tripData.tripName || (state.language === 'zh' ? '未命名行程' : 'Untitled trip');
+    const destination = document.createElement('span');
+    destination.textContent = tripData.tripDestination || (state.language === 'zh' ? '未設定目的地' : 'No destination');
+    button.append(tripName, destination);
+    entry.appendChild(button);
+    if (trip.id === state.activeTripId) {
+      const current = document.createElement('em');
+      current.textContent = t('currentTrip');
+      entry.appendChild(current);
+    } else {
+      button.addEventListener('click', () => loadTripFromLibrary(trip.id));
+      const removeButton = document.createElement('button');
+      removeButton.type = 'button';
+      removeButton.className = 'profile-trip-remove';
+      removeButton.textContent = '×';
+      removeButton.title = t('removeSavedTrip');
+      removeButton.setAttribute('aria-label', t('removeSavedTrip'));
+      removeButton.addEventListener('click', () => removeTripFromLibrary(trip.id));
+      entry.appendChild(removeButton);
+    }
+    profileTripLibrary.appendChild(entry);
+  });
+  renderSavedRoutePanel();
+}
+
+function renderSavedRoutePanel() {
+  savedRoutePanel.innerHTML = '';
+  if (!(state.savedRoutes || []).length) {
+    const empty = document.createElement('span');
+    empty.className = 'saved-route-empty';
+    empty.textContent = state.language === 'zh' ? '尚未儲存路線。' : 'No saved routes yet.';
+    savedRoutePanel.appendChild(empty);
+    return;
+  }
+  state.savedRoutes.forEach((route) => {
+    const row = document.createElement('div');
+    row.className = 'saved-route-row';
+    const entry = document.createElement('a');
+    entry.className = 'route-map-link-button';
+    entry.href = getSavedRouteUrl(route, savedRoutePlatform.value);
+    entry.target = '_blank';
+    entry.rel = 'noopener';
+    const taxiFare = route.taxiFare || estimateTaxiFare(route.distance, route.taxiCurrency || getCurrencyForDestination(route.fromCity));
+    const routeTitle = document.createElement('strong');
+    routeTitle.className = 'saved-route-title';
+    routeTitle.textContent = `${route.fromTitle} → ${route.toTitle}`;
+    const routeMetrics = document.createElement('div');
+    routeMetrics.className = 'saved-route-metrics';
+    [
+      ['Distance', route.distance],
+      ['ETA', route.duration],
+      ['Taxi', taxiFare],
+    ].forEach(([label, value]) => {
+      const metric = document.createElement('span');
+      metric.className = 'saved-route-metric';
+      const metricLabel = document.createElement('small');
+      metricLabel.textContent = label;
+      const metricValue = document.createElement('strong');
+      metricValue.textContent = value;
+      metric.append(metricLabel, metricValue);
+      routeMetrics.appendChild(metric);
+    });
+    entry.append(routeTitle, routeMetrics);
+    const removeButton = document.createElement('button');
+    removeButton.type = 'button';
+    removeButton.className = 'saved-route-remove';
+    removeButton.textContent = '×';
+    removeButton.setAttribute('aria-label', state.language === 'zh' ? '刪除已儲存路線' : 'Remove saved route');
+    removeButton.addEventListener('click', (event) => {
+      event.stopPropagation();
+      state.savedRoutes = state.savedRoutes.filter((savedRoute) => savedRoute.id !== route.id);
+      saveState();
+      renderSavedRoutePanel();
+    });
+    row.append(entry, removeButton);
+    savedRoutePanel.appendChild(row);
+  });
+}
+
+savedRoutePlatform.addEventListener('change', renderSavedRoutePanel);
+
+function loadTripFromLibrary(tripId) {
+  const selected = (state.tripLibrary || []).find((trip) => trip.id === tripId);
+  if (!selected) return;
+  saveState();
+  const tripLibrary = state.tripLibrary;
+  Object.keys(state).forEach((key) => delete state[key]);
+  Object.assign(state, selected.data, { tripLibrary, activeTripId: tripId });
+  saveState();
+  init();
+}
+
+function removeTripFromLibrary(tripId) {
+  if (!confirm(t('removeSavedTripConfirm'))) return;
+  state.tripLibrary = (state.tripLibrary || []).filter((trip) => trip.id !== tripId);
+  saveState();
+  renderTripLibrary();
 }
 
 function getBillEntries() {
@@ -1787,7 +2456,7 @@ function renderItineraryForSelectedDay(days) {
         const mapLink = document.createElement('a');
         const mapProvider = activity.mapProvider || 'google';
         mapLink.className = `item-map-link map-${mapProvider}`;
-        mapLink.href = getMapUrl(mapProvider, mapQuery);
+        mapLink.href = getMapUrl(mapProvider, mapQuery, activityCity, activity.location, state.geocodeCache?.[activityCity ? `${activity.location}, ${activityCity}` : activity.location], activity.naverUrl);
         mapLink.target = '_blank';
         mapLink.rel = 'noopener noreferrer';
         const mapLabels = { google: 'Google Maps', naver: 'Naver Maps', kakao: 'Kakao Map' };
@@ -1848,9 +2517,15 @@ function formatFlightMeta(terminal, gate, label) {
   return details || label;
 }
 
-function getMapUrl(provider, query) {
+function getMapUrl(provider, query, city = '', location = '', coordinates = null, naverUrl = '') {
   const encodedQuery = encodeURIComponent(query);
-  if (provider === 'naver') return `https://map.naver.com/p/search/${encodedQuery}`;
+  if (provider === 'naver') {
+    if (naverUrl) return naverUrl;
+    const naverQuery = location && city ? `${location}, ${city}` : location || query;
+    const encodedNaverQuery = encodeURIComponent(naverQuery);
+    const center = coordinates ? `?c=${coordinates.lng},${coordinates.lat},16,0,0,0,dh` : '';
+    return `https://map.naver.com/p/search/${encodedNaverQuery}${center}`;
+  }
   if (provider === 'kakao') return `https://map.kakao.com/?q=${encodedQuery}`;
   return `https://www.google.com/maps/search/?api=1&query=${encodedQuery}`;
 }

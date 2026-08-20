@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Travel Itinerary Planner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600&family=Nanum+Pen+Script&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -49,19 +52,8 @@
       <div id="cityPeriods" class="city-periods hidden"></div>
       <div class="itinerary-utility-actions">
         <button id="addCityBtn" class="btn-secondary" type="button" data-i18n="addCity">+ Add city</button>
-        <div class="itinerary-file-actions">
-          <button id="exportItineraryBtn" class="btn-secondary itinerary-file-button" type="button" title="Download itinerary">
-              <svg class="file-action-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11m0 0 4-4m-4 4-4-4M5 17v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2"/></svg>
-            <span class="visually-hidden" data-i18n="exportItinerary">Download itinerary</span>
-          </button>
-          <label class="btn-secondary itinerary-file-picker itinerary-file-button" title="Load itinerary">
-              <svg class="file-action-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4m0 0 4 4m-4-4-4 4M5 17v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2"/></svg>
-            <span class="visually-hidden" data-i18n="importItinerary">Load itinerary</span>
-            <input id="importItineraryInput" type="file" accept="application/json,.json">
-          </label>
-        </div>
+        <button id="closeSettingsBtn" class="btn-primary settings-save-button" type="button" data-i18n="saveClose">Save &amp; Close</button>
       </div>
-      <button id="closeSettingsBtn" class="btn-primary" type="button" data-i18n="saveClose">Save & Close</button>
     </section>
 
     <section class="day-strip-section app-view" data-app-view="itinerary">
@@ -101,23 +93,53 @@
 
     <section class="map-card card app-view" data-app-view="map">
       <h2 data-i18n="tripMap">Trip Map</h2>
-      <p class="map-status" id="mapStatus">Loading map…</p>
-      <div id="tripMap" class="trip-map"></div>
-      <div class="map-legend" id="mapLegend"></div>
+      <div class="spot-route-panel">
+        <div class="spot-route-heading">
+          <span data-i18n="suggestedRoute">Suggested route</span>
+          <span class="spot-route-status" id="spotRouteStatus"></span>
+        </div>
+        <div class="map-legend" id="mapLegend"></div>
+        <div class="spot-route-fields">
+          <label>
+            <span data-i18n="spotA">Spot A</span>
+            <select id="spotASelect" aria-label="Spot A"></select>
+          </label>
+          <span class="spot-route-arrow" aria-hidden="true">→</span>
+          <label>
+            <span data-i18n="spotB">Spot B</span>
+            <select id="spotBSelect" aria-label="Spot B"></select>
+          </label>
+        </div>
+        <p class="map-status" id="mapStatus">Loading map…</p>
+        <div id="tripMap" class="trip-map"></div>
+        <div class="spot-route-options">
+          <label>
+            <span data-i18n="bestTravelMode">Best travel mode</span>
+            <select id="routeMode">
+              <option value="DRIVING" data-i18n="automobile" selected>Automobile</option>
+              <option value="WALKING" data-i18n="walking">Walking</option>
+              <option value="TRANSIT" data-i18n="transit">Transit</option>
+            </select>
+          </label>
+        </div>
+        <div class="spot-route-result" id="spotRouteResult"></div>
+        <div class="spot-fare-grid" id="spotFareGrid"></div>
+        <button id="saveSuggestedRouteBtn" class="btn-secondary save-route-button" type="button" data-i18n="saveRoute" disabled>Save route</button>
+      </div>
     </section>
 
     <section class="route-card card app-view" data-app-view="map">
-      <h2 data-i18n="route">Route</h2>
-      <label class="route-mode-label">
-        <span data-i18n="travelMode">Travel Mode</span>
-        <select id="routeMode">
-          <option value="DRIVING" data-i18n="driving">Driving</option>
-          <option value="WALKING" data-i18n="walking">Walking</option>
-          <option value="TRANSIT" data-i18n="transit">Transit</option>
-        </select>
-      </label>
-      <p class="route-status" id="routeStatus"></p>
-      <div class="route-list" id="routeList"></div>
+      <div class="saved-routes-heading">
+        <h2 data-i18n="savedRoutes">Saved routes</h2>
+        <label class="saved-route-platform-control">
+          <span data-i18n="mapPlatform">Map platform</span>
+          <select id="savedRoutePlatform" aria-label="Map platform">
+            <option value="naver" selected>Naver Maps</option>
+            <option value="google">Google Maps</option>
+          </select>
+        </label>
+      </div>
+      <div id="savedRoutePanel" class="saved-route-panel"></div>
     </section>
 
     <section class="currency-card card app-view" data-app-view="wallet">
@@ -186,6 +208,11 @@
           <span data-i18n="items">Items</span>
         </div>
       </div>
+      <section class="profile-trip-library" aria-labelledby="profileTripLibraryTitle">
+        <h3 id="profileTripLibraryTitle" data-i18n="trips">Trips</h3>
+        <div id="profileTripLibrary" class="profile-trip-library-list"></div>
+        <button id="newTripBtn" class="btn-secondary profile-new-trip-btn" type="button" data-i18n="newTrip">+ New trip</button>
+      </section>
       <button id="editTripProfileBtn" class="btn-secondary profile-edit-btn" type="button" data-i18n="editTrip">Edit trip</button>
       <section class="profile-settings" aria-labelledby="profileSettingsTitle">
         <h3 id="profileSettingsTitle" data-i18n="settings">Settings</h3>
@@ -206,7 +233,63 @@
           </div>
         </div>
       </section>
+      <section class="profile-trip-files" aria-labelledby="profileTripFilesTitle">
+        <h3 id="profileTripFilesTitle" data-i18n="tripFiles">Trip Files</h3>
+        <p data-i18n="tripFilesHint">Load another saved itinerary to replace this trip.</p>
+        <div class="profile-trip-file-actions">
+          <label class="btn-secondary itinerary-file-picker profile-file-button">
+            <svg class="file-action-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4m0 0 4 4m-4-4-4 4M5 17v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2"/></svg>
+            <span data-i18n="loadAnotherTrip">Load another trip</span>
+            <input id="profileImportItineraryInput" type="file" accept="application/json,.json">
+          </label>
+          <button id="profileExportItineraryBtn" class="btn-secondary profile-file-button" type="button">
+            <svg class="file-action-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11m0 0 4-4m-4 4-4-4M5 17v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2"/></svg>
+            <span data-i18n="exportItinerary">Download trip</span>
+          </button>
+        </div>
+      </section>
     </section>
+
+    <section class="shopping-haul-card card app-view" data-app-view="shopping">
+      <div class="shopping-haul-heading">
+        <div>
+          <h2>Cart</h2>
+        </div>
+        <span class="shopping-haul-count" id="shoppingHaulCount">0/0</span>
+      </div>
+      <p class="shopping-haul-subtitle" data-i18n="shoppingHaulHint">Keep every shopping target in one place.</p>
+      <div class="shopping-haul-progress" aria-hidden="true"><span id="shoppingHaulProgress"></span></div>
+      <div class="shopping-haul-layout">
+        <div class="shopping-haul-main">
+          <div class="shopping-haul-columns"><span>Product</span><span>Quantity</span><span>Status</span><span>Edit</span></div>
+          <div id="shoppingHaulList" class="shopping-haul-list"></div>
+          <button id="openShoppingHaulFormBtn" class="btn-secondary shopping-haul-add-button" type="button">+ Add item</button>
+        </div>
+        <aside class="shopping-haul-summary" aria-label="Shopping summary">
+          <h3>Order summary</h3>
+          <div><span>Target items</span><strong id="shoppingHaulTotal">0</strong></div>
+          <div><span>Collected</span><strong id="shoppingHaulDone">0</strong></div>
+          <div><span>Remaining</span><strong id="shoppingHaulRemaining">0</strong></div>
+          <div class="shopping-haul-summary-total"><span>Progress</span><strong id="shoppingHaulPercent">0%</strong></div>
+        </aside>
+      </div>
+    </section>
+
+    <div id="shoppingHaulModal" class="modal-overlay hidden">
+      <section class="shopping-haul-modal modal-card" role="dialog" aria-modal="true" aria-labelledby="shoppingHaulModalTitle">
+        <div class="modal-header">
+          <h2 id="shoppingHaulModalTitle">Add target item</h2>
+          <button id="closeShoppingHaulFormBtn" class="icon-btn" type="button" aria-label="Close">&times;</button>
+        </div>
+        <form id="shoppingHaulForm" class="shopping-haul-form">
+          <select id="shoppingHaulActivity" aria-label="Shopping activity"></select>
+          <input id="shoppingHaulName" type="text" placeholder="Product name" required>
+          <input id="shoppingHaulImage" type="url" placeholder="Product image URL (optional)">
+          <input id="shoppingHaulUrl" type="url" placeholder="Product URL (optional)">
+          <button class="btn-primary" type="submit">+ Add item</button>
+        </form>
+      </section>
+    </div>
 
     <details class="info-toggle app-view" data-app-view="itinerary">
       <summary>Trip Info · Flight Schedule</summary>
@@ -314,8 +397,12 @@
                 <option value="kakao">Kakao Map</option>
               </select>
             </label>
+            <label class="grow">
+              Naver place link (optional)
+              <input type="url" id="activityNaverUrl" placeholder="Paste the exact Naver place URL">
+            </label>
             <div id="shoppingDetails" class="shopping-details hidden">
-              <div class="shopping-section-title"><span aria-hidden="true">🛒</span> Shopping list</div>
+              <div class="shopping-section-title"><span aria-hidden="true">🛒</span> <span data-i18n="targetItems">Target items</span></div>
               <div class="shopping-product-fields">
                 <input type="text" id="shoppingNameInput" placeholder="Product name">
                 <input type="url" id="shoppingImageInput" placeholder="Small image URL (optional)">
@@ -402,6 +489,10 @@
       <button class="app-tab" type="button" data-app-tab="wallet">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7a3 3 0 0 1 3-3h11v16H7a3 3 0 0 1-3-3zm0 0h15v9H4m11-4h4"/></svg>
         <span data-i18n="wallet">Wallet</span>
+      </button>
+      <button class="app-tab" type="button" data-app-tab="shopping">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 8h14l-1 12H6L5 8Zm3 0a4 4 0 0 1 8 0M9 12h.01M15 12h.01"/></svg>
+        <span>Cart</span>
       </button>
       <button class="app-tab" type="button" data-app-tab="profile">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c.8-3.1 3.2-4.7 7-4.7s6.2 1.6 7 4.7"/></svg>
