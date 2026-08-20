@@ -65,11 +65,17 @@ const expenseForm = document.getElementById('expenseForm');
 const billMemberInput = document.getElementById('billMember');
 const billExpenseCurrencyInput = document.getElementById('billExpenseCurrency');
 const removeExpenseBtn = document.getElementById('removeExpenseBtn');
+const splitBillModalOverlay = document.getElementById('splitBillModalOverlay');
+const closeSplitBillModalBtn = document.getElementById('closeSplitBillModalBtn');
+const cancelSplitBillBtn = document.getElementById('cancelSplitBillBtn');
+const applySplitBillBtn = document.getElementById('applySplitBillBtn');
+const splitBillMemberOptions = document.getElementById('splitBillMemberOptions');
 let currentExchangeRate = null;
 const expenseConversionRates = {};
 let editingActivityId = null;
 let editingBillId = null;
 let selectedBillMember = 'all';
+let splittingBillId = null;
 let currentPlaceAddress = '';
 
 const routeList = document.getElementById('routeList');
@@ -108,6 +114,9 @@ const greetingSub = document.getElementById('greetingSub');
 const todayDate = document.getElementById('todayDate');
 const todayLocation = document.getElementById('todayLocation');
 const todayBadge = document.querySelector('.today-badge');
+const todayTime = document.getElementById('todayTime');
+const todayTimeMeta = document.getElementById('todayTimeMeta');
+const todayTimeLocation = document.getElementById('todayTimeLocation');
 const todayWeatherDescription = document.getElementById('todayWeatherDescription');
 const todayTemperature = document.getElementById('todayTemperature');
 const todayWeatherIcon = document.getElementById('todayWeatherIcon');
@@ -874,10 +883,13 @@ function renderDayStrip(days) {
 
 async function loadTodayWeather(dateStr, city) {
   const requestId = ++weatherRequestId;
+  todayTime.textContent = '--:--';
+  todayTimeMeta.textContent = '—';
+  todayTimeLocation.textContent = city ? `Time in ${city}` : 'Time in destination';
   todayWeatherDescription.textContent = state.language === 'zh' ? '天氣預報' : 'Forecast';
   todayTemperature.textContent = '—°C';
   todayWeatherIcon.textContent = '☀';
-  todayBadge.className = 'today-badge weather-default';
+  todayBadge.className = 'today-badge weather-default weather-text-light';
   if (!city) return;
   const cacheKey = `${city}|${dateStr}`;
   if (weatherCache[cacheKey]) {
@@ -887,24 +899,48 @@ async function loadTodayWeather(dateStr, city) {
   try {
     const coordinates = await geocodeCityForWeather(city);
     if (!coordinates) return;
-    const response = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${coordinates.lat}&longitude=${coordinates.lng}&daily=weather_code,temperature_2m_max&temperature_unit=celsius&timezone=auto&forecast_days=16`);
+    const destinationTime = await fetchDestinationLocalTime(coordinates.lat, coordinates.lng, city);
+    const response = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${coordinates.lat}&longitude=${coordinates.lng}&current=temperature_2m,weather_code&daily=weather_code,temperature_2m_max&temperature_unit=celsius&timezone=auto&forecast_days=16`);
     if (!response.ok) throw new Error('Forecast unavailable');
     const data = await response.json();
     const dates = data.daily?.time || [];
     const forecastIndex = dates.indexOf(dateStr);
+    const localTime = {
+      timeText: destinationTime?.timeText || parseOpenMeteoTime(data.current?.time || ''),
+      metaText: '',
+      locationText: destinationTime?.locationText || `Time in ${city}`,
+      timeZoneId: destinationTime?.timeZoneId || data.timezone || 'UTC',
+    };
     if (forecastIndex < 0) {
-      const unavailable = { description: state.language === 'zh' ? '預報尚未提供' : 'Forecast unavailable', degrees: '—' };
+      const unavailable = {
+        description: state.language === 'zh' ? '預報尚未提供' : 'Forecast unavailable',
+        degrees: '—',
+        timeText: localTime.timeText,
+        metaText: localTime.metaText,
+        locationText: localTime.locationText,
+        timeZoneId: localTime.timeZoneId,
+      };
       weatherCache[cacheKey] = unavailable;
       if (requestId === weatherRequestId) applyTodayWeather(unavailable);
       return;
     }
     const degrees = data.daily?.temperature_2m_max?.[forecastIndex];
     const description = getOpenMeteoWeatherDescription(data.daily?.weather_code?.[forecastIndex]);
-    const weather = { description, degrees: degrees ?? '—' };
+    const weather = {
+      description,
+      degrees: degrees ?? '—',
+      timeText: localTime.timeText,
+      metaText: localTime.metaText,
+      locationText: localTime.locationText,
+      timeZoneId: localTime.timeZoneId,
+    };
     weatherCache[cacheKey] = weather;
     if (requestId === weatherRequestId) applyTodayWeather(weather);
   } catch (error) {
     if (requestId === weatherRequestId) {
+      todayTime.textContent = '--:--';
+      todayTimeMeta.textContent = '—';
+      todayTimeLocation.textContent = city ? `Time in ${city}` : 'Time in destination';
       todayWeatherDescription.textContent = state.language === 'zh' ? '無法取得預報' : 'Weather unavailable';
       todayTemperature.textContent = '—°C';
     }
@@ -914,6 +950,9 @@ async function loadTodayWeather(dateStr, city) {
 function applyTodayWeather(weather) {
   const description = weather.description || (state.language === 'zh' ? '天氣預報' : 'Forecast');
   todayWeatherDescription.textContent = description;
+  todayTime.textContent = weather.timeText || '--:--';
+  todayTimeMeta.textContent = weather.metaText || '';
+  todayTimeLocation.textContent = weather.locationText || 'Time in destination';
   todayTemperature.textContent = `${weather.degrees}°C`;
   const value = description.toLowerCase();
   const weatherClass = value.includes('rain') ? 'weather-rain'
@@ -922,7 +961,78 @@ function applyTodayWeather(weather) {
   todayWeatherIcon.textContent = weatherClass === 'weather-rain' ? '☂'
     : weatherClass === 'weather-snow' ? '❄'
       : weatherClass === 'weather-cloudy' ? '☁' : '☀';
-  todayBadge.className = `today-badge ${weatherClass}`;
+  const textTone = getWeatherTextTone(weatherClass);
+  todayBadge.className = `today-badge ${weatherClass} weather-text-${textTone}`;
+}
+
+function getWeatherTextTone(weatherClass) {
+  const theme = document.documentElement.dataset.theme || state.theme || 'joy';
+  const darkTextThemes = {
+    joy: ['weather-sunny', 'weather-cloudy', 'weather-snow'],
+    violet: ['weather-snow'],
+    cobalt: ['weather-sunny', 'weather-cloudy', 'weather-snow'],
+    coffee: ['weather-sunny', 'weather-cloudy', 'weather-snow'],
+  };
+  return darkTextThemes[theme]?.includes(weatherClass) ? 'dark' : 'light';
+}
+
+function formatDestinationTime(value, timeZoneId = null) {
+  if (!value) return '--:--';
+  if (typeof value === 'string' && /AM|PM/i.test(value)) return value;
+  if (typeof value === 'string' && /T\d{2}:\d{2}/.test(value)) {
+    const match = value.match(/T(\d{2}):(\d{2})/);
+    if (!match) return '--:--';
+    const hour = Number(match[1]);
+    const minute = Number(match[2]);
+    const normalizedHour = hour % 12 === 0 ? 12 : hour % 12;
+    const period = hour >= 12 ? 'PM' : 'AM';
+    return `${normalizedHour}:${String(minute).padStart(2, '0')} ${period}`;
+  }
+  if (value instanceof Date && timeZoneId) {
+    return new Intl.DateTimeFormat('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+      timeZone: timeZoneId,
+    }).format(value);
+  }
+  if (typeof value === 'number') {
+    return formatDestinationTime(new Date(value * 1000), timeZoneId);
+  }
+  return '--:--';
+}
+
+function parseOpenMeteoTime(iso) {
+  if (!iso || !/T\d{2}:\d{2}/.test(iso)) return '--:--';
+  const match = iso.match(/T(\d{2}):(\d{2})/);
+  if (!match) return '--:--';
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  const normalizedHour = hour % 12 === 0 ? 12 : hour % 12;
+  const period = hour >= 12 ? 'PM' : 'AM';
+  return `${normalizedHour}:${String(minute).padStart(2, '0')} ${period}`;
+}
+
+async function fetchDestinationLocalTime(lat, lng, city) {
+  try {
+    const normalizedCity = normalizeDestinationForTime(city);
+    const lookupCity = normalizedCity || city;
+    const response = await fetch(`https://timeapi.io/api/Time/current/coordinate?latitude=${lat}&longitude=${lng}`);
+    if (!response.ok) return null;
+    const data = await response.json();
+    if (!data || typeof data.hour !== 'number' || typeof data.minute !== 'number') return null;
+    const hour = Number(data.hour);
+    const minute = Number(data.minute);
+    const normalizedHour = hour % 12 === 0 ? 12 : hour % 12;
+    const period = hour >= 12 ? 'PM' : 'AM';
+    return {
+      timeText: `${normalizedHour}:${String(minute).padStart(2, '0')} ${period}`,
+      locationText: `Time in ${lookupCity || 'destination'}`,
+      timeZoneId: data.timeZone || 'UTC',
+    };
+  } catch (error) {
+    return null;
+  }
 }
 
 function formatWeatherDate(value) {
@@ -931,8 +1041,20 @@ function formatWeatherDate(value) {
   return `${value.year}-${String(value.month).padStart(2, '0')}-${String(value.day).padStart(2, '0')}`;
 }
 
+function normalizeDestinationForTime(city) {
+  const value = (city || '').trim();
+  if (!value) return '';
+  const lower = value.toLowerCase();
+  if (lower.includes('south korea') || lower === 'korea' || lower === 'kr' || lower === 'republic of korea') return 'Seoul';
+  if (lower.includes('north korea') || lower === 'dprk') return 'Pyongyang';
+  if (lower.includes('japan') || lower === 'jp') return 'Tokyo';
+  if (lower.includes('jeju')) return 'Jeju City';
+  return value;
+}
+
 function geocodeCityForWeather(city) {
-  return fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=en&format=json`)
+  const normalized = normalizeDestinationForTime(city);
+  return fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(normalized || city)}&count=1&language=en&format=json`)
     .then((response) => response.ok ? response.json() : null)
     .then((data) => data?.results?.[0] ? { lat: data.results[0].latitude, lng: data.results[0].longitude } : null)
     .catch(() => null);
@@ -2093,15 +2215,60 @@ function populateMemberOptions(select, currentValue = '') {
   select.value = [...select.options].some((option) => option.value === currentValue) ? currentValue : '';
 }
 
-function toggleBillSplit(id) {
+function openSplitBillModal(id) {
   const bill = getBillEntries().find((entry) => entry.id === id);
   const members = (state.members || []).filter(Boolean);
   if (!bill || !members.length) {
     if (!members.length) alert(state.language === 'zh' ? '請先新增同行成員。' : 'Add trip members before splitting a bill.');
     return;
   }
-  bill.splitMembers = Array.isArray(bill.splitMembers) && bill.splitMembers.length ? [] : [...members];
+  splittingBillId = id;
+  const selectedMembers = Array.isArray(bill.splitMembers) && bill.splitMembers.length
+    ? new Set(bill.splitMembers)
+    : new Set(members);
+  splitBillMemberOptions.innerHTML = '';
+  members.forEach((member) => {
+    const label = document.createElement('label');
+    label.className = 'split-bill-member-option';
+    const avatar = document.createElement('span');
+    avatar.className = 'split-bill-member-avatar';
+    avatar.textContent = member
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((part) => part[0])
+      .join('')
+      .slice(0, 2)
+      .toUpperCase();
+    avatar.setAttribute('aria-hidden', 'true');
+    label.appendChild(avatar);
+    const name = document.createElement('span');
+    name.className = 'split-bill-member-name';
+    name.textContent = member;
+    label.appendChild(name);
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.value = member;
+    checkbox.checked = selectedMembers.has(member);
+    label.appendChild(checkbox);
+    splitBillMemberOptions.appendChild(label);
+  });
+  splitBillModalOverlay.classList.remove('hidden');
+}
+
+function closeSplitBillModal() {
+  splitBillModalOverlay.classList.add('hidden');
+  splittingBillId = null;
+}
+
+function applyBillSplit() {
+  if (!splittingBillId) return;
+  const bill = getBillEntries().find((entry) => entry.id === splittingBillId);
+  if (!bill) return;
+  const selectedMembers = [...splitBillMemberOptions.querySelectorAll('input[type="checkbox"]:checked')]
+    .map((checkbox) => checkbox.value);
+  bill.splitMembers = selectedMembers;
   saveState();
+  closeSplitBillModal();
   renderExpenseList();
 }
 
@@ -2194,12 +2361,12 @@ function renderExpenseList() {
       splitButton.type = 'button';
       splitButton.className = `bill-split-btn${isSplit ? ' split' : ''}`;
       splitButton.textContent = isSplit
-        ? (state.language === 'zh' ? '已分攤' : 'Split')
+        ? `${state.language === 'zh' ? '分攤' : 'Split'} ${activity.splitMembers.length}`
         : (state.language === 'zh' ? '分攤' : 'Split bill');
       splitButton.title = isSplit
-        ? (state.language === 'zh' ? '取消分攤' : 'Remove split')
-        : (state.language === 'zh' ? '平均分給所有成員' : 'Split equally between all members');
-      splitButton.addEventListener('click', () => toggleBillSplit(activity.id));
+        ? (state.language === 'zh' ? '選擇分攤成員' : 'Choose split members')
+        : (state.language === 'zh' ? '選擇分攤成員' : 'Choose members to split');
+      splitButton.addEventListener('click', () => openSplitBillModal(activity.id));
       amounts.appendChild(splitButton);
     }
 
@@ -2701,6 +2868,14 @@ addExpenseBtn.addEventListener('click', () => {
 
 closeExpenseModalBtn.addEventListener('click', () => {
   closeExpenseModal();
+});
+
+closeSplitBillModalBtn.addEventListener('click', closeSplitBillModal);
+cancelSplitBillBtn.addEventListener('click', closeSplitBillModal);
+applySplitBillBtn.addEventListener('click', applyBillSplit);
+
+splitBillModalOverlay.addEventListener('click', (event) => {
+  if (event.target === splitBillModalOverlay) closeSplitBillModal();
 });
 
 expenseModalOverlay.addEventListener('click', (e) => {

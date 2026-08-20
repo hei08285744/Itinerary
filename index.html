@@ -73,10 +73,15 @@
         <div class="today-badge-copy">
           <span class="today-label" data-i18n="today">TODAY</span>
           <span class="today-date" id="todayDate">D1 · —</span>
+          <div class="today-time-block">
+            <span class="today-time" id="todayTime" aria-live="polite">--:--</span>
+            <span class="today-time-meta" id="todayTimeMeta">—</span>
+            <span class="today-time-location" id="todayTimeLocation">Time in destination</span>
+          </div>
           <span class="today-location" id="todayLocation">No destination yet</span>
         </div>
         <div class="today-weather-panel">
-            <span class="today-weather-icon" id="todayWeatherIcon" aria-hidden="true">☀</span>
+          <span class="today-weather-icon" id="todayWeatherIcon" aria-hidden="true">☀</span>
           <span class="today-weather-description" id="todayWeatherDescription">Forecast</span>
           <strong class="today-temperature" id="todayTemperature">—°C</strong>
         </div>
@@ -473,6 +478,21 @@
           <button id="removeExpenseBtn" class="btn-danger hidden" type="button">Remove Expense</button>
           <button id="expenseSubmitBtn" type="submit" class="btn-primary">Add Expense</button>
         </form>
+      </section>
+    </div>
+
+    <div id="splitBillModalOverlay" class="modal-overlay hidden">
+      <section class="add-activity card modal-card split-bill-modal">
+        <div class="modal-header">
+          <h2 id="splitBillModalTitle">Split bill</h2>
+          <button id="closeSplitBillModalBtn" class="icon-btn" type="button" aria-label="Close">&times;</button>
+        </div>
+        <p id="splitBillModalHint" class="split-bill-hint">Choose the members sharing this expense.</p>
+        <div id="splitBillMemberOptions" class="split-bill-member-options"></div>
+        <div class="split-bill-actions">
+          <button id="cancelSplitBillBtn" class="btn-secondary" type="button">Cancel</button>
+          <button id="applySplitBillBtn" class="btn-primary" type="button">Apply split</button>
+        </div>
       </section>
     </div>
 
