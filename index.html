@@ -91,7 +91,6 @@
       <div class="itinerary-header">
         <div class="itinerary-actions">
           <button id="addActivityBtn" class="btn-primary" type="button" data-i18n="addItem">+ Add Item</button>
-          <button id="clearDayBtn" class="btn-secondary" data-i18n="clearDay">Clear Day</button>
         </div>
       </div>
     </section>
@@ -186,6 +185,7 @@
       <p class="currency-rate-status" id="currencyRateStatus"></p>
       <h3 class="currency-section-title" data-i18n="bills">Bills</h3>
       <div id="billTabs" class="bill-tabs" role="tablist" aria-label="Bill members"></div>
+      <div id="memberOwesSummary" class="member-owes-summary hidden"></div>
       <div class="expense-list" id="expenseList"></div>
       <button type="button" id="addExpenseBtn" class="btn-add-expense" data-i18n="addExpense">+ Add Expense</button>
     </section>
@@ -295,20 +295,6 @@
         </form>
       </section>
     </div>
-
-    <details class="info-toggle app-view" data-app-view="itinerary">
-      <summary>Trip Info · Flight Schedule</summary>
-      <div class="info-panel">
-        <label>
-          Departure Flight
-          <input type="text" id="departureFlight" placeholder="e.g. BR087, 19 May 09:20">
-        </label>
-        <label>
-          Return Flight
-          <input type="text" id="returnFlight" placeholder="e.g. BR088, 30 May 21:40">
-        </label>
-      </div>
-    </details>
 
     <main class="container">
       <div id="activityModalOverlay" class="modal-overlay hidden">
@@ -427,10 +413,21 @@
               <select id="activityExpenseCurrency"></select>
             </label>
             <label>
+              Paid by
+              <select id="activityPaidBy">
+                <option value="">Select payer</option>
+              </select>
+            </label>
+            <label>
               Member
               <select id="activityBillMember">
                 <option value="">Shared / All members</option>
               </select>
+            </label>
+            <label class="checkbox-field payment-settled-field">
+              <input type="checkbox" id="activitySettled">
+              <span class="toggle-switch" aria-hidden="true"></span>
+              <span>Payment settled</span>
             </label>
             <label class="grow">
               Remarks
@@ -469,11 +466,22 @@
             Currency
             <select id="billExpenseCurrency"></select>
           </label>
+          <label>
+            Paid by
+            <select id="billPaidBy">
+              <option value="">Select payer</option>
+            </select>
+          </label>
           <label class="grow">
             Member
             <select id="billMember">
               <option value="">Shared / All members</option>
             </select>
+          </label>
+          <label class="checkbox-field payment-settled-field">
+            <input type="checkbox" id="billSettled">
+            <span class="toggle-switch" aria-hidden="true"></span>
+            <span>Payment settled</span>
           </label>
           <button id="removeExpenseBtn" class="btn-danger hidden" type="button">Remove Expense</button>
           <button id="expenseSubmitBtn" type="submit" class="btn-primary">Add Expense</button>

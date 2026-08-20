@@ -17,15 +17,12 @@ const tripDestinationInput = document.getElementById('tripDestination');
 const tripStartDateInput = document.getElementById('tripStartDate');
 const tripEndDateInput = document.getElementById('tripEndDate');
 const themeButtons = document.querySelectorAll('[data-theme-option]');
-const departureFlightInput = document.getElementById('departureFlight');
-const returnFlightInput = document.getElementById('returnFlight');
 const mapStatus = document.getElementById('mapStatus');
 const mapLegend = document.getElementById('mapLegend');
 const tripMapEl = document.getElementById('tripMap');
 const activityForm = document.getElementById('activityForm');
 const itineraryDays = document.getElementById('itineraryDays');
 const emptyState = document.getElementById('emptyState');
-const clearDayBtn = document.getElementById('clearDayBtn');
 const addActivityBtn = document.getElementById('addActivityBtn');
 const activityModalOverlay = document.getElementById('activityModalOverlay');
 const closeActivityModalBtn = document.getElementById('closeActivityModalBtn');
@@ -36,7 +33,9 @@ const activityMapProviderInput = document.getElementById('activityMapProvider');
 const activityNaverUrlInput = document.getElementById('activityNaverUrl');
 const activityExpenseInput = document.getElementById('activityExpense');
 const activityExpenseCurrencyInput = document.getElementById('activityExpenseCurrency');
+const activityPaidByInput = document.getElementById('activityPaidBy');
 const activityBillMemberInput = document.getElementById('activityBillMember');
+const activitySettledInput = document.getElementById('activitySettled');
 const locationSuggestions = document.getElementById('locationSuggestions');
 const activityCategoryInput = document.getElementById('activityCategory');
 const flightDetails = document.getElementById('flightDetails');
@@ -61,12 +60,15 @@ const budgetCurrencyLabel = document.getElementById('budgetCurrencyLabel');
 const walletTotalSpent = document.getElementById('walletTotalSpent');
 const walletBudgetLeft = document.getElementById('walletBudgetLeft');
 const expenseList = document.getElementById('expenseList');
+const memberOwesSummary = document.getElementById('memberOwesSummary');
 const billTabs = document.getElementById('billTabs');
 const addExpenseBtn = document.getElementById('addExpenseBtn');
 const expenseModalOverlay = document.getElementById('expenseModalOverlay');
 const closeExpenseModalBtn = document.getElementById('closeExpenseModalBtn');
 const expenseForm = document.getElementById('expenseForm');
 const billMemberInput = document.getElementById('billMember');
+const billPaidByInput = document.getElementById('billPaidBy');
+const billSettledInput = document.getElementById('billSettled');
 const billExpenseCurrencyInput = document.getElementById('billExpenseCurrency');
 const removeExpenseBtn = document.getElementById('removeExpenseBtn');
 const splitBillModalOverlay = document.getElementById('splitBillModalOverlay');
@@ -79,6 +81,7 @@ const expenseConversionRates = {};
 let editingActivityId = null;
 let editingBillId = null;
 let selectedBillMember = 'all';
+let highlightedOwedMember = '';
 let splittingBillId = null;
 let currentPlaceAddress = '';
 
@@ -256,8 +259,6 @@ function init() {
   tripEndDateInput.value = state.tripEndDate || '';
   if (!['joy', 'violet', 'cobalt', 'coffee'].includes(state.theme)) state.theme = 'joy';
   applyTheme();
-  departureFlightInput.value = state.departureFlight || '';
-  returnFlightInput.value = state.returnFlight || '';
   if (!state.geocodeCache) state.geocodeCache = {};
   if (!state.bills) state.bills = [];
   if (!state.routeFees) state.routeFees = {};
@@ -558,16 +559,6 @@ cityPeriods.addEventListener('click', (event) => {
   render();
 });
 
-departureFlightInput.addEventListener('input', () => {
-  state.departureFlight = departureFlightInput.value;
-  saveState();
-});
-
-returnFlightInput.addEventListener('input', () => {
-  state.returnFlight = returnFlightInput.value;
-  saveState();
-});
-
 activityForm.addEventListener('submit', (e) => {
   e.preventDefault();
 
@@ -591,7 +582,9 @@ activityForm.addEventListener('submit', (e) => {
 
   const activityData = {
     date, time, title, category, location, rating, description, expense, remarks,
+    paidBy: activityPaidByInput.value,
     billMember: activityBillMemberInput.value,
+    settled: activitySettledInput.checked,
     address: activityDescriptionInput.value.trim() || currentPlaceAddress,
     mapProvider: activityMapProviderInput.value || 'google',
     naverUrl: activityNaverUrlInput.value.trim(),
@@ -642,6 +635,7 @@ function openActivityModal(activity = null) {
   shoppingItemsDraft = activity?.shoppingItems ? activity.shoppingItems.map((item) => ({ ...item })) : [];
   activityForm.reset();
   populateExpenseCurrencyOptions(activityExpenseCurrencyInput, getExpenseCurrency(activity?.expense) || getCurrencyForDestination(getCityForDate(activity?.date || getTripDays()[selectedDayIndex])));
+  populatePayerOptions(activityPaidByInput, activity?.paidBy || '');
   populateMemberOptions(activityBillMemberInput, activity?.billMember || '');
   updateActivityExpenseHint(activity?.date || getTripDays()[selectedDayIndex]);
   document.getElementById('activityModalTitle').textContent = editingActivityId ? t('editItem') : t('addItem').replace(/^\+ /, '');
@@ -663,7 +657,9 @@ function openActivityModal(activity = null) {
     activityNaverUrlInput.value = activity.naverUrl || '';
     document.getElementById('activityExpense').value = activity.expense || '';
     activityExpenseCurrencyInput.value = getExpenseCurrency(activity.expense) || activityExpenseCurrencyInput.value;
+    activityPaidByInput.value = activity.paidBy || '';
     activityBillMemberInput.value = activity.billMember || '';
+    activitySettledInput.checked = Boolean(activity.settled);
     document.getElementById('activityRemarks').value = activity.remarks || '';
     document.getElementById('flightNumber').value = activity.flightNumber || '';
     document.getElementById('flightDeparture').value = activity.flightDeparture || '';
@@ -808,6 +804,33 @@ function getTripDays() {
     state.activities.map((activity) => activity.date).filter(Boolean).forEach((date) => daySet.add(date));
   }
   return [...daySet].sort();
+}
+
+function getCityDaySummaries(days) {
+  const totals = new Map();
+  days.forEach((date) => {
+    const destination = getCityForDate(date).trim();
+    if (!destination) return;
+    totals.set(destination, (totals.get(destination) || 0) + 1);
+  });
+  return [...totals].map(([destination, dayCount]) => ({ destination, dayCount }));
+}
+
+function formatCityDaySummaries(days, fallbackDestination) {
+  const totalDays = days.length;
+  const summaries = getCityDaySummaries(days);
+  if (!summaries.length) {
+    return state.language === 'zh'
+      ? `${fallbackDestination}共 ${totalDays} 天`
+      : `${totalDays} day${totalDays > 1 ? 's' : ''} in ${fallbackDestination}`;
+  }
+  return summaries
+    .map(({ destination, dayCount }) => (
+      state.language === 'zh'
+        ? `${destination} ${dayCount} 天`
+        : `${dayCount} day${dayCount > 1 ? 's' : ''} in ${destination}`
+    ))
+    .join(state.language === 'zh' ? ' · ' : ' · ');
 }
 
 function getCityForDate(date) {
@@ -1836,9 +1859,7 @@ function renderGreetingAndDaySelector(days) {
   greetingTitle.textContent = state.language === 'zh'
     ? (memberLabel ? `${destination}，${memberLabel} 一起出發！` : `${destination}，我們來了！`)
     : (memberLabel ? `${destination}, ${memberLabel} here we come!` : `${destination}, here we come!`);
-  greetingSub.textContent = state.language === 'zh'
-    ? `${destination}共 ${days.length} 天`
-    : `${days.length} day${days.length > 1 ? 's' : ''} in ${destination}`;
+  greetingSub.textContent = formatCityDaySummaries(days, destination);
 
   const dayActivities = state.activities
     .filter((a) => a.date === selectedDate)
@@ -2214,6 +2235,7 @@ function renderBillTabs() {
     button.setAttribute('aria-selected', String(selectedBillMember === tab.key));
     button.addEventListener('click', () => {
       selectedBillMember = tab.key;
+      highlightedOwedMember = '';
       renderExpenseList();
     });
     billTabs.appendChild(button);
@@ -2222,6 +2244,22 @@ function renderBillTabs() {
 
 function populateBillMemberOptions() {
   populateMemberOptions(billMemberInput, billMemberInput.value);
+  populatePayerOptions(billPaidByInput, billPaidByInput.value);
+}
+
+function populatePayerOptions(select, currentValue = '') {
+  select.innerHTML = '';
+  const emptyOption = document.createElement('option');
+  emptyOption.value = '';
+  emptyOption.textContent = state.language === 'zh' ? '未選擇付款者' : 'Select payer';
+  select.appendChild(emptyOption);
+  (state.members || []).filter(Boolean).forEach((member) => {
+    const option = document.createElement('option');
+    option.value = member;
+    option.textContent = member;
+    select.appendChild(option);
+  });
+  select.value = [...select.options].some((option) => option.value === currentValue) ? currentValue : '';
 }
 
 function populateMemberOptions(select, currentValue = '') {
@@ -2237,6 +2275,149 @@ function populateMemberOptions(select, currentValue = '') {
     select.appendChild(option);
   });
   select.value = [...select.options].some((option) => option.value === currentValue) ? currentValue : '';
+}
+
+function getBillShareMembers(expense) {
+  const members = (state.members || []).filter(Boolean);
+  if (expense.billMember) return [expense.billMember];
+  if (Array.isArray(expense.splitMembers) && expense.splitMembers.length) return expense.splitMembers;
+  return members;
+}
+
+function calculateMemberOwesByCurrency(expenses) {
+  const totals = new Map((state.members || []).filter(Boolean).map((member) => [member, new Map()]));
+  expenses.forEach((expense) => {
+    const parsed = parseFloat(String(expense.expense || '').replace(/[^0-9.]/g, ''));
+    if (!isFinite(parsed)) return;
+    const shareMembers = getBillShareMembers(expense).filter(Boolean);
+    if (!shareMembers.length) return;
+    const currency = getExpenseCurrency(expense.expense) || getCurrencyForDestination(getCityForDate(expense.date));
+    const shareAmount = parsed / shareMembers.length;
+    shareMembers.forEach((member) => {
+      if (!totals.has(member)) totals.set(member, new Map());
+      const memberTotals = totals.get(member);
+      memberTotals.set(currency, (memberTotals.get(currency) || 0) + shareAmount);
+    });
+  });
+  return totals;
+}
+
+function calculateSelectedMemberOwesByCurrency(expenses, debtor) {
+  const members = (state.members || []).filter((member) => member && member !== debtor);
+  const totals = new Map(members.map((member) => [member, new Map()]));
+  expenses.forEach((expense) => {
+    if (expense.settled) return;
+    if (!expense.paidBy || expense.paidBy === debtor) return;
+    const parsed = parseFloat(String(expense.expense || '').replace(/[^0-9.]/g, ''));
+    if (!isFinite(parsed)) return;
+    const shareMembers = getBillShareMembers(expense).filter(Boolean);
+    if (!shareMembers.includes(debtor)) return;
+    const currency = getExpenseCurrency(expense.expense) || getCurrencyForDestination(getCityForDate(expense.date));
+    const shareAmount = parsed / shareMembers.length;
+    if (!totals.has(expense.paidBy)) totals.set(expense.paidBy, new Map());
+    const payerTotals = totals.get(expense.paidBy);
+    payerTotals.set(currency, (payerTotals.get(currency) || 0) + shareAmount);
+  });
+  return totals;
+}
+
+async function convertMemberCurrencyTotals(totals) {
+  const targetCurrency = currencyToInput.value;
+  const convertedTotals = new Map();
+  await Promise.all([...totals].map(async ([member, currencyTotals]) => {
+    const converted = await Promise.all([...currencyTotals].map(async ([currency, amount]) => (
+      amount * await getExpenseConversionRate(currency, targetCurrency)
+    )));
+    convertedTotals.set(member, converted.reduce((sum, value) => sum + value, 0));
+  }));
+  return convertedTotals;
+}
+
+async function calculateMemberOwesConverted(expenses) {
+  return convertMemberCurrencyTotals(calculateMemberOwesByCurrency(expenses));
+}
+
+async function calculateSelectedMemberOwesConverted(expenses, debtor) {
+  return convertMemberCurrencyTotals(calculateSelectedMemberOwesByCurrency(expenses, debtor));
+}
+
+function isSelectedMemberOwedPayment(expense, paidBy) {
+  if (selectedBillMember === 'all') return false;
+  if (!paidBy || expense.paidBy !== paidBy || expense.paidBy === selectedBillMember) return false;
+  if (expense.settled) return false;
+  return getBillShareMembers(expense).includes(selectedBillMember);
+}
+
+function createMemberOwesRow(member, amountText) {
+  const row = document.createElement('div');
+  row.className = `member-owes-row${highlightedOwedMember === member ? ' is-active' : ''}`;
+  row.setAttribute('role', 'button');
+  row.tabIndex = 0;
+  row.title = state.language === 'zh' ? '高亮相關付款項目' : 'Highlight related payment items';
+  const name = document.createElement('span');
+  name.textContent = member;
+  const amount = document.createElement('strong');
+  amount.textContent = amountText;
+  row.append(name, amount);
+  const toggleHighlight = () => {
+    highlightedOwedMember = highlightedOwedMember === member ? '' : member;
+    renderExpenseList();
+  };
+  row.addEventListener('click', toggleHighlight);
+  row.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    toggleHighlight();
+  });
+  return row;
+}
+
+function renderMemberOwesSummary(expenses) {
+  const members = (state.members || []).filter(Boolean);
+  const isMemberTab = selectedBillMember !== 'all';
+  if (!isMemberTab) {
+    memberOwesSummary.innerHTML = '';
+    memberOwesSummary.classList.add('hidden');
+    return;
+  }
+  const summaryMembers = isMemberTab
+    ? members.filter((member) => member !== selectedBillMember)
+    : members;
+  memberOwesSummary.innerHTML = '';
+  if (!summaryMembers.length || !expenses.length) {
+    memberOwesSummary.classList.add('hidden');
+    return;
+  }
+  memberOwesSummary.classList.remove('hidden');
+
+  const title = document.createElement('div');
+  title.className = 'member-owes-title';
+  title.textContent = isMemberTab
+    ? (state.language === 'zh' ? `${selectedBillMember} 欠款` : `${selectedBillMember} owes`)
+    : (state.language === 'zh' ? '每位成員總欠款' : 'Total owed by member');
+  memberOwesSummary.appendChild(title);
+
+  const list = document.createElement('div');
+  list.className = 'member-owes-list';
+  summaryMembers.forEach((member) => {
+    list.appendChild(createMemberOwesRow(member, state.language === 'zh' ? '換算中…' : 'Calculating…'));
+  });
+  memberOwesSummary.appendChild(list);
+
+  const totalsPromise = isMemberTab
+    ? calculateSelectedMemberOwesConverted(expenses, selectedBillMember)
+    : calculateMemberOwesConverted(expenses);
+  totalsPromise.then((totals) => {
+    list.innerHTML = '';
+    summaryMembers.forEach((member) => {
+      const amount = totals.get(member) || 0;
+      list.appendChild(createMemberOwesRow(member, `${currencyToInput.value} ${amount.toFixed(2)}`));
+    });
+  }).catch(() => {
+    list.querySelectorAll('strong').forEach((element) => {
+      element.textContent = state.language === 'zh' ? '無法換算' : 'Unavailable';
+    });
+  });
 }
 
 function openSplitBillModal(id) {
@@ -2304,6 +2485,7 @@ function renderExpenseList() {
   renderBillTabs();
 
   const allExpenses = getBillEntries();
+  renderMemberOwesSummary(allExpenses);
   const expenses = allExpenses.filter((expense) => (
     selectedBillMember === 'all'
     || (expense.billMember && expense.billMember === selectedBillMember)
@@ -2324,6 +2506,8 @@ function renderExpenseList() {
   for (const activity of expenses) {
     const row = document.createElement('div');
     row.className = 'expense-row';
+    row.classList.toggle('is-settled', Boolean(activity.settled));
+    row.classList.toggle('is-owed-highlight', isSelectedMemberOwedPayment(activity, highlightedOwedMember));
 
     const main = document.createElement('div');
     main.className = 'expense-row-main';
@@ -2347,7 +2531,11 @@ function renderExpenseList() {
 
     const meta = document.createElement('span');
     meta.className = 'expense-row-meta';
-    meta.textContent = [activity.date, formatTime(activity.time)].filter(Boolean).join(' · ');
+    const paidByText = activity.paidBy
+      ? `${state.language === 'zh' ? '付款' : 'Paid by'} ${activity.paidBy}`
+      : '';
+    const settledText = activity.settled ? (state.language === 'zh' ? '已結清' : 'Settled') : '';
+    meta.textContent = [activity.date, formatTime(activity.time), paidByText, settledText].filter(Boolean).join(' · ');
     main.appendChild(meta);
 
     row.appendChild(main);
@@ -2357,13 +2545,15 @@ function renderExpenseList() {
 
     const amount = document.createElement('span');
     amount.className = 'expense-row-amount';
-    const parsed = parseFloat(activity.expense.replace(/[^0-9.]/g, ''));
+    const parsed = parseFloat(String(activity.expense || '').replace(/[^0-9.]/g, ''));
     const originalCurrency = getExpenseCurrency(activity.expense) || getCurrencyForDestination(getCityForDate(activity.date));
     const isSplit = Array.isArray(activity.splitMembers) && activity.splitMembers.length > 0;
-    const displayedAmount = isSplit && selectedBillMember !== 'all'
-      ? parsed / activity.splitMembers.length
+    const shareMembers = getBillShareMembers(activity);
+    const isMemberShare = selectedBillMember !== 'all' && shareMembers.includes(selectedBillMember) && shareMembers.length > 1;
+    const displayedAmount = selectedBillMember !== 'all' && shareMembers.includes(selectedBillMember)
+      ? parsed / shareMembers.length
       : parsed;
-    amount.textContent = isSplit && isFinite(displayedAmount)
+    amount.textContent = (isSplit || isMemberShare) && isFinite(displayedAmount)
       ? `${originalCurrency} ${displayedAmount.toFixed(2)}`
       : activity.expense;
     amounts.appendChild(amount);
@@ -2465,10 +2655,10 @@ async function calculateAllBillsConvertedTotal(expenses, member) {
   const targetCurrency = currencyToInput.value;
   const totals = new Map();
   expenses.forEach((expense) => {
-    const parsed = parseFloat(expense.expense.replace(/[^0-9.]/g, ''));
+    const parsed = parseFloat(String(expense.expense || '').replace(/[^0-9.]/g, ''));
     if (!isFinite(parsed)) return;
-    const splitCount = Array.isArray(expense.splitMembers) && expense.splitMembers.length;
-    const amount = splitCount && member !== 'all' ? parsed / splitCount : parsed;
+    const shareMembers = getBillShareMembers(expense);
+    const amount = member !== 'all' && shareMembers.includes(member) ? parsed / shareMembers.length : parsed;
     const currency = getExpenseCurrency(expense.expense) || getCurrencyForDestination(getCityForDate(expense.date));
     totals.set(currency, (totals.get(currency) || 0) + amount);
   });
@@ -2536,9 +2726,12 @@ function renderItineraryForSelectedDay(days) {
     tagsRow.appendChild(categoryTag);
     itemCard.appendChild(tagsRow);
 
-    const titleEl = document.createElement('h4');
-    titleEl.className = 'item-title';
+    const titleEl = document.createElement('button');
+    titleEl.type = 'button';
+    titleEl.className = 'item-title item-title-button';
     titleEl.textContent = activity.location ? `${activity.title} · ${activity.location}` : activity.title;
+    titleEl.title = state.language === 'zh' ? '編輯項目' : 'Edit item';
+    titleEl.addEventListener('click', () => openActivityModal(activity));
     itemCard.appendChild(titleEl);
 
     if (activity.category === 'flight') {
@@ -2682,14 +2875,6 @@ function renderItineraryForSelectedDay(days) {
     deleteBtn.title = 'Delete item';
     deleteBtn.addEventListener('click', () => deleteActivity(activity.id));
     itemCard.appendChild(deleteBtn);
-
-    const editBtn = document.createElement('button');
-    editBtn.className = 'edit-btn';
-    editBtn.type = 'button';
-    editBtn.textContent = 'Edit';
-    editBtn.title = 'Edit item';
-    editBtn.addEventListener('click', () => openActivityModal(activity));
-    itemCard.appendChild(editBtn);
 
     item.appendChild(itemCard);
     dayGroup.appendChild(item);
@@ -3001,7 +3186,9 @@ expenseModalOverlay.addEventListener('click', (e) => {
 function openExpenseModal() {
   const bill = arguments[0] || null;
   editingBillId = bill?.id || null;
+  expenseForm.reset();
   populateBillMemberOptions();
+  populatePayerOptions(billPaidByInput, bill?.paidBy || '');
   populateExpenseCurrencyOptions(billExpenseCurrencyInput, getExpenseCurrency(bill?.expense) || getCurrencyForDestination(getCityForDate(bill?.date || getTripDays()[selectedDayIndex])));
   document.getElementById('expenseModalTitle').textContent = editingBillId ? (state.language === 'zh' ? '編輯支出' : 'Edit Expense') : 'Add Expense';
   document.getElementById('expenseSubmitBtn').textContent = editingBillId ? (state.language === 'zh' ? '儲存變更' : 'Save Changes') : 'Add Expense';
@@ -3013,8 +3200,11 @@ function openExpenseModal() {
     document.getElementById('billDate').value = bill.date || '';
     document.getElementById('billTime').value = bill.time || '';
     document.getElementById('billAmount').value = getExpenseNumber(bill.expense);
+    billPaidByInput.value = bill.paidBy || '';
+    billSettledInput.checked = Boolean(bill.settled);
     populateMemberOptions(billMemberInput, bill.billMember || '');
   } else if (selectedDate) {
+    billSettledInput.checked = false;
     document.getElementById('billDate').value = selectedDate;
   }
   expenseModalOverlay.classList.remove('hidden');
@@ -3051,7 +3241,9 @@ expenseForm.addEventListener('submit', (e) => {
     date,
     time,
     expense: amount,
+    paidBy: billPaidByInput.value,
     billMember: billMemberInput.value,
+    settled: billSettledInput.checked,
   };
   if (editingBillId) {
     const bill = state.bills.find((item) => item.id === editingBillId);
