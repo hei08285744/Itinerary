@@ -51,13 +51,19 @@
         <div id="memberList" class="member-list"></div>
       </div>
       <div id="cityPeriods" class="city-periods hidden"></div>
-      <button id="addCityBtn" class="btn-secondary" type="button" data-i18n="addCity">+ Add city</button>
-      <div class="itinerary-file-actions">
-        <button id="exportItineraryBtn" class="btn-secondary" type="button" data-i18n="exportItinerary">Download itinerary</button>
-        <label class="btn-secondary itinerary-file-picker">
-          <span data-i18n="importItinerary">Load itinerary</span>
-          <input id="importItineraryInput" type="file" accept="application/json,.json">
-        </label>
+      <div class="itinerary-utility-actions">
+        <button id="addCityBtn" class="btn-secondary" type="button" data-i18n="addCity">+ Add city</button>
+        <div class="itinerary-file-actions">
+          <button id="exportItineraryBtn" class="btn-secondary itinerary-file-button" type="button" title="Download itinerary">
+              <svg class="file-action-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11m0 0 4-4m-4 4-4-4M5 17v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2"/></svg>
+            <span class="visually-hidden" data-i18n="exportItinerary">Download itinerary</span>
+          </button>
+          <label class="btn-secondary itinerary-file-picker itinerary-file-button" title="Load itinerary">
+              <svg class="file-action-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4m0 0 4 4m-4-4-4 4M5 17v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2"/></svg>
+            <span class="visually-hidden" data-i18n="importItinerary">Load itinerary</span>
+            <input id="importItineraryInput" type="file" accept="application/json,.json">
+          </label>
+        </div>
       </div>
       <button id="closeSettingsBtn" class="btn-primary" type="button" data-i18n="saveClose">Save & Close</button>
     </section>
@@ -119,6 +125,26 @@
 
     <section class="currency-card card">
       <h2 data-i18n="wallet">Wallet</h2>
+      <section class="virtual-card" aria-label="Trip budget card">
+        <div class="virtual-card-topline">
+          <span class="virtual-card-label" data-i18n="tripBudget">Trip budget</span>
+          <span class="virtual-card-chip" aria-hidden="true"></span>
+        </div>
+        <div class="virtual-card-budget">
+          <span id="budgetCurrencyLabel">USD</span>
+          <input id="walletBudget" type="number" min="0" step="0.01" inputmode="decimal" value="0" aria-label="Trip budget">
+        </div>
+        <div class="virtual-card-summary">
+          <div>
+            <span data-i18n="totalSpent">Total spent</span>
+            <strong id="walletTotalSpent">USD 0.00</strong>
+          </div>
+          <div>
+            <span data-i18n="budgetLeft">Budget left</span>
+            <strong id="walletBudgetLeft">USD 0.00</strong>
+          </div>
+        </div>
+      </section>
       <h3 class="currency-section-title" data-i18n="currencyExchange">Currency Exchange</h3>
       <div class="currency-convert-panel">
         <div class="currency-box">

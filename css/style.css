@@ -2,6 +2,12 @@
   box-sizing: border-box;
 }
 
+html,
+body {
+  max-width: 100%;
+  overflow-x: clip;
+}
+
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
@@ -51,6 +57,7 @@ h1, h2, h3 {
 }
 
 .app-shell {
+  width: 100%;
   max-width: 480px;
   margin: 2rem auto;
   background: #f0ede4;
@@ -65,6 +72,15 @@ h1, h2, h3 {
   align-items: flex-start;
   justify-content: space-between;
   padding: 1.75rem 1.5rem 1rem;
+}
+
+.top-bar-text,
+.top-bar-actions,
+.currency-box,
+.item-card,
+.expense-row-main,
+.expense-row-amounts {
+  min-width: 0;
 }
 
 .eyebrow {
@@ -193,28 +209,49 @@ h1, h2, h3 {
   font-size: 0.75rem;
 }
 
-#addCityBtn {
-  margin: 0 0 0.75rem;
-}
-
-.itinerary-file-actions {
+.itinerary-utility-actions {
   display: flex;
+  align-items: center;
   flex-wrap: wrap;
   gap: 0.5rem;
   margin: 0 0 0.75rem;
 }
 
-.itinerary-file-actions .btn-secondary {
-  flex: 1 1 140px;
-  min-width: 0;
+.itinerary-file-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.itinerary-file-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 38px;
+  height: 32px;
+  padding: 0;
+  color: #b3491f;
+  line-height: 1;
+}
+
+.file-action-icon {
+  display: block;
+  flex: 0 0 auto;
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: #b3491f;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
 }
 
 .itinerary-file-picker {
   position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: row;
+  gap: 0;
   overflow: hidden;
+  min-width: 0;
 }
 
 .itinerary-file-picker input[type='file'] {
@@ -229,6 +266,18 @@ h1, h2, h3 {
 .itinerary-file-picker:focus-within {
   outline: 3px solid rgba(189, 93, 58, 0.22);
   outline-offset: 2px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .members-section {
@@ -618,6 +667,95 @@ h1, h2, h3 {
   border-radius: 20px;
 }
 
+.virtual-card {
+  overflow: hidden;
+  border-radius: 8px;
+  padding: 1.15rem;
+  background: #3d3929;
+  color: #fff;
+  box-shadow: 0 10px 18px rgba(61, 57, 41, 0.16);
+}
+
+.virtual-card-topline,
+.virtual-card-summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.virtual-card-label,
+.virtual-card-summary span {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.virtual-card-chip {
+  width: 28px;
+  height: 20px;
+  border: 1px solid #e7bf65;
+  border-radius: 4px;
+  background: repeating-linear-gradient(90deg, #e7bf65 0 7px, #d39f39 7px 8px);
+}
+
+.virtual-card-budget {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  margin: 1.15rem 0;
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+.virtual-card-budget input {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #fff;
+  font: inherit;
+  font-size: 1.9rem;
+  font-weight: 600;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.virtual-card-budget input::-webkit-outer-spin-button,
+.virtual-card-budget input::-webkit-inner-spin-button {
+  margin: 0;
+  -webkit-appearance: none;
+}
+
+.virtual-card-budget input:focus {
+  box-shadow: none;
+  outline: 2px solid #e7bf65;
+  outline-offset: 3px;
+}
+
+.virtual-card-summary > div {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.virtual-card-summary > div:last-child {
+  text-align: right;
+}
+
+.virtual-card-summary strong {
+  overflow-wrap: anywhere;
+  font-size: 0.95rem;
+}
+
+.virtual-card-summary .is-over-budget {
+  color: #ffbaa8;
+}
+
 .currency-convert-panel {
   display: flex;
   align-items: center;
@@ -642,6 +780,8 @@ h1, h2, h3 {
 }
 
 .currency-select {
+  width: 100%;
+  min-width: 0;
   border: 1px solid #ddd9cb;
   border-radius: 999px;
   background: #fff;
@@ -1672,6 +1812,7 @@ select:focus {
 
   .top-bar h1 {
     font-size: 1.5rem;
+    overflow-wrap: anywhere;
   }
 
   .day-strip-section {
@@ -1756,6 +1897,85 @@ select:focus {
   .shopping-details {
     gap: 0.6rem;
     padding: 0.65rem;
+  }
+}
+
+@media (max-width: 360px) {
+  .top-bar {
+    padding: 1rem;
+  }
+
+  .top-bar-actions {
+    gap: 0.35rem;
+  }
+
+  .language-select {
+    min-width: 76px;
+    min-height: 36px;
+    padding: 0 0.45rem;
+    font-size: 0.78rem;
+  }
+
+  .icon-btn {
+    width: 36px;
+    height: 36px;
+  }
+
+  .trip-settings,
+  .greeting-card,
+  .info-toggle,
+  .map-card,
+  .itinerary-list,
+  .currency-card,
+  .route-card {
+    margin-left: 0.75rem;
+    margin-right: 0.75rem;
+    padding-left: 0.9rem;
+    padding-right: 0.9rem;
+  }
+
+  .day-strip-section,
+  .container {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+
+  .city-period-dates,
+  .activity-form,
+  .flight-details {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .currency-convert-panel {
+    gap: 0.45rem;
+  }
+
+  .currency-box {
+    padding: 0.6rem;
+  }
+
+  .currency-select,
+  .currency-amount-input,
+  .currency-amount-result {
+    padding: 0.5rem 0.6rem;
+    font-size: 0.85rem;
+  }
+
+  .currency-swap-btn {
+    width: 28px;
+    height: 28px;
+  }
+
+  .itinerary-actions {
+    width: 100%;
+  }
+
+  .itinerary-actions .btn-primary,
+  .itinerary-actions .btn-secondary {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0.6rem 0.7rem;
+    font-size: 0.82rem;
   }
 }
 

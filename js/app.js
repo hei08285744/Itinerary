@@ -50,6 +50,10 @@ const currencySwapBtn = document.getElementById('currencySwapBtn');
 const currencyAmountInput = document.getElementById('currencyAmount');
 const currencyResult = document.getElementById('currencyResult');
 const currencyRateStatus = document.getElementById('currencyRateStatus');
+const walletBudgetInput = document.getElementById('walletBudget');
+const budgetCurrencyLabel = document.getElementById('budgetCurrencyLabel');
+const walletTotalSpent = document.getElementById('walletTotalSpent');
+const walletBudgetLeft = document.getElementById('walletBudgetLeft');
 const expenseList = document.getElementById('expenseList');
 const billTabs = document.getElementById('billTabs');
 const addExpenseBtn = document.getElementById('addExpenseBtn');
@@ -100,7 +104,7 @@ const TRANSLATIONS = {
     startDate: 'Start Date', endDate: 'End Date', saveClose: 'Save & Close', today: 'TODAY',
     addItem: '+ Add Item', clearDay: 'Clear Day', tripMap: 'Trip Map', route: 'Route',
     travelMode: 'Travel Mode', driving: 'Driving', walking: 'Walking', transit: 'Transit',
-    wallet: 'Wallet', currencyExchange: 'Currency Exchange', bills: 'Bills', addExpense: '+ Add Expense',
+    wallet: 'Wallet', tripBudget: 'Trip budget', totalSpent: 'Total spent', budgetLeft: 'Budget left', currencyExchange: 'Currency Exchange', bills: 'Bills', addExpense: '+ Add Expense',
     multipleCities: 'Multiple cities', addCity: '+ Add city', city: 'City', remove: 'Remove', editItem: 'Edit Item',
     members: 'Trip members', addMember: '+ Add', memberPlaceholder: 'e.g. Alex',
     exportItinerary: 'Download itinerary', importItinerary: 'Load itinerary',
@@ -110,7 +114,7 @@ const TRANSLATIONS = {
     startDate: '開始日期', endDate: '結束日期', saveClose: '儲存並關閉', today: '今天',
     addItem: '+ 新增項目', clearDay: '清除當天', tripMap: '行程地圖', route: '路線',
     travelMode: '交通方式', driving: '開車', walking: '步行', transit: '大眾運輸',
-    wallet: '錢包', currencyExchange: '貨幣兌換', bills: '帳單', addExpense: '+ 新增支出',
+    wallet: '錢包', tripBudget: '旅程預算', totalSpent: '已支出', budgetLeft: '剩餘預算', currencyExchange: '貨幣兌換', bills: '帳單', addExpense: '+ 新增支出',
     multipleCities: '多城市行程', addCity: '+ 新增城市', city: '城市', remove: '移除', editItem: '編輯項目',
     members: '同行成員', addMember: '+ 新增', memberPlaceholder: '例如：小明',
     exportItinerary: '下載行程', importItinerary: '載入行程',
@@ -158,6 +162,7 @@ function loadState() {
     activities: [],
     bills: [],
     routeFees: {},
+    walletBudget: 0,
   };
 }
 
@@ -176,6 +181,8 @@ function init() {
   if (!state.geocodeCache) state.geocodeCache = {};
   if (!state.bills) state.bills = [];
   if (!state.routeFees) state.routeFees = {};
+  if (!isFinite(Number(state.walletBudget))) state.walletBudget = 0;
+  walletBudgetInput.value = state.walletBudget;
   if (!Array.isArray(state.cities)) state.cities = [];
   if (!Array.isArray(state.members)) state.members = [];
   if (!state.cities.length && (state.tripDestination || state.tripStartDate || state.tripEndDate)) {
@@ -1345,6 +1352,7 @@ function toggleBillSplit(id) {
 // Aggregates every activity's Expense field plus manually added bills into a list + total shown in the Wallet card.
 function renderExpenseList() {
   syncRouteBills();
+  renderWalletCard();
   expenseList.innerHTML = '';
   renderBillTabs();
 
@@ -1468,6 +1476,26 @@ function renderExpenseList() {
       ? `All expenses ≈ ${convertedTotalValue.toFixed(2)} ${currencyToInput.value}`
       : (state.language === 'zh' ? '無法換算總額' : 'Total conversion unavailable');
   });
+}
+
+async function renderWalletCard() {
+  const currency = currencyToInput.value || 'USD';
+  const budget = Math.max(0, Number(state.walletBudget) || 0);
+  budgetCurrencyLabel.textContent = currency;
+  walletBudgetInput.value = budget;
+  walletTotalSpent.textContent = state.language === 'zh' ? '換算中…' : 'Calculating…';
+  walletBudgetLeft.textContent = `${currency} ${budget.toFixed(2)}`;
+
+  try {
+    const totalSpent = await calculateAllBillsConvertedTotal(getBillEntries(), 'all');
+    if (!isFinite(totalSpent)) throw new Error('Total unavailable');
+    walletTotalSpent.textContent = `${currency} ${totalSpent.toFixed(2)}`;
+    walletBudgetLeft.textContent = `${currency} ${(budget - totalSpent).toFixed(2)}`;
+    walletBudgetLeft.classList.toggle('is-over-budget', totalSpent > budget);
+  } catch (error) {
+    walletTotalSpent.textContent = state.language === 'zh' ? '無法換算' : 'Unavailable';
+    walletBudgetLeft.classList.remove('is-over-budget');
+  }
 }
 
 async function getExpenseConversionRate(fromCurrency, toCurrency) {
@@ -1793,6 +1821,12 @@ function updateCurrencyResult() {
   }
   renderExpenseList();
 }
+
+walletBudgetInput.addEventListener('input', () => {
+  state.walletBudget = Math.max(0, Number(walletBudgetInput.value) || 0);
+  saveState();
+  renderWalletCard();
+});
 
 const DESTINATION_CURRENCIES = [
   { currency: 'KRW', keywords: ['korea', 'seoul', 'busan', 'jeju'] },
