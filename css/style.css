@@ -99,6 +99,19 @@ body {
   color: var(--theme-ink);
 }
 
+body::after {
+  content: '';
+  position: fixed;
+  z-index: 49;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: calc(1.2rem + env(safe-area-inset-bottom));
+  background: var(--theme-ink);
+  pointer-events: none;
+  display: none;
+}
+
 h1, h2, h3 {
   font-family: 'Georgia', 'Iowan Old Style', 'Times New Roman', serif;
   font-weight: 500;
@@ -2894,14 +2907,7 @@ select:focus {
 }
 
 .app-tab-bar::after {
-  content: '';
-  position: fixed;
-  z-index: -1;
-  right: 0;
-  bottom: 0;
-  width: 100vw;
-  height: calc(0.6rem + env(safe-area-inset-bottom));
-  background: var(--theme-ink);
+  display: none;
 }
 
 .app-tab-indicator {
@@ -3532,6 +3538,10 @@ select:focus,
 }
 
 @media (max-width: 640px) {
+  body::after {
+    display: block;
+  }
+
   .app-shell {
     margin: 0;
     border-radius: 0;
@@ -3659,7 +3669,7 @@ select:focus,
   .modal-card {
     flex: 0 0 auto;
     min-height: 0;
-    max-height: calc(100dvh - 1.5rem);
+    max-height: calc(100svh - 1.5rem);
     padding: 1rem;
   }
 
@@ -3902,7 +3912,7 @@ select:focus,
 
   .modal-card {
     width: 100%;
-    max-height: calc(100dvh - 1rem);
+    max-height: calc(100svh - 1rem);
     padding: 0.85rem;
   }
 
