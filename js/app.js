@@ -113,7 +113,7 @@ const memberList = document.getElementById('memberList');
 
 const TRANSLATIONS = {
   en: {
-    tripDetails: 'Trip Details', tripName: 'Trip Name', destination: 'Destination', theme: 'Theme',
+    tripDetails: 'Trip Details', tripName: 'Trip Name', destination: 'Destination', theme: 'Theme', settings: 'Settings', language: 'Language',
     startDate: 'Start Date', endDate: 'End Date', saveClose: 'Save & Close', today: 'TODAY',
     addItem: '+ Add Item', clearDay: 'Clear Day', tripMap: 'Trip Map', route: 'Route',
     travelMode: 'Travel Mode', driving: 'Driving', walking: 'Walking', transit: 'Transit',
@@ -123,7 +123,7 @@ const TRANSLATIONS = {
     exportItinerary: 'Download itinerary', importItinerary: 'Load itinerary',
   },
   zh: {
-    tripDetails: '行程詳情', tripName: '行程名稱', destination: '目的地', theme: '主題',
+    tripDetails: '行程詳情', tripName: '行程名稱', destination: '目的地', theme: '主題', settings: '設定', language: '語言',
     startDate: '開始日期', endDate: '結束日期', saveClose: '儲存並關閉', today: '今天',
     addItem: '+ 新增項目', clearDay: '清除當天', tripMap: '行程地圖', route: '路線',
     travelMode: '交通方式', driving: '開車', walking: '步行', transit: '大眾運輸',

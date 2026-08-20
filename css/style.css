@@ -2353,6 +2353,38 @@ select:focus,
   width: 100%;
 }
 
+.profile-settings {
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 1.1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--theme-border);
+}
+
+.profile-settings h3 {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.profile-setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-width: 0;
+  color: var(--theme-muted);
+  font-size: 0.82rem;
+}
+
+.profile-setting-row .language-select {
+  width: auto;
+  min-width: 96px;
+}
+
+.profile-theme-setting .theme-picker {
+  min-height: 32px;
+}
+
 /* Keep legacy accent text and controls aligned with the selected theme. */
 .greeting-script,
 .brand-mark,
@@ -2395,6 +2427,21 @@ select:focus,
 
 .shopping-card-item input {
   accent-color: var(--theme-accent);
+}
+
+/* Keep compact labels vertically and horizontally centered on every device. */
+.category-tag,
+.expense-badge,
+.member-chip,
+.bill-tab,
+.item-map-link,
+.btn-primary,
+.btn-secondary,
+.bill-split-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
 }
 
 /* Shared compact panels and pills across every theme. */
@@ -2548,6 +2595,97 @@ select:focus,
   .shopping-details {
     gap: 0.6rem;
     padding: 0.65rem;
+  }
+
+  .activity-item {
+    gap: 0.55rem;
+    padding-bottom: 1rem;
+  }
+
+  .activity-time {
+    min-width: 48px;
+    padding-top: 0.7rem;
+    font-size: 0.74rem;
+  }
+
+  .timeline-marker {
+    width: 12px;
+  }
+
+  .timeline-dot {
+    width: 10px;
+    height: 10px;
+    margin-top: 0.75rem;
+  }
+
+  .item-card {
+    min-width: 0;
+    padding: 0.75rem 1.75rem 0.75rem 0.8rem;
+  }
+
+  .edit-btn {
+    top: 0.55rem;
+    right: 1.5rem;
+    padding: 0.1rem 0.25rem;
+    font-size: 0.65rem;
+  }
+
+  .delete-btn {
+    top: 0.55rem;
+    right: 0.55rem;
+    font-size: 1rem;
+  }
+
+  .item-tags,
+  .item-footer-row {
+    gap: 0.35rem;
+    margin-bottom: 0.35rem;
+  }
+
+  .category-tag,
+  .expense-badge,
+  .item-map-link {
+    min-height: 26px;
+    padding: 0.2rem 0.5rem;
+    font-size: 0.68rem;
+    line-height: 1.15;
+  }
+
+  .item-title {
+    padding-right: 0.25rem;
+    font-size: 0.94rem;
+    line-height: 1.25;
+  }
+
+  .item-meta,
+  .item-description,
+  .item-remarks {
+    font-size: 0.78rem;
+  }
+
+  .item-address {
+    font-size: 0.68rem;
+  }
+
+  .item-remarks {
+    padding: 0.5rem 0.6rem;
+  }
+
+  .flight-card-details {
+    margin: 0.55rem 0;
+    padding: 0.55rem 0.6rem;
+  }
+
+  .flight-times {
+    gap: 0.45rem;
+  }
+
+  .flight-times strong {
+    font-size: 0.75rem;
+  }
+
+  .flight-times span {
+    font-size: 0.65rem;
   }
 }
 
