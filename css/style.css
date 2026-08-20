@@ -2682,10 +2682,38 @@ select:focus {
 .flight-card-details {
   margin: 0.65rem 0;
   padding: 0.65rem 0.75rem;
-  border: 1px solid #e1dbcf;
+  border: 1px solid var(--theme-border);
   border-radius: 10px;
-  background: #faf8f3;
+  background: color-mix(in srgb, var(--theme-surface) 88%, var(--theme-accent-soft));
   font-family: 'Nimbus Mono PS', 'Courier New', monospace;
+}
+
+.flight-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.55rem;
+}
+
+.flight-header .flight-number {
+  margin: 0;
+}
+
+.flight-airline-label {
+  flex: 0 1 auto;
+  max-width: 65%;
+  padding: 0.22rem 0.5rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--airline-brand-color, var(--theme-accent));
+  color: var(--airline-brand-text, var(--theme-surface));
+  font-family: inherit;
+  font-size: 0.68rem;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .flight-route {
@@ -2887,9 +2915,10 @@ select:focus {
 .app-tab-bar {
   --active-tab-index: 0;
   --tab-ball-size: clamp(48px, 13vw, 56px);
+  --footer-viewport-bottom: 0px;
   position: fixed;
   z-index: 50;
-  bottom: 0.6rem;
+  bottom: calc(0.6rem + var(--footer-viewport-bottom));
   left: 50%;
   display: grid;
   grid-template-columns: repeat(5, 1fr);
@@ -3542,6 +3571,12 @@ select:focus,
     display: block;
   }
 
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
   .app-shell {
     margin: 0;
     border-radius: 0;
@@ -3904,6 +3939,11 @@ select:focus,
     min-width: 0;
     max-width: 100%;
     font-size: 0.9rem;
+  }
+
+  input[type='date'],
+  input[type='time'] {
+    font-size: 16px;
   }
 
   .modal-overlay {

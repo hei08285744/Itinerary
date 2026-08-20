@@ -11,6 +11,7 @@ let destinationClockTimer = null;
 let destinationClockRequestId = 0;
 let currentDestinationCity = '';
 let currentDestinationCoordinates = null;
+const mobileFooter = document.querySelector('.app-tab-bar');
 
 const tripNameInput = document.getElementById('tripName');
 const tripDestinationInput = document.getElementById('tripDestination');
@@ -351,6 +352,21 @@ function updateAppTabIndicator() {
 }
 
 window.addEventListener('resize', updateAppTabIndicator);
+
+function syncMobileFooterViewport() {
+  if (!mobileFooter || !window.visualViewport) return;
+  const viewport = window.visualViewport;
+  const viewportBottom = viewport.offsetTop + viewport.height;
+  const layoutBottomGap = Math.max(0, window.innerHeight - viewportBottom);
+  mobileFooter.style.setProperty('--footer-viewport-bottom', `${layoutBottomGap}px`);
+}
+
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', syncMobileFooterViewport);
+  window.visualViewport.addEventListener('scroll', syncMobileFooterViewport);
+}
+window.addEventListener('resize', syncMobileFooterViewport);
+syncMobileFooterViewport();
 
 setActiveAppView('itinerary');
 
@@ -2545,17 +2561,28 @@ function renderItineraryForSelectedDay(days) {
       const flightEl = document.createElement('div');
       flightEl.className = 'flight-card-details';
 
+      if (activity.flightNumber) {
+        const airline = getAirlineFromFlightNumber(activity.flightNumber);
+        const flightHeader = document.createElement('div');
+        flightHeader.className = 'flight-header';
+        const numberEl = document.createElement('span');
+        numberEl.className = 'flight-number';
+        numberEl.textContent = activity.flightNumber;
+        const airlineName = document.createElement('span');
+        airlineName.className = 'flight-airline-label';
+        airlineName.textContent = airline.name;
+        airlineName.title = `${airline.name} (${airline.code})`;
+        airlineName.style.setProperty('--airline-brand-color', airline.brandColor);
+        airlineName.style.setProperty('--airline-brand-text', airline.brandTextColor);
+        airlineName.style.setProperty('--airline-brand-accent', airline.brandAccent);
+        flightHeader.append(numberEl, airlineName);
+        flightEl.appendChild(flightHeader);
+      }
+
       const routeEl = document.createElement('div');
       routeEl.className = 'flight-route';
       routeEl.textContent = `${activity.flightDeparture || activity.location || '—'} → ${activity.flightArrival || '—'}`;
       flightEl.appendChild(routeEl);
-
-      if (activity.flightNumber) {
-        const numberEl = document.createElement('div');
-        numberEl.className = 'flight-number';
-        numberEl.textContent = activity.flightNumber;
-        flightEl.insertBefore(numberEl, routeEl);
-      }
 
       const flightTimes = document.createElement('div');
       flightTimes.className = 'flight-times';
@@ -2697,6 +2724,87 @@ const CATEGORY_META = {
   shopping: { label: 'Shopping', className: 'cat-shopping' },
   other: { label: 'Other', className: 'cat-other' },
 };
+
+const AIRLINES_BY_IATA_CODE = {
+  UO: 'HK Express',
+  BR: 'EVA Air',
+  CI: 'China Airlines',
+  CX: 'Cathay Pacific',
+  KA: 'Cathay Dragon',
+  KE: 'Korean Air',
+  OZ: 'Asiana Airlines',
+  '7C': 'Jeju Air',
+  LJ: 'Jin Air',
+  TW: 'Tway Air',
+  ZE: 'Eastar Jet',
+  RS: 'Air Seoul',
+  JL: 'Japan Airlines',
+  NH: 'ANA',
+  MM: 'Peach Aviation',
+  GK: 'Jetstar Japan',
+  BC: 'Skymark Airlines',
+  UA: 'United Airlines',
+  AA: 'American Airlines',
+  DL: 'Delta Air Lines',
+  BA: 'British Airways',
+  AF: 'Air France',
+  LH: 'Lufthansa',
+  SQ: 'Singapore Airlines',
+  TG: 'Thai Airways',
+  QF: 'Qantas',
+  EK: 'Emirates',
+  QR: 'Qatar Airways',
+  TK: 'Turkish Airlines',
+  AC: 'Air Canada',
+  NZ: 'Air New Zealand',
+};
+
+const AIRLINE_BRAND_COLORS = {
+  UO: ['#702283', '#ffffff', '#00a9d6'],
+  BR: ['#006747', '#ffffff'],
+  CI: ['#005bac', '#ffffff'],
+  CX: ['#006564', '#ffffff'],
+  KA: ['#006564', '#ffffff'],
+  KE: ['#00205b', '#ffffff'],
+  OZ: ['#c8102e', '#ffffff'],
+  '7C': ['#e87511', '#ffffff'],
+  LJ: ['#e60012', '#ffffff'],
+  TW: ['#e60012', '#ffffff'],
+  ZE: ['#f15a29', '#ffffff'],
+  RS: ['#e60012', '#ffffff'],
+  JL: ['#d71920', '#ffffff'],
+  NH: ['#005bac', '#ffffff'],
+  MM: ['#d8438a', '#ffffff'],
+  GK: ['#ed1c24', '#ffffff'],
+  BC: ['#174694', '#ffffff'],
+  UA: ['#002244', '#ffffff'],
+  AA: ['#0078d2', '#ffffff'],
+  DL: ['#c8102e', '#ffffff'],
+  BA: ['#1b3d79', '#ffffff'],
+  AF: ['#163b70', '#ffffff'],
+  LH: ['#05164d', '#ffffff'],
+  SQ: ['#f9b233', '#163d88'],
+  TG: ['#5e2a84', '#ffffff'],
+  QF: ['#d71920', '#ffffff'],
+  EK: ['#d71920', '#ffffff'],
+  QR: ['#5c0632', '#ffffff'],
+  TK: ['#c8102e', '#ffffff'],
+  AC: ['#d8292f', '#ffffff'],
+  NZ: ['#111111', '#ffffff'],
+};
+
+function getAirlineFromFlightNumber(flightNumber) {
+  const value = String(flightNumber || '').trim().toUpperCase();
+  const code = value.match(/^[A-Z0-9]{2}/)?.[0] || '';
+  const [brandColor, brandTextColor, brandAccent] = AIRLINE_BRAND_COLORS[code] || ['var(--theme-accent)', 'var(--theme-surface)', 'var(--theme-accent)'];
+  return {
+    code: code || '✈',
+    name: AIRLINES_BY_IATA_CODE[code] || (code ? `${code} airline` : 'Airline'),
+    brandColor,
+    brandTextColor,
+    brandAccent,
+  };
+}
 
 function formatFlightDateTime(date, time) {
   if (!date && !time) return '—';
