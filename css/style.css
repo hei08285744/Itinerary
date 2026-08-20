@@ -445,8 +445,9 @@ h1, h2, h3 {
   position: relative;
   flex: 0 0 auto;
   width: 66px;
-  padding: 0.65rem 0.4rem 0.75rem;
-  border-radius: 16px;
+  min-height: 88px;
+  padding: 0.55rem 0.35rem;
+  border-radius: 12px;
   background: #fbfaf7;
   border: 1px solid #e6e3d8;
   text-align: center;
@@ -472,7 +473,7 @@ h1, h2, h3 {
 }
 
 .day-card .day-number {
-  font-size: 1.4rem;
+  font-size: 1.25rem;
   font-weight: 600;
   color: #3d3929;
   margin: 0.15rem 0;
@@ -481,6 +482,11 @@ h1, h2, h3 {
 .day-card .month {
   font-size: 0.65rem;
   color: #83816f;
+}
+
+input[type='date'] {
+  min-height: 40px;
+  line-height: 1.1;
 }
 
 .day-card.selected {
@@ -2513,7 +2519,19 @@ select:focus,
   }
 
   .day-card {
-    width: 58px;
+    width: 56px;
+    min-height: 80px;
+    padding: 0.5rem 0.3rem;
+    border-radius: 10px;
+  }
+
+  .day-card .day-number {
+    font-size: 1.1rem;
+  }
+
+  .day-card .weekday,
+  .day-card .month {
+    font-size: 0.6rem;
   }
 
   .trip-settings,
@@ -2580,6 +2598,7 @@ select:focus,
 
   .activity-form input,
   .activity-form select {
+    min-height: 40px;
     padding: 0.55rem 0.7rem;
     font-size: 0.9rem;
   }
