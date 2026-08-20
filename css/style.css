@@ -2864,7 +2864,7 @@ select:focus {
   text-align: center;
   color: #a6a290;
   font-size: 0.85rem;
-  padding: 1rem 1.5rem 6rem;
+  padding: 1rem 1.5rem 7rem;
 }
 
 .app-view-hidden {
@@ -2876,7 +2876,7 @@ select:focus {
   --tab-ball-size: clamp(48px, 13vw, 56px);
   position: fixed;
   z-index: 50;
-  bottom: -8px;
+  bottom: 0.6rem;
   left: 50%;
   display: grid;
   grid-template-columns: repeat(5, 1fr);
@@ -3524,6 +3524,17 @@ select:focus,
   .app-shell {
     margin: 0;
     border-radius: 0;
+    background: var(--theme-page);
+    box-shadow: none;
+  }
+
+  .top-bar,
+  .day-strip-section {
+    background: var(--theme-page);
+  }
+
+  .top-bar {
+    padding-top: 1.5rem;
   }
 }
 

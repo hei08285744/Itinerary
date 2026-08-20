@@ -7,6 +7,10 @@ const state = loadState();
 let selectedDayIndex = 0;
 const weatherCache = {};
 let weatherRequestId = 0;
+let destinationClockTimer = null;
+let destinationClockRequestId = 0;
+let currentDestinationCity = '';
+let currentDestinationCoordinates = null;
 
 const tripNameInput = document.getElementById('tripName');
 const tripDestinationInput = document.getElementById('tripDestination');
@@ -883,6 +887,8 @@ function renderDayStrip(days) {
 
 async function loadTodayWeather(dateStr, city) {
   const requestId = ++weatherRequestId;
+  currentDestinationCity = city || '';
+  currentDestinationCoordinates = null;
   todayTime.textContent = '--:--';
   todayTimeMeta.textContent = '—';
   todayTimeLocation.textContent = city ? `Time in ${city}` : 'Time in destination';
@@ -899,6 +905,7 @@ async function loadTodayWeather(dateStr, city) {
   try {
     const coordinates = await geocodeCityForWeather(city);
     if (!coordinates) return;
+    currentDestinationCoordinates = coordinates;
     const destinationTime = await fetchDestinationLocalTime(coordinates.lat, coordinates.lng, city);
     const response = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${coordinates.lat}&longitude=${coordinates.lng}&current=temperature_2m,weather_code&daily=weather_code,temperature_2m_max&temperature_unit=celsius&timezone=auto&forecast_days=16`);
     if (!response.ok) throw new Error('Forecast unavailable');
@@ -963,6 +970,24 @@ function applyTodayWeather(weather) {
       : weatherClass === 'weather-cloudy' ? '☁' : '☀';
   const textTone = getWeatherTextTone(weatherClass);
   todayBadge.className = `today-badge ${weatherClass} weather-text-${textTone}`;
+}
+
+async function refreshDestinationClock() {
+  const city = currentDestinationCity;
+  if (!city) return;
+  const requestId = ++destinationClockRequestId;
+  if (!currentDestinationCoordinates) {
+    currentDestinationCoordinates = await geocodeCityForWeather(city);
+  }
+  if (!currentDestinationCoordinates || requestId !== destinationClockRequestId) return;
+  const destinationTime = await fetchDestinationLocalTime(
+    currentDestinationCoordinates.lat,
+    currentDestinationCoordinates.lng,
+    city,
+  );
+  if (!destinationTime || requestId !== destinationClockRequestId) return;
+  todayTime.textContent = destinationTime.timeText;
+  todayTimeLocation.textContent = destinationTime.locationText;
 }
 
 function getWeatherTextTone(weatherClass) {
@@ -2952,4 +2977,6 @@ expenseForm.addEventListener('submit', (e) => {
   closeExpenseModal();
 });
 
+if (destinationClockTimer) clearInterval(destinationClockTimer);
+destinationClockTimer = setInterval(refreshDestinationClock, 60 * 1000);
 init();
