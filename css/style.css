@@ -2904,19 +2904,19 @@ select:focus {
   --tab-ball-size: clamp(48px, 13vw, 56px);
   position: fixed;
   z-index: 50;
-  bottom: 0;
+  bottom: max(1rem, env(safe-area-inset-bottom));
   left: 50%;
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   align-items: center;
-  width: min(100%, 480px);
+  width: min(calc(100% - 2rem), 440px);
   min-height: 76px;
   padding: 0.35rem 1rem max(0.55rem, env(safe-area-inset-bottom));
   transform: translateX(-50%);
   overflow: visible;
   border: 1px solid color-mix(in srgb, var(--theme-surface) 20%, transparent);
   border-bottom: 0;
-  border-radius: 22px 22px 0 0;
+  border-radius: 999px;
   background: var(--theme-ink);
   box-shadow: 0 -5px 16px rgba(30, 33, 29, 0.14);
 }
@@ -3576,11 +3576,7 @@ select:focus,
   }
 
   .app-tab-bar {
-    left: 0;
-    width: 100vw;
-    max-width: none;
-    transform: none;
-    border-radius: 0;
+    width: calc(100% - 2rem);
   }
 }
 
