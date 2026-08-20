@@ -2895,14 +2895,13 @@ select:focus {
 
 .app-tab-bar::after {
   content: '';
-  position: absolute;
+  position: fixed;
   z-index: -1;
-  top: 100%;
-  left: 50%;
+  right: 0;
+  bottom: 0;
   width: 100vw;
-  height: max(0.6rem, env(safe-area-inset-bottom));
+  height: calc(0.6rem + env(safe-area-inset-bottom));
   background: var(--theme-ink);
-  transform: translateX(-50%);
 }
 
 .app-tab-indicator {
