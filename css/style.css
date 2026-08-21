@@ -4311,6 +4311,19 @@ select:focus,
   input,
   select,
   textarea {
-    font-size: 16.1px;
+    font-size: 16.1px !important;
+  }
+
+  .activity-form input,
+  .activity-form select,
+  .flight-details input,
+  .flight-details select,
+  .city-period-dates input[type='date'],
+  input[type='date'],
+  input[type='time'] {
+    height: 40px;
+    min-height: 40px;
+    padding: 0 0.9rem;
+    box-sizing: border-box;
   }
 }
