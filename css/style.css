@@ -3217,17 +3217,16 @@ select:focus {
 .app-tab-bar {
   --active-tab-index: 0;
   --tab-ball-size: clamp(48px, 13vw, 56px);
-  position: fixed;
+  position: sticky;
   z-index: 50;
   bottom: max(1rem, env(safe-area-inset-bottom));
-  left: 50%;
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   align-items: center;
   width: min(calc(100% - 2rem), 440px);
   min-height: 76px;
+  margin: 1rem auto max(1rem, env(safe-area-inset-bottom));
   padding: 0.35rem 1rem max(0.55rem, env(safe-area-inset-bottom));
-  transform: translateX(-50%);
   overflow: visible;
   border: 1px solid color-mix(in srgb, var(--theme-surface) 20%, transparent);
   border-bottom: 0;
