@@ -3054,26 +3054,45 @@ select:focus {
 .flight-route {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 0.6rem;
-  margin-bottom: 0.65rem;
+  gap: 0.5rem;
+  margin-bottom: 0.15rem;
   color: #3d3929;
-  font-size: 1.05rem;
+  font-size: 1.15rem;
   font-weight: 700;
   letter-spacing: 0.02em;
 }
 
+.flight-route-code {
+  flex: 0 0 auto;
+}
+
+.flight-route-line {
+  flex: 1 1 auto;
+  height: 0;
+  border-top: 1.5px dashed var(--airline-brand-color, var(--theme-accent));
+}
+
 .flight-route-icon {
   flex: 0 0 auto;
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   color: var(--airline-brand-color, var(--theme-accent));
+  transform: rotate(90deg);
 }
 
 .flight-route-icon svg {
   width: 100%;
   height: 100%;
   fill: currentColor;
+}
+
+.flight-route-times {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.65rem;
+  color: var(--airline-brand-color, #2f6682);
+  font-size: 0.85rem;
+  font-weight: 700;
 }
 
 .flight-number {
@@ -3108,12 +3127,12 @@ select:focus {
 }
 
 .flight-times strong {
-  font-size: 0.95rem;
+  font-size: 0.8rem;
   color: #3d3929;
 }
 
 .flight-times span {
-  font-size: 0.68rem;
+  font-size: 0.65rem;
   color: #83816f;
   text-transform: uppercase;
   letter-spacing: 0.03em;
