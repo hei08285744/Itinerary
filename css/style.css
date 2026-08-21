@@ -202,7 +202,7 @@ h1, h2, h3 {
   border-radius: 999px;
   background: #fbfaf7;
   color: #3d3929;
-  font: 500 0.85rem/1 inherit;
+  font: 500 0.85rem/1 'Nimbus Mono PS', 'Courier New', monospace;
   cursor: pointer;
   box-shadow: 0 2px 6px rgba(61, 57, 41, 0.06);
   transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
