@@ -90,6 +90,26 @@ const applySplitBillBtn = document.getElementById('applySplitBillBtn');
 const splitBillMemberOptions = document.getElementById('splitBillMemberOptions');
 let currentExchangeRate = null;
 const expenseConversionRates = {};
+const CARD_MARKUP_BY_NETWORK = {
+  visa: 1.95,
+  mastercard: 1.95,
+  amex: 2,
+  unionpay: 1,
+};
+const CARD_NETWORK_LABELS = {
+  visa: 'Visa',
+  mastercard: 'Mastercard',
+  amex: 'American Express',
+  unionpay: 'UnionPay',
+};
+
+function getCardMarkupForNetwork(network) {
+  return CARD_MARKUP_BY_NETWORK[network] ?? CARD_MARKUP_BY_NETWORK.visa;
+}
+
+function getCardNetworkLabel(network) {
+  return CARD_NETWORK_LABELS[network] ?? CARD_NETWORK_LABELS.visa;
+}
 
 // Shows/hides the card network + markup fields depending on the chosen payment method.
 function toggleCardFields(methodSelect, networkField, markupField, rateHint) {
@@ -105,6 +125,12 @@ activityPaymentMethodInput.addEventListener('change', () => (
 billPaymentMethodInput.addEventListener('change', () => (
   toggleCardFields(billPaymentMethodInput, billCardNetworkField, billCardMarkupField, billCardRateHint)
 ));
+activityCardNetworkInput.addEventListener('change', () => {
+  activityCardMarkupInput.value = getCardMarkupForNetwork(activityCardNetworkInput.value);
+});
+billCardNetworkInput.addEventListener('change', () => {
+  billCardMarkupInput.value = getCardMarkupForNetwork(billCardNetworkInput.value);
+});
 let editingActivityId = null;
 let editingBillId = null;
 let selectedBillMember = 'all';
@@ -628,6 +654,8 @@ activityForm.addEventListener('submit', (e) => {
     mapProvider: activityMapProviderInput.value || 'google',
     naverUrl: activityNaverUrlInput.value.trim(),
     shoppingItems: category === 'shopping' ? shoppingItemsDraft : [],
+    bookingDetails: document.getElementById('activityBookingDetails').value.trim(),
+    contactDetails: document.getElementById('activityContactDetails').value.trim(),
     flightNumber: document.getElementById('flightNumber').value.trim(),
     flightDeparture: document.getElementById('flightDeparture').value.trim(),
     flightArrival: document.getElementById('flightArrival').value.trim(),
@@ -681,6 +709,7 @@ function openActivityModal(activity = null) {
   document.getElementById('activitySubmitBtn').textContent = editingActivityId ? t('saveItem') : t('addItem');
   toggleFlightDetails(activity?.category || 'flight');
   toggleShoppingDetails(activity?.category || 'flight');
+  toggleBookingDetails(activity?.category || 'flight');
   renderShoppingEditor();
   const days = getTripDays();
   const selectedDate = days[selectedDayIndex];
@@ -694,6 +723,8 @@ function openActivityModal(activity = null) {
     document.getElementById('activityDescription').value = activity.address || activity.description || '';
     activityMapProviderInput.value = activity.mapProvider || 'google';
     activityNaverUrlInput.value = activity.naverUrl || '';
+    document.getElementById('activityBookingDetails').value = activity.bookingDetails || '';
+    document.getElementById('activityContactDetails').value = activity.contactDetails || '';
     document.getElementById('activityExpense').value = activity.expense || '';
     activityExpenseCurrencyInput.value = getExpenseCurrency(activity.expense) || activityExpenseCurrencyInput.value;
     activityPaidByInput.value = activity.paidBy || '';
@@ -701,7 +732,9 @@ function openActivityModal(activity = null) {
     activitySettledInput.checked = Boolean(activity.settled);
     activityPaymentMethodInput.value = activity.paymentMethod || 'cash';
     activityCardNetworkInput.value = activity.cardNetwork || 'visa';
-    activityCardMarkupInput.value = isFinite(activity.cardMarkup) && activity.cardMarkup !== 0 ? activity.cardMarkup : 1;
+    activityCardMarkupInput.value = activity.cardMarkup !== '' && isFinite(activity.cardMarkup)
+      ? activity.cardMarkup
+      : getCardMarkupForNetwork(activityCardNetworkInput.value);
     toggleCardFields(activityPaymentMethodInput, activityCardNetworkField, activityCardMarkupField, activityCardRateHint);
     document.getElementById('activityRemarks').value = activity.remarks || '';
     document.getElementById('flightNumber').value = activity.flightNumber || '';
@@ -726,6 +759,10 @@ function toggleFlightDetails(category) {
 
 function toggleShoppingDetails(category) {
   shoppingDetails.classList.toggle('hidden', category !== 'shopping');
+}
+
+function toggleBookingDetails(category) {
+  bookingDetails.classList.toggle('hidden', !['meal', 'transport', 'sight', 'hotel'].includes(category));
 }
 
 function renderShoppingEditor() {
@@ -895,6 +932,7 @@ shoppingHaulUrl.addEventListener('change', () => {
 activityCategoryInput.addEventListener('change', () => {
   toggleFlightDetails(activityCategoryInput.value);
   toggleShoppingDetails(activityCategoryInput.value);
+  toggleBookingDetails(activityCategoryInput.value);
   renderShoppingEditor();
 });
 
@@ -1418,7 +1456,7 @@ function loadGoogleMaps(apiKey) {
 function setupPlaceAutocomplete() {
   if (placeAutocomplete || !window.google?.maps?.places?.Autocomplete) return;
   placeAutocomplete = new google.maps.places.Autocomplete(activityLocationInput, {
-    fields: ['name', 'formatted_address', 'rating', 'editorial_summary', 'place_id'],
+    fields: ['name', 'formatted_address', 'rating', 'editorial_summary', 'place_id', 'formatted_phone_number', 'international_phone_number'],
     types: ['establishment', 'geocode'],
   });
   placeAutocomplete.addListener('place_changed', () => {
@@ -1428,6 +1466,7 @@ function setupPlaceAutocomplete() {
     currentPlaceAddress = place.formatted_address || '';
     activityRatingInput.value = place.rating || '';
     activityDescriptionInput.value = place.formatted_address || '';
+    document.getElementById('activityContactDetails').value = place.international_phone_number || place.formatted_phone_number || '';
     placeLookupStatus.textContent = '';
   });
 }
@@ -1481,7 +1520,7 @@ function lookupPlaceDetails() {
       });
 
       placesService.getDetails(
-        { placeId: results[0].place_id, fields: ['name', 'rating', 'editorial_summary', 'types', 'formatted_address'] },
+        { placeId: results[0].place_id, fields: ['name', 'rating', 'editorial_summary', 'types', 'formatted_address', 'formatted_phone_number', 'international_phone_number'] },
         (place, detailsStatus) => {
           if (detailsStatus === 'REQUEST_DENIED') {
             placeLookupStatus.textContent = 'Google Places details were denied. Enable Places API and check this key\'s restrictions.';
@@ -1495,6 +1534,7 @@ function lookupPlaceDetails() {
           activityRatingInput.value = place.rating || '';
           currentPlaceAddress = place.formatted_address || results[0].formatted_address || '';
           activityDescriptionInput.value = place.formatted_address || results[0].formatted_address || '';
+          document.getElementById('activityContactDetails').value = place.international_phone_number || place.formatted_phone_number || '';
           placeLookupStatus.textContent = '';
         }
       );
@@ -2752,7 +2792,7 @@ function renderExpenseList() {
         row.appendChild(rateNote);
         getGroupConversionRate(getExpenseRateGroupKey(activity), currencyToInput.value).then((rate) => {
           converted.textContent = `≈ ${(displayedAmount * rate).toFixed(2)} ${currencyToInput.value}`;
-          const cardLabel = activity.cardNetwork === 'mastercard' ? 'Mastercard' : 'Visa';
+          const cardLabel = getCardNetworkLabel(activity.cardNetwork);
           rateNote.textContent = activity.paymentMethod === 'card'
             ? `1 ${originalCurrency} ≈ ${rate.toFixed(4)} ${currencyToInput.value} · ${cardLabel} +${Number(activity.cardMarkup) || 0}% over ECB rate`
             : `1 ${originalCurrency} ≈ ${rate.toFixed(4)} ${currencyToInput.value}`;
@@ -3091,6 +3131,17 @@ function renderItineraryForSelectedDay(days) {
       itemCard.appendChild(addressEl);
     }
 
+    if (activity.bookingDetails || activity.contactDetails) {
+      const bookingInfo = document.createElement('div');
+      bookingInfo.className = 'item-booking-details';
+      if (activity.bookingDetails) {
+        const bookingEl = document.createElement('span');
+        bookingEl.textContent = `Booking: ${activity.bookingDetails}`;
+        bookingInfo.appendChild(bookingEl);
+      }
+      itemCard.appendChild(bookingInfo);
+    }
+
     if (activity.remarks) {
       const remarksEl = document.createElement('div');
       remarksEl.className = 'item-remarks';
@@ -3098,7 +3149,7 @@ function renderItineraryForSelectedDay(days) {
       itemCard.appendChild(remarksEl);
     }
 
-    if (activity.location || activity.expense) {
+    if (activity.location || activity.contactDetails || activity.expense) {
       const footerRow = document.createElement('div');
       footerRow.className = 'item-footer-row';
 
@@ -3114,6 +3165,14 @@ function renderItineraryForSelectedDay(days) {
         const mapLabels = { google: 'Google Maps', naver: 'Naver Maps', kakao: 'Kakao Map' };
         mapLink.textContent = mapLabels[mapProvider];
         footerRow.appendChild(mapLink);
+      }
+
+      if (activity.contactDetails) {
+        const contactLink = document.createElement('a');
+        contactLink.className = 'item-contact-pill';
+        contactLink.href = `tel:${activity.contactDetails.replace(/[^+\d]/g, '')}`;
+        contactLink.textContent = activity.contactDetails;
+        footerRow.appendChild(contactLink);
       }
 
       if (activity.expense) {
@@ -3481,7 +3540,9 @@ function openExpenseModal() {
     populateMemberOptions(billMemberInput, bill.billMember || '');
     billPaymentMethodInput.value = bill.paymentMethod || 'cash';
     billCardNetworkInput.value = bill.cardNetwork || 'visa';
-    billCardMarkupInput.value = isFinite(bill.cardMarkup) && bill.cardMarkup !== 0 ? bill.cardMarkup : 1;
+    billCardMarkupInput.value = bill.cardMarkup !== '' && isFinite(bill.cardMarkup)
+      ? bill.cardMarkup
+      : getCardMarkupForNetwork(billCardNetworkInput.value);
   } else if (selectedDate) {
     billSettledInput.checked = false;
     document.getElementById('billDate').value = selectedDate;
