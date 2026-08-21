@@ -436,7 +436,7 @@ h1, h2, h3 {
 }
 
 .day-strip-section {
-  padding: 0 1.5rem;
+  padding: 1.5rem 1.5rem 0;
 }
 
 .day-strip {
@@ -494,8 +494,11 @@ h1, h2, h3 {
   color: #83816f;
 }
 
-input[type='date'] {
+input[type='date'],
+input[type='time'] {
+  height: 40px;
   min-height: 40px;
+  padding: 0.6rem 0.9rem;
   line-height: 1.1;
 }
 
@@ -821,7 +824,7 @@ input[type='date'] {
 }
 
 .map-card {
-  margin: 0 1.5rem 1.5rem;
+  margin: 1.5rem 1.5rem 1.5rem;
 }
 
 .trip-map {
@@ -1446,6 +1449,10 @@ input[type='date'] {
   letter-spacing: 0.04em;
 }
 
+.bills-section-title {
+  margin-bottom: 0.75rem;
+}
+
 .expense-list {
   margin-top: 0.6rem;
   border-top: 1px solid #e6e3d8;
@@ -2048,7 +2055,8 @@ select:focus {
     width: 100%;
     min-width: 0;
     max-width: 100%;
-    min-height: 42px;
+    height: 40px;
+    min-height: 40px;
   }
 
   .modal-overlay {
@@ -2425,7 +2433,7 @@ select:focus {
 }
 
 .shopping-haul-card {
-  margin: 0 1.5rem 1.5rem;
+  margin: 1.5rem 1.5rem 1.5rem;
   padding: 1.1rem;
   background: #fffdf8;
 }
@@ -3202,7 +3210,7 @@ select:focus {
   left: 50%;
   display: block;
   color: var(--theme-surface);
-  font-size: 0.64rem;
+  font-size: 0.72rem;
   font-weight: 600;
   letter-spacing: 0;
   text-align: center;
@@ -3729,8 +3737,12 @@ select:focus,
     box-shadow: none;
   }
 
-  .top-bar,
+  .top-bar {
+    background: var(--theme-page);
+  }
+
   .day-strip-section {
+    padding: 1.5rem 1.15rem 0;
     background: var(--theme-page);
   }
 
@@ -3784,7 +3796,7 @@ select:focus,
   }
 
   .day-strip-section {
-    padding: 0 1.15rem;
+    padding: 1.5rem 1.15rem 0;
   }
 
   .day-card {
@@ -4000,7 +4012,8 @@ select:focus,
   }
 
   .city-period-dates input[type='date'] {
-    min-height: 42px;
+    height: 40px;
+    min-height: 40px;
     padding: 0.5rem 0.75rem;
     font-size: 0.88rem;
   }
@@ -4072,8 +4085,16 @@ select:focus,
 
   .day-strip-section,
   .container {
-    padding-left: 0.75rem;
     padding-right: 0.75rem;
+  }
+
+  .day-strip-section {
+    padding-top: 1.5rem;
+    padding-left: 0.75rem;
+  }
+
+  .container {
+    padding-left: 0.75rem;
   }
 
   .city-period-dates,
@@ -4283,5 +4304,13 @@ select:focus,
   .activity-form,
   .flight-details {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
   }
 }
