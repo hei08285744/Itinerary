@@ -1457,12 +1457,6 @@ input[type='time'] {
   margin-bottom: 0.3rem;
 }
 
-.bills-rate-note {
-  margin: 0 0 0.75rem;
-  font-size: 0.72rem;
-  color: #a6a290;
-}
-
 .expense-list {
   margin-top: 0.6rem;
   border-top: 1px solid #e6e3d8;
@@ -2036,6 +2030,12 @@ select:focus {
 .activity-section-grid .field-hint,
 .activity-form-actions {
   grid-column: 1 / -1;
+}
+
+.field-hint {
+  margin: 0;
+  font-size: 0.68rem;
+  color: #a6a290;
 }
 
 #activityCardNetworkField.hidden,
