@@ -1454,7 +1454,13 @@ input[type='time'] {
 }
 
 .bills-section-title {
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.3rem;
+}
+
+.bills-rate-note {
+  margin: 0 0 0.75rem;
+  font-size: 0.72rem;
+  color: #a6a290;
 }
 
 .expense-list {
@@ -1625,6 +1631,14 @@ input[type='time'] {
 .expense-row-converted {
   font-size: 0.7rem;
   color: #83816f;
+}
+
+.expense-row-rate-note {
+  max-width: 12rem;
+  font-size: 0.62rem;
+  color: #b3ac96;
+  text-align: right;
+  white-space: normal;
 }
 
 .bill-split-btn {
