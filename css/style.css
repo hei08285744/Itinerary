@@ -164,8 +164,7 @@ h1, h2, h3 {
 .top-bar-actions,
 .currency-box,
 .item-card,
-.expense-row-main,
-.expense-row-amounts {
+.expense-row-main {
   min-width: 0;
 }
 
@@ -1613,8 +1612,14 @@ input[type='time'] {
 .expense-row-amounts {
   display: flex;
   flex-direction: column;
+  flex-shrink: 0;
   align-items: flex-end;
   gap: 0.1rem;
+}
+
+.expense-row-amount,
+.expense-row-converted {
+  white-space: nowrap;
 }
 
 .expense-row-converted {
