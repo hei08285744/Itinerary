@@ -2969,6 +2969,9 @@ function renderItineraryForSelectedDay(days) {
 
       if (activity.flightNumber) {
         const airline = getAirlineFromFlightNumber(activity.flightNumber);
+        flightEl.style.setProperty('--airline-brand-color', airline.brandColor);
+        flightEl.style.setProperty('--airline-brand-text', airline.brandTextColor);
+        flightEl.style.setProperty('--airline-brand-accent', airline.brandAccent);
         const flightHeader = document.createElement('div');
         flightHeader.className = 'flight-header';
         const numberEl = document.createElement('span');
@@ -2978,27 +2981,37 @@ function renderItineraryForSelectedDay(days) {
         airlineName.className = 'flight-airline-label';
         airlineName.textContent = airline.name;
         airlineName.title = `${airline.name} (${airline.code})`;
-        airlineName.style.setProperty('--airline-brand-color', airline.brandColor);
-        airlineName.style.setProperty('--airline-brand-text', airline.brandTextColor);
-        airlineName.style.setProperty('--airline-brand-accent', airline.brandAccent);
         flightHeader.append(numberEl, airlineName);
         flightEl.appendChild(flightHeader);
       }
 
       const routeEl = document.createElement('div');
       routeEl.className = 'flight-route';
-      routeEl.textContent = `${activity.flightDeparture || activity.location || '—'} → ${activity.flightArrival || '—'}`;
+      const departureCode = document.createElement('span');
+      departureCode.textContent = activity.flightDeparture || activity.location || '—';
+      const routeIcon = document.createElement('span');
+      routeIcon.className = 'flight-route-icon';
+      routeIcon.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m2 16 20-7-20-7 2 7z"/></svg>';
+      const arrivalCode = document.createElement('span');
+      arrivalCode.textContent = activity.flightArrival || '—';
+      routeEl.append(departureCode, routeIcon, arrivalCode);
       flightEl.appendChild(routeEl);
+
+      const divider = document.createElement('div');
+      divider.className = 'flight-divider';
+      flightEl.appendChild(divider);
 
       const flightTimes = document.createElement('div');
       flightTimes.className = 'flight-times';
       const departureInfo = document.createElement('div');
+      departureInfo.className = 'flight-times-col';
       const departureTime = document.createElement('strong');
       departureTime.textContent = formatFlightDateTime(activity.date, activity.time);
       const departureMeta = document.createElement('span');
       departureMeta.textContent = formatFlightMeta(activity.departureTerminal, activity.departureGate, 'Departure');
       departureInfo.append(departureTime, departureMeta);
       const arrivalInfo = document.createElement('div');
+      arrivalInfo.className = 'flight-times-col flight-times-arrival';
       const arrivalTime = document.createElement('strong');
       arrivalTime.textContent = formatFlightDateTime(activity.flightArrivalDate, activity.flightArrivalTime);
       const arrivalMeta = document.createElement('span');

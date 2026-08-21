@@ -3003,12 +3003,24 @@ select:focus {
 }
 
 .flight-card-details {
+  position: relative;
   margin: 0.65rem 0;
-  padding: 0.65rem 0.75rem;
+  padding: 0.75rem 0.85rem 0.7rem;
   border: 1px solid var(--theme-border);
-  border-radius: 10px;
+  border-radius: 12px;
   background: color-mix(in srgb, var(--theme-surface) 88%, var(--theme-accent-soft));
   font-family: 'Nimbus Mono PS', 'Courier New', monospace;
+  overflow: hidden;
+}
+
+.flight-card-details::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: var(--airline-brand-color, var(--theme-accent));
 }
 
 .flight-header {
@@ -3016,7 +3028,7 @@ select:focus {
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  margin-bottom: 0.55rem;
+  margin: 0.15rem 0 0.6rem;
 }
 
 .flight-header .flight-number {
@@ -3040,9 +3052,28 @@ select:focus {
 }
 
 .flight-route {
-  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  margin-bottom: 0.65rem;
   color: #3d3929;
-  font-weight: 600;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.flight-route-icon {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  color: var(--airline-brand-color, var(--theme-accent));
+}
+
+.flight-route-icon svg {
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
 }
 
 .flight-number {
@@ -3053,25 +3084,39 @@ select:focus {
   letter-spacing: 0.04em;
 }
 
+.flight-divider {
+  position: relative;
+  margin: 0 -0.85rem 0.65rem;
+  border-top: 1px dashed var(--theme-border);
+}
+
 .flight-times {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0.75rem;
 }
 
-.flight-times div {
+.flight-times-col {
   display: grid;
   gap: 0.2rem;
+  padding: 0 0.15rem;
+}
+
+.flight-times-arrival {
+  border-left: 1px dashed var(--theme-border);
+  text-align: right;
 }
 
 .flight-times strong {
-  font-size: 0.8rem;
+  font-size: 0.95rem;
   color: #3d3929;
 }
 
 .flight-times span {
-  font-size: 0.7rem;
+  font-size: 0.68rem;
   color: #83816f;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
 .cat-sight {
