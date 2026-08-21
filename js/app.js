@@ -152,6 +152,7 @@ const todayWeatherDescription = document.getElementById('todayWeatherDescription
 const todayTemperature = document.getElementById('todayTemperature');
 const todayWeatherIcon = document.getElementById('todayWeatherIcon');
 const languageSelect = document.getElementById('languageSelect');
+const targetCurrencySelect = document.getElementById('targetCurrencySelect');
 const cityPeriods = document.getElementById('cityPeriods');
 const addCityBtn = document.getElementById('addCityBtn');
 const profileImportItineraryInput = document.getElementById('profileImportItineraryInput');
@@ -188,7 +189,7 @@ const memberList = document.getElementById('memberList');
 
 const TRANSLATIONS = {
   en: {
-    tripDetails: 'Trip Details', tripName: 'Trip Name', destination: 'Destination', theme: 'Theme', settings: 'Settings', language: 'Language',
+    tripDetails: 'Trip Details', tripName: 'Trip Name', destination: 'Destination', theme: 'Theme', settings: 'Settings', language: 'Language', targetCurrency: 'Target currency',
     startDate: 'Start Date', endDate: 'End Date', saveClose: 'Save & Close', today: 'TODAY',
     addItem: '+ Add Item', clearDay: 'Clear Day', tripMap: 'Trip Map', route: 'Route', suggestedRoute: 'Suggested route · Google Maps', bestTravelMode: 'Best travel mode', spotA: 'Spot A', spotB: 'Spot B', saveRoute: 'Save route', savedRoutes: 'Saved routes',
     travelMode: 'Travel Mode', driving: 'Driving', automobile: 'Automobile', walking: 'Walking', transit: 'Transit', mapPlatform: 'Map platform',
@@ -198,7 +199,7 @@ const TRANSLATIONS = {
     exportItinerary: 'Download trip', importItinerary: 'Load itinerary', newTrip: '+ New trip',
   },
   zh: {
-    tripDetails: '行程詳情', tripName: '行程名稱', destination: '目的地', theme: '主題', settings: '設定', language: '語言',
+    tripDetails: '行程詳情', tripName: '行程名稱', destination: '目的地', theme: '主題', settings: '設定', language: '語言', targetCurrency: '目標貨幣',
     startDate: '開始日期', endDate: '結束日期', saveClose: '儲存並關閉', today: '今天',
     addItem: '+ 新增項目', clearDay: '清除當天', tripMap: '行程地圖', route: '路線', suggestedRoute: '建議路線 · Google 地圖', bestTravelMode: '最佳交通方式', spotA: '地點 A', spotB: '地點 B', saveRoute: '儲存路線', savedRoutes: '已儲存路線',
     travelMode: '交通方式', driving: '開車', automobile: '汽車', walking: '步行', transit: '大眾運輸', mapPlatform: '地圖平台',
@@ -253,6 +254,7 @@ function loadState() {
     walletBudget: 0,
     theme: 'joy',
     savedRoutes: [],
+    walletTargetCurrency: 'HKD',
   };
 }
 
@@ -294,6 +296,7 @@ function init() {
   if (!state.routeFees) state.routeFees = {};
   if (!isFinite(Number(state.walletBudget))) state.walletBudget = 0;
   if (!Array.isArray(state.savedRoutes)) state.savedRoutes = [];
+  if (!state.walletTargetCurrency) state.walletTargetCurrency = 'HKD';
   walletBudgetInput.value = state.walletBudget;
   if (!Array.isArray(state.cities)) state.cities = [];
   if (!Array.isArray(state.members)) state.members = [];
@@ -3337,7 +3340,7 @@ function formatActivityExpense(expense, date) {
 function setDefaultWalletCurrencies(destination) {
   if (!currencyFromInput.options.length) return;
   currencyFromInput.value = getCurrencyForDestination(destination);
-  currencyToInput.value = 'HKD';
+  currencyToInput.value = state.walletTargetCurrency || 'HKD';
   // Drop cached rates so a destination change always re-fetches the latest ECB/mid-market rate.
   Object.keys(expenseConversionRates).forEach((key) => delete expenseConversionRates[key]);
   fetchLiveExchangeRate();
@@ -3371,6 +3374,8 @@ function populateCurrencyOptions() {
     .join('');
   currencyFromInput.innerHTML = optionsHtml;
   currencyToInput.innerHTML = optionsHtml;
+  targetCurrencySelect.innerHTML = optionsHtml;
+  targetCurrencySelect.value = state.walletTargetCurrency || 'HKD';
   setDefaultWalletCurrencies(state.tripDestination);
 }
 
@@ -3378,13 +3383,28 @@ populateCurrencyOptions();
 fetchLiveExchangeRate();
 
 currencyFromInput.addEventListener('change', fetchLiveExchangeRate);
-currencyToInput.addEventListener('change', fetchLiveExchangeRate);
+currencyToInput.addEventListener('change', () => {
+  state.walletTargetCurrency = currencyToInput.value;
+  targetCurrencySelect.value = currencyToInput.value;
+  saveState();
+  fetchLiveExchangeRate();
+});
 currencyAmountInput.addEventListener('input', updateCurrencyResult);
+
+targetCurrencySelect.addEventListener('change', () => {
+  state.walletTargetCurrency = targetCurrencySelect.value;
+  currencyToInput.value = targetCurrencySelect.value;
+  saveState();
+  fetchLiveExchangeRate();
+});
 
 currencySwapBtn.addEventListener('click', () => {
   const fromValue = currencyFromInput.value;
   currencyFromInput.value = currencyToInput.value;
   currencyToInput.value = fromValue;
+  state.walletTargetCurrency = currencyToInput.value;
+  targetCurrencySelect.value = currencyToInput.value;
+  saveState();
   fetchLiveExchangeRate();
 });
 
