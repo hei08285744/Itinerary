@@ -169,6 +169,13 @@
             <strong id="walletBudgetLeft">USD 0.00</strong>
           </div>
         </div>
+        <div class="virtual-card-fee-row">
+          <span data-i18n="cardFeeRate">Overseas card fee</span>
+          <div class="virtual-card-fee-input-wrap">
+            <input id="cardFeeRate" type="number" min="0" step="0.01" inputmode="decimal" value="0" aria-label="Overseas card fee rate">
+            <span>%</span>
+          </div>
+        </div>
       </section>
       <h3 class="currency-section-title" data-i18n="currencyExchange">Currency Exchange</h3>
       <div class="currency-convert-panel">
@@ -518,6 +525,13 @@
                   </select>
                 </label>
                 <label>
+                  Paid with
+                  <select id="activityPaymentMethod">
+                    <option value="cash">Cash</option>
+                    <option value="card">Credit card</option>
+                  </select>
+                </label>
+                <label>
                   Member
                   <select id="activityBillMember">
                     <option value="">Shared / All members</option>
@@ -591,6 +605,13 @@
                 Paid by
                 <select id="billPaidBy">
                   <option value="">Select payer</option>
+                </select>
+              </label>
+              <label>
+                Paid with
+                <select id="billPaymentMethod">
+                  <option value="cash">Cash</option>
+                  <option value="card">Credit card</option>
                 </select>
               </label>
               <label class="grow">
