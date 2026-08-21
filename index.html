@@ -169,13 +169,6 @@
             <strong id="walletBudgetLeft">USD 0.00</strong>
           </div>
         </div>
-        <div class="virtual-card-fee-row">
-          <span data-i18n="cardFeeRate">Overseas card fee</span>
-          <div class="virtual-card-fee-input-wrap">
-            <input id="cardFeeRate" type="number" min="0" step="0.01" inputmode="decimal" value="0" aria-label="Overseas card fee rate">
-            <span>%</span>
-          </div>
-        </div>
       </section>
       <h3 class="currency-section-title" data-i18n="currencyExchange">Currency Exchange</h3>
       <div class="currency-convert-panel">
@@ -519,16 +512,27 @@
                   <select id="activityExpenseCurrency"></select>
                 </label>
                 <label>
+                  Payment method
+                  <select id="activityPaymentMethod">
+                    <option value="cash">Cash</option>
+                    <option value="card">Credit Card</option>
+                  </select>
+                </label>
+                <label id="activityCardNetworkField" class="hidden">
+                  Card network
+                  <select id="activityCardNetwork">
+                    <option value="visa">Visa</option>
+                    <option value="mastercard">Mastercard</option>
+                  </select>
+                </label>
+                <label id="activityCardMarkupField" class="hidden">
+                  Card markup %
+                  <input type="number" id="activityCardMarkup" min="0" step="0.1" value="1">
+                </label>
+                <label>
                   Paid by
                   <select id="activityPaidBy">
                     <option value="">Select payer</option>
-                  </select>
-                </label>
-                <label>
-                  Paid with
-                  <select id="activityPaymentMethod">
-                    <option value="cash">Cash</option>
-                    <option value="card">Credit card</option>
                   </select>
                 </label>
                 <label>
@@ -602,16 +606,27 @@
                 <select id="billExpenseCurrency"></select>
               </label>
               <label>
+                Payment method
+                <select id="billPaymentMethod">
+                  <option value="cash">Cash</option>
+                  <option value="card">Credit Card</option>
+                </select>
+              </label>
+              <label id="billCardNetworkField" class="hidden">
+                Card network
+                <select id="billCardNetwork">
+                  <option value="visa">Visa</option>
+                  <option value="mastercard">Mastercard</option>
+                </select>
+              </label>
+              <label id="billCardMarkupField" class="hidden">
+                Card markup %
+                <input type="number" id="billCardMarkup" min="0" step="0.1" value="1">
+              </label>
+              <label>
                 Paid by
                 <select id="billPaidBy">
                   <option value="">Select payer</option>
-                </select>
-              </label>
-              <label>
-                Paid with
-                <select id="billPaymentMethod">
-                  <option value="cash">Cash</option>
-                  <option value="card">Credit card</option>
                 </select>
               </label>
               <label class="grow">

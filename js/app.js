@@ -33,8 +33,12 @@ const activityMapProviderInput = document.getElementById('activityMapProvider');
 const activityNaverUrlInput = document.getElementById('activityNaverUrl');
 const activityExpenseInput = document.getElementById('activityExpense');
 const activityExpenseCurrencyInput = document.getElementById('activityExpenseCurrency');
-const activityPaidByInput = document.getElementById('activityPaidBy');
 const activityPaymentMethodInput = document.getElementById('activityPaymentMethod');
+const activityCardNetworkField = document.getElementById('activityCardNetworkField');
+const activityCardNetworkInput = document.getElementById('activityCardNetwork');
+const activityCardMarkupField = document.getElementById('activityCardMarkupField');
+const activityCardMarkupInput = document.getElementById('activityCardMarkup');
+const activityPaidByInput = document.getElementById('activityPaidBy');
 const activityBillMemberInput = document.getElementById('activityBillMember');
 const activitySettledInput = document.getElementById('activitySettled');
 const locationSuggestions = document.getElementById('locationSuggestions');
@@ -69,10 +73,13 @@ const closeExpenseModalBtn = document.getElementById('closeExpenseModalBtn');
 const expenseForm = document.getElementById('expenseForm');
 const billMemberInput = document.getElementById('billMember');
 const billPaidByInput = document.getElementById('billPaidBy');
-const billPaymentMethodInput = document.getElementById('billPaymentMethod');
-const cardFeeRateInput = document.getElementById('cardFeeRate');
 const billSettledInput = document.getElementById('billSettled');
 const billExpenseCurrencyInput = document.getElementById('billExpenseCurrency');
+const billPaymentMethodInput = document.getElementById('billPaymentMethod');
+const billCardNetworkField = document.getElementById('billCardNetworkField');
+const billCardNetworkInput = document.getElementById('billCardNetwork');
+const billCardMarkupField = document.getElementById('billCardMarkupField');
+const billCardMarkupInput = document.getElementById('billCardMarkup');
 const removeExpenseBtn = document.getElementById('removeExpenseBtn');
 const splitBillModalOverlay = document.getElementById('splitBillModalOverlay');
 const closeSplitBillModalBtn = document.getElementById('closeSplitBillModalBtn');
@@ -81,6 +88,20 @@ const applySplitBillBtn = document.getElementById('applySplitBillBtn');
 const splitBillMemberOptions = document.getElementById('splitBillMemberOptions');
 let currentExchangeRate = null;
 const expenseConversionRates = {};
+
+// Shows/hides the card network + markup fields depending on the chosen payment method.
+function toggleCardFields(methodSelect, networkField, markupField) {
+  const isCard = methodSelect.value === 'card';
+  networkField.classList.toggle('hidden', !isCard);
+  markupField.classList.toggle('hidden', !isCard);
+}
+
+activityPaymentMethodInput.addEventListener('change', () => (
+  toggleCardFields(activityPaymentMethodInput, activityCardNetworkField, activityCardMarkupField)
+));
+billPaymentMethodInput.addEventListener('change', () => (
+  toggleCardFields(billPaymentMethodInput, billCardNetworkField, billCardMarkupField)
+));
 let editingActivityId = null;
 let editingBillId = null;
 let selectedBillMember = 'all';
@@ -171,7 +192,7 @@ const TRANSLATIONS = {
     startDate: 'Start Date', endDate: 'End Date', saveClose: 'Save & Close', today: 'TODAY',
     addItem: '+ Add Item', clearDay: 'Clear Day', tripMap: 'Trip Map', route: 'Route', suggestedRoute: 'Suggested route · Google Maps', bestTravelMode: 'Best travel mode', spotA: 'Spot A', spotB: 'Spot B', saveRoute: 'Save route', savedRoutes: 'Saved routes',
     travelMode: 'Travel Mode', driving: 'Driving', automobile: 'Automobile', walking: 'Walking', transit: 'Transit', mapPlatform: 'Map platform',
-    itinerary: 'Itinerary', profile: 'Profile', tripProfile: 'Trip profile', editTrip: 'Edit trip', tripFiles: 'Trip Files', tripFilesHint: 'Load another saved itinerary to replace this trip.', loadAnotherTrip: 'Load another trip', trips: 'Trips', currentTrip: 'Current trip', removeSavedTrip: 'Remove saved trip', removeSavedTripConfirm: 'Remove this saved trip?', days: 'Days', items: 'Items', wallet: 'Wallet', tripBudget: 'Trip budget', totalSpent: 'Total spent', budgetLeft: 'Budget left', currencyExchange: 'Currency Exchange', bills: 'Bills', addExpense: '+ Add Expense', cardFeeRate: 'Overseas card fee',
+    itinerary: 'Itinerary', profile: 'Profile', tripProfile: 'Trip profile', editTrip: 'Edit trip', tripFiles: 'Trip Files', tripFilesHint: 'Load another saved itinerary to replace this trip.', loadAnotherTrip: 'Load another trip', trips: 'Trips', currentTrip: 'Current trip', removeSavedTrip: 'Remove saved trip', removeSavedTripConfirm: 'Remove this saved trip?', days: 'Days', items: 'Items', wallet: 'Wallet', tripBudget: 'Trip budget', totalSpent: 'Total spent', budgetLeft: 'Budget left', currencyExchange: 'Currency Exchange', bills: 'Bills', addExpense: '+ Add Expense',
     multipleCities: 'Multiple cities', addCity: '+ Add city', city: 'City', remove: 'Remove', editItem: 'Edit Item', saveItem: 'Save Item',
     members: 'Trip members', addMember: '+ Add', memberPlaceholder: 'e.g. Alex', shoppingHaul: 'Shopping Haul', shoppingHaulKicker: 'Shopping haul', shoppingHaulHint: 'Keep every shopping target in one place.', targetItems: 'Target items',
     exportItinerary: 'Download trip', importItinerary: 'Load itinerary', newTrip: '+ New trip',
@@ -181,7 +202,7 @@ const TRANSLATIONS = {
     startDate: '開始日期', endDate: '結束日期', saveClose: '儲存並關閉', today: '今天',
     addItem: '+ 新增項目', clearDay: '清除當天', tripMap: '行程地圖', route: '路線', suggestedRoute: '建議路線 · Google 地圖', bestTravelMode: '最佳交通方式', spotA: '地點 A', spotB: '地點 B', saveRoute: '儲存路線', savedRoutes: '已儲存路線',
     travelMode: '交通方式', driving: '開車', automobile: '汽車', walking: '步行', transit: '大眾運輸', mapPlatform: '地圖平台',
-    itinerary: '行程', profile: '個人檔案', tripProfile: '行程檔案', editTrip: '編輯行程', tripFiles: '行程檔案', tripFilesHint: '載入另一個已儲存的行程以取代目前行程。', loadAnotherTrip: '載入其他行程', trips: '行程', currentTrip: '目前行程', removeSavedTrip: '移除已儲存行程', removeSavedTripConfirm: '要移除這個已儲存行程嗎？', days: '天', items: '項目', wallet: '錢包', tripBudget: '旅程預算', totalSpent: '已支出', budgetLeft: '剩餘預算', currencyExchange: '貨幣兌換', bills: '帳單', addExpense: '+ 新增支出', cardFeeRate: '海外刷卡手續費',
+    itinerary: '行程', profile: '個人檔案', tripProfile: '行程檔案', editTrip: '編輯行程', tripFiles: '行程檔案', tripFilesHint: '載入另一個已儲存的行程以取代目前行程。', loadAnotherTrip: '載入其他行程', trips: '行程', currentTrip: '目前行程', removeSavedTrip: '移除已儲存行程', removeSavedTripConfirm: '要移除這個已儲存行程嗎？', days: '天', items: '項目', wallet: '錢包', tripBudget: '旅程預算', totalSpent: '已支出', budgetLeft: '剩餘預算', currencyExchange: '貨幣兌換', bills: '帳單', addExpense: '+ 新增支出',
     multipleCities: '多城市行程', addCity: '+ 新增城市', city: '城市', remove: '移除', editItem: '編輯項目', saveItem: '儲存項目',
     members: '同行成員', addMember: '+ 新增', memberPlaceholder: '例如：小明', shoppingHaul: '購物清單', shoppingHaulKicker: '購物整理', shoppingHaulHint: '把所有想買的商品集中在這裡。', targetItems: '目標商品',
     exportItinerary: '下載行程', importItinerary: '載入行程', newTrip: '+ 新行程',
@@ -230,7 +251,6 @@ function loadState() {
     bills: [],
     routeFees: {},
     walletBudget: 0,
-    cardFeeRate: 0,
     theme: 'joy',
     savedRoutes: [],
   };
@@ -273,10 +293,8 @@ function init() {
   if (!state.bills) state.bills = [];
   if (!state.routeFees) state.routeFees = {};
   if (!isFinite(Number(state.walletBudget))) state.walletBudget = 0;
-  if (!isFinite(Number(state.cardFeeRate))) state.cardFeeRate = 0;
   if (!Array.isArray(state.savedRoutes)) state.savedRoutes = [];
   walletBudgetInput.value = state.walletBudget;
-  cardFeeRateInput.value = state.cardFeeRate;
   if (!Array.isArray(state.cities)) state.cities = [];
   if (!Array.isArray(state.members)) state.members = [];
   if (!Array.isArray(state.tripLibrary)) state.tripLibrary = [];
@@ -467,7 +485,7 @@ newTripBtn.addEventListener('click', () => {
   Object.assign(state, {
     tripName: '', tripDestination: '', tripStartDate: '', tripEndDate: '', multipleCities: false,
     cities: [], members: [], language, departureFlight: '', returnFlight: '', geocodeCache: {},
-    activities: [], bills: [], routeFees: {}, walletBudget: 0, cardFeeRate: 0, theme, savedRoutes: [],
+    activities: [], bills: [], routeFees: {}, walletBudget: 0, theme, savedRoutes: [],
     tripLibrary, activeTripId: createTripId(),
   });
   saveState();
@@ -595,9 +613,11 @@ activityForm.addEventListener('submit', (e) => {
   const activityData = {
     date, time, title, category, location, rating, description, expense, remarks,
     paidBy: activityPaidByInput.value,
-    paymentMethod: activityPaymentMethodInput.value || 'cash',
     billMember: activityBillMemberInput.value,
     settled: activitySettledInput.checked,
+    paymentMethod: activityPaymentMethodInput.value,
+    cardNetwork: activityPaymentMethodInput.value === 'card' ? activityCardNetworkInput.value : '',
+    cardMarkup: activityPaymentMethodInput.value === 'card' ? Number(activityCardMarkupInput.value) || 0 : 0,
     address: activityDescriptionInput.value.trim() || currentPlaceAddress,
     mapProvider: activityMapProviderInput.value || 'google',
     naverUrl: activityNaverUrlInput.value.trim(),
@@ -671,9 +691,12 @@ function openActivityModal(activity = null) {
     document.getElementById('activityExpense').value = activity.expense || '';
     activityExpenseCurrencyInput.value = getExpenseCurrency(activity.expense) || activityExpenseCurrencyInput.value;
     activityPaidByInput.value = activity.paidBy || '';
-    activityPaymentMethodInput.value = activity.paymentMethod || 'cash';
     activityBillMemberInput.value = activity.billMember || '';
     activitySettledInput.checked = Boolean(activity.settled);
+    activityPaymentMethodInput.value = activity.paymentMethod || 'cash';
+    activityCardNetworkInput.value = activity.cardNetwork || 'visa';
+    activityCardMarkupInput.value = isFinite(activity.cardMarkup) && activity.cardMarkup !== 0 ? activity.cardMarkup : 1;
+    toggleCardFields(activityPaymentMethodInput, activityCardNetworkField, activityCardMarkupField);
     document.getElementById('activityRemarks').value = activity.remarks || '';
     document.getElementById('flightNumber').value = activity.flightNumber || '';
     document.getElementById('flightDeparture').value = activity.flightDeparture || '';
@@ -687,6 +710,7 @@ function openActivityModal(activity = null) {
   } else if (selectedDate) {
     document.getElementById('activityDate').value = selectedDate;
   }
+  if (!activity) toggleCardFields(activityPaymentMethodInput, activityCardNetworkField, activityCardMarkupField);
   activityModalOverlay.classList.remove('hidden');
 }
 
@@ -2440,12 +2464,12 @@ function calculateMemberOwesByCurrency(expenses) {
     if (!isFinite(parsed)) return;
     const shareMembers = getBillShareMembers(expense).filter(Boolean);
     if (!shareMembers.length) return;
-    const currency = getExpenseCurrency(expense.expense) || getCurrencyForDestination(getCityForDate(expense.date));
+    const groupKey = getExpenseRateGroupKey(expense);
     const shareAmount = parsed / shareMembers.length;
     shareMembers.forEach((member) => {
       if (!totals.has(member)) totals.set(member, new Map());
       const memberTotals = totals.get(member);
-      memberTotals.set(currency, (memberTotals.get(currency) || 0) + shareAmount);
+      memberTotals.set(groupKey, (memberTotals.get(groupKey) || 0) + shareAmount);
     });
   });
   return totals;
@@ -2461,11 +2485,11 @@ function calculateSelectedMemberOwesByCurrency(expenses, debtor) {
     if (!isFinite(parsed)) return;
     const shareMembers = getBillShareMembers(expense).filter(Boolean);
     if (!shareMembers.includes(debtor)) return;
-    const currency = getExpenseCurrency(expense.expense) || getCurrencyForDestination(getCityForDate(expense.date));
+    const groupKey = getExpenseRateGroupKey(expense);
     const shareAmount = parsed / shareMembers.length;
     if (!totals.has(expense.paidBy)) totals.set(expense.paidBy, new Map());
     const payerTotals = totals.get(expense.paidBy);
-    payerTotals.set(currency, (payerTotals.get(currency) || 0) + shareAmount);
+    payerTotals.set(groupKey, (payerTotals.get(groupKey) || 0) + shareAmount);
   });
   return totals;
 }
@@ -2473,9 +2497,9 @@ function calculateSelectedMemberOwesByCurrency(expenses, debtor) {
 async function convertMemberCurrencyTotals(totals) {
   const targetCurrency = currencyToInput.value;
   const convertedTotals = new Map();
-  await Promise.all([...totals].map(async ([member, currencyTotals]) => {
-    const converted = await Promise.all([...currencyTotals].map(async ([currency, amount]) => (
-      amount * await getExpenseConversionRate(currency, targetCurrency)
+  await Promise.all([...totals].map(async ([member, groupTotals]) => {
+    const converted = await Promise.all([...groupTotals].map(async ([groupKey, amount]) => (
+      amount * await getGroupConversionRate(groupKey, targetCurrency)
     )));
     convertedTotals.set(member, converted.reduce((sum, value) => sum + value, 0));
   }));
@@ -2681,10 +2705,12 @@ function renderExpenseList() {
     const meta = document.createElement('span');
     meta.className = 'expense-row-meta';
     const paidByText = activity.paidBy
-      ? `${state.language === 'zh' ? '付款' : 'Paid by'} ${activity.paidBy}${activity.paymentMethod === 'card' ? ' 💳' : ''}`
+      ? `${state.language === 'zh' ? '付款' : 'Paid by'} ${activity.paidBy}`
       : '';
+    const cardLabel = activity.cardNetwork === 'mastercard' ? 'Mastercard' : 'Visa';
+    const paymentMethodText = activity.paymentMethod === 'card' ? cardLabel : '';
     const settledText = activity.settled ? (state.language === 'zh' ? '已結清' : 'Settled') : '';
-    meta.textContent = [activity.date, formatTime(activity.time), paidByText, settledText].filter(Boolean).join(' · ');
+    meta.textContent = [activity.date, formatTime(activity.time), paidByText, paymentMethodText, settledText].filter(Boolean).join(' · ');
     main.appendChild(meta);
 
     row.appendChild(main);
@@ -2711,23 +2737,12 @@ function renderExpenseList() {
       total += isFinite(displayedAmount) ? displayedAmount : 0;
       totalCurrencies.add(originalCurrency);
       if (!isUpfrontPayment && hasRate) {
-        const convertedAmount = displayedAmount * currentExchangeRate;
+        const cardMarkup = activity.paymentMethod === 'card' ? (Number(activity.cardMarkup) || 0) : 0;
+        const effectiveRate = currentExchangeRate * (1 + cardMarkup / 100);
         const converted = document.createElement('span');
         converted.className = 'expense-row-converted';
-        converted.textContent = `≈ ${convertedAmount.toFixed(2)} ${currencyToInput.value}`;
+        converted.textContent = `≈ ${(displayedAmount * effectiveRate).toFixed(2)} ${currencyToInput.value}`;
         amounts.appendChild(converted);
-
-        const feeRate = getCardFeeRate();
-        if (feeRate > 0 && isOverseasCardExpense(activity, originalCurrency)) {
-          const fee = convertedAmount * feeRate / 100;
-          const feeEl = document.createElement('span');
-          feeEl.className = 'expense-row-fee';
-          feeEl.textContent = `💳 +${fee.toFixed(2)} ${currencyToInput.value}`;
-          feeEl.title = state.language === 'zh'
-            ? `${feeRate}% 海外刷卡手續費`
-            : `${feeRate}% overseas card fee`;
-          amounts.appendChild(feeEl);
-        }
       }
     }
 
@@ -2813,30 +2828,37 @@ async function getExpenseConversionRate(fromCurrency, toCurrency) {
   return rate;
 }
 
+// Visa/Mastercard apply their own network rate (mid-market rate plus a small markup) rather than the plain
+// interbank rate, so credit card expenses store that markup and get it applied on top of the base rate here.
+function getExpenseRateGroupKey(expense) {
+  const currency = getExpenseCurrency(expense.expense) || getCurrencyForDestination(getCityForDate(expense.date));
+  const markup = expense.paymentMethod === 'card' ? (Number(expense.cardMarkup) || 0) : 0;
+  return `${currency}::${markup}`;
+}
+
+async function getGroupConversionRate(groupKey, toCurrency) {
+  const [currency, markupStr] = groupKey.split('::');
+  const markup = Number(markupStr) || 0;
+  const baseRate = await getExpenseConversionRate(currency, toCurrency);
+  return baseRate * (1 + markup / 100);
+}
+
 async function calculateAllBillsConvertedTotal(expenses, member) {
   const targetCurrency = currencyToInput.value;
-  const feeRate = getCardFeeRate();
   const totals = new Map();
-  const feeEntries = [];
   expenses.forEach((expense) => {
     const parsed = parseFloat(String(expense.expense || '').replace(/[^0-9.]/g, ''));
     if (!isFinite(parsed)) return;
     const shareMembers = getBillShareMembers(expense);
     const amount = member !== 'all' && shareMembers.includes(member) ? parsed / shareMembers.length : parsed;
-    const currency = getExpenseCurrency(expense.expense) || getCurrencyForDestination(getCityForDate(expense.date));
-    totals.set(currency, (totals.get(currency) || 0) + amount);
-    if (feeRate > 0 && isOverseasCardExpense(expense, currency)) {
-      feeEntries.push({ currency, amount });
-    }
+    const groupKey = getExpenseRateGroupKey(expense);
+    totals.set(groupKey, (totals.get(groupKey) || 0) + amount);
   });
 
-  const converted = await Promise.all([...totals].map(async ([currency, amount]) => (
-    amount * await getExpenseConversionRate(currency, targetCurrency)
+  const converted = await Promise.all([...totals].map(async ([groupKey, amount]) => (
+    amount * await getGroupConversionRate(groupKey, targetCurrency)
   )));
-  const feeConverted = await Promise.all(feeEntries.map(async ({ currency, amount }) => (
-    amount * await getExpenseConversionRate(currency, targetCurrency) * (feeRate / 100)
-  )));
-  return converted.reduce((sum, value) => sum + value, 0) + feeConverted.reduce((sum, value) => sum + value, 0);
+  return converted.reduce((sum, value) => sum + value, 0);
 }
 
 // Renders only the activities for the currently selected day, matching the day strip/slider above.
@@ -3228,12 +3250,6 @@ walletBudgetInput.addEventListener('input', () => {
   renderWalletCard();
 });
 
-cardFeeRateInput.addEventListener('input', () => {
-  state.cardFeeRate = Math.max(0, Number(cardFeeRateInput.value) || 0);
-  saveState();
-  renderExpenseList();
-});
-
 const DESTINATION_CURRENCIES = [
   { currency: 'KRW', keywords: ['korea', 'seoul', 'busan', 'jeju'] },
   { currency: 'JPY', keywords: ['japan', 'tokyo', 'osaka', 'kyoto'] },
@@ -3272,15 +3288,6 @@ function getExpenseNumber(expense) {
 function normalizeExpenseValue(expense, currency) {
   const number = getExpenseNumber(expense);
   return number ? `${currency} ${number}` : String(expense || '').trim();
-}
-
-function getCardFeeRate() {
-  return Math.max(0, Number(state.cardFeeRate) || 0);
-}
-
-// Foreign transaction fees only apply to card payments made in a currency other than the wallet's home currency.
-function isOverseasCardExpense(expense, expenseCurrency) {
-  return expense.paymentMethod === 'card' && expenseCurrency && expenseCurrency !== (currencyToInput.value || '');
 }
 
 function populateExpenseCurrencyOptions(select, selectedCurrency) {
@@ -3386,13 +3393,16 @@ function openExpenseModal() {
     document.getElementById('billTime').value = bill.time || '';
     document.getElementById('billAmount').value = getExpenseNumber(bill.expense);
     billPaidByInput.value = bill.paidBy || '';
-    billPaymentMethodInput.value = bill.paymentMethod || 'cash';
     billSettledInput.checked = Boolean(bill.settled);
     populateMemberOptions(billMemberInput, bill.billMember || '');
+    billPaymentMethodInput.value = bill.paymentMethod || 'cash';
+    billCardNetworkInput.value = bill.cardNetwork || 'visa';
+    billCardMarkupInput.value = isFinite(bill.cardMarkup) && bill.cardMarkup !== 0 ? bill.cardMarkup : 1;
   } else if (selectedDate) {
     billSettledInput.checked = false;
     document.getElementById('billDate').value = selectedDate;
   }
+  toggleCardFields(billPaymentMethodInput, billCardNetworkField, billCardMarkupField);
   expenseModalOverlay.classList.remove('hidden');
 }
 
@@ -3428,9 +3438,11 @@ expenseForm.addEventListener('submit', (e) => {
     time,
     expense: amount,
     paidBy: billPaidByInput.value,
-    paymentMethod: billPaymentMethodInput.value || 'cash',
     billMember: billMemberInput.value,
     settled: billSettledInput.checked,
+    paymentMethod: billPaymentMethodInput.value,
+    cardNetwork: billPaymentMethodInput.value === 'card' ? billCardNetworkInput.value : '',
+    cardMarkup: billPaymentMethodInput.value === 'card' ? Number(billCardMarkupInput.value) || 0 : 0,
   };
   if (editingBillId) {
     const bill = state.bills.find((item) => item.id === editingBillId);
