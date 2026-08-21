@@ -142,9 +142,13 @@ const shoppingHaulActivity = document.getElementById('shoppingHaulActivity');
 const shoppingHaulName = document.getElementById('shoppingHaulName');
 const shoppingHaulImage = document.getElementById('shoppingHaulImage');
 const shoppingHaulUrl = document.getElementById('shoppingHaulUrl');
+const shoppingHaulImagePreview = document.getElementById('shoppingHaulImagePreview');
+const shoppingHaulImageStatus = document.getElementById('shoppingHaulImageStatus');
 const shoppingHaulModal = document.getElementById('shoppingHaulModal');
 const openShoppingHaulFormBtn = document.getElementById('openShoppingHaulFormBtn');
 const closeShoppingHaulFormBtn = document.getElementById('closeShoppingHaulFormBtn');
+const removeShoppingHaulItemBtn = document.getElementById('removeShoppingHaulItemBtn');
+const shoppingHaulSubmitBtn = document.getElementById('shoppingHaulSubmitBtn');
 const shoppingHaulModalTitle = document.getElementById('shoppingHaulModalTitle');
 const shoppingHaulTotal = document.getElementById('shoppingHaulTotal');
 const shoppingHaulDone = document.getElementById('shoppingHaulDone');
@@ -152,6 +156,8 @@ const shoppingHaulRemaining = document.getElementById('shoppingHaulRemaining');
 const shoppingHaulPercent = document.getElementById('shoppingHaulPercent');
 let editingShoppingItem = null;
 let editingShoppingActivity = null;
+let shoppingProductLookupId = 0;
+let shoppingHaulProductLookupId = 0;
 const memberNameInput = document.getElementById('memberNameInput');
 const addMemberBtn = document.getElementById('addMemberBtn');
 const memberList = document.getElementById('memberList');
@@ -163,7 +169,7 @@ const TRANSLATIONS = {
     addItem: '+ Add Item', clearDay: 'Clear Day', tripMap: 'Trip Map', route: 'Route', suggestedRoute: 'Suggested route · Google Maps', bestTravelMode: 'Best travel mode', spotA: 'Spot A', spotB: 'Spot B', saveRoute: 'Save route', savedRoutes: 'Saved routes',
     travelMode: 'Travel Mode', driving: 'Driving', automobile: 'Automobile', walking: 'Walking', transit: 'Transit', mapPlatform: 'Map platform',
     itinerary: 'Itinerary', profile: 'Profile', tripProfile: 'Trip profile', editTrip: 'Edit trip', tripFiles: 'Trip Files', tripFilesHint: 'Load another saved itinerary to replace this trip.', loadAnotherTrip: 'Load another trip', trips: 'Trips', currentTrip: 'Current trip', removeSavedTrip: 'Remove saved trip', removeSavedTripConfirm: 'Remove this saved trip?', days: 'Days', items: 'Items', wallet: 'Wallet', tripBudget: 'Trip budget', totalSpent: 'Total spent', budgetLeft: 'Budget left', currencyExchange: 'Currency Exchange', bills: 'Bills', addExpense: '+ Add Expense',
-    multipleCities: 'Multiple cities', addCity: '+ Add city', city: 'City', remove: 'Remove', editItem: 'Edit Item',
+    multipleCities: 'Multiple cities', addCity: '+ Add city', city: 'City', remove: 'Remove', editItem: 'Edit Item', saveItem: 'Save Item',
     members: 'Trip members', addMember: '+ Add', memberPlaceholder: 'e.g. Alex', shoppingHaul: 'Shopping Haul', shoppingHaulKicker: 'Shopping haul', shoppingHaulHint: 'Keep every shopping target in one place.', targetItems: 'Target items',
     exportItinerary: 'Download trip', importItinerary: 'Load itinerary', newTrip: '+ New trip',
   },
@@ -173,7 +179,7 @@ const TRANSLATIONS = {
     addItem: '+ 新增項目', clearDay: '清除當天', tripMap: '行程地圖', route: '路線', suggestedRoute: '建議路線 · Google 地圖', bestTravelMode: '最佳交通方式', spotA: '地點 A', spotB: '地點 B', saveRoute: '儲存路線', savedRoutes: '已儲存路線',
     travelMode: '交通方式', driving: '開車', automobile: '汽車', walking: '步行', transit: '大眾運輸', mapPlatform: '地圖平台',
     itinerary: '行程', profile: '個人檔案', tripProfile: '行程檔案', editTrip: '編輯行程', tripFiles: '行程檔案', tripFilesHint: '載入另一個已儲存的行程以取代目前行程。', loadAnotherTrip: '載入其他行程', trips: '行程', currentTrip: '目前行程', removeSavedTrip: '移除已儲存行程', removeSavedTripConfirm: '要移除這個已儲存行程嗎？', days: '天', items: '項目', wallet: '錢包', tripBudget: '旅程預算', totalSpent: '已支出', budgetLeft: '剩餘預算', currencyExchange: '貨幣兌換', bills: '帳單', addExpense: '+ 新增支出',
-    multipleCities: '多城市行程', addCity: '+ 新增城市', city: '城市', remove: '移除', editItem: '編輯項目',
+    multipleCities: '多城市行程', addCity: '+ 新增城市', city: '城市', remove: '移除', editItem: '編輯項目', saveItem: '儲存項目',
     members: '同行成員', addMember: '+ 新增', memberPlaceholder: '例如：小明', shoppingHaul: '購物清單', shoppingHaulKicker: '購物整理', shoppingHaulHint: '把所有想買的商品集中在這裡。', targetItems: '目標商品',
     exportItinerary: '下載行程', importItinerary: '載入行程', newTrip: '+ 新行程',
   },
@@ -639,7 +645,7 @@ function openActivityModal(activity = null) {
   populateMemberOptions(activityBillMemberInput, activity?.billMember || '');
   updateActivityExpenseHint(activity?.date || getTripDays()[selectedDayIndex]);
   document.getElementById('activityModalTitle').textContent = editingActivityId ? t('editItem') : t('addItem').replace(/^\+ /, '');
-  document.getElementById('activitySubmitBtn').textContent = editingActivityId ? t('editItem') : t('addItem');
+  document.getElementById('activitySubmitBtn').textContent = editingActivityId ? t('saveItem') : t('addItem');
   toggleFlightDetails(activity?.category || 'flight');
   toggleShoppingDetails(activity?.category || 'flight');
   renderShoppingEditor();
@@ -724,7 +730,17 @@ shoppingNameInput.addEventListener('keydown', (event) => {
   }
 });
 
-function addShoppingItem() {
+async function addShoppingItem() {
+  if (!shoppingNameInput.value.trim() && shoppingProductUrlInput.value.trim()) {
+    await autofillProductFromUrl({
+      urlInput: shoppingProductUrlInput,
+      nameInput: shoppingNameInput,
+      imageInput: shoppingImageInput,
+      previewElement: shoppingImagePreview,
+      statusElement: shoppingImageStatus,
+      lookupType: 'activity',
+    });
+  }
   const name = shoppingNameInput.value.trim();
   const image = shoppingImageInput.value.trim();
   const url = shoppingProductUrlInput.value.trim();
@@ -739,19 +755,103 @@ function addShoppingItem() {
   renderShoppingEditor();
 }
 
-shoppingImageInput.addEventListener('input', () => {
-  const image = shoppingImageInput.value.trim();
-  shoppingImagePreview.classList.add('hidden');
-  shoppingImageStatus.textContent = '';
+function updateShoppingImagePreview(imageInput, previewElement, statusElement) {
+  const image = imageInput.value.trim();
+  previewElement.classList.add('hidden');
+  statusElement.textContent = '';
   if (!image) return;
-  shoppingImagePreview.onload = () => {
-    shoppingImagePreview.classList.remove('hidden');
-    shoppingImageStatus.textContent = 'Image ready';
+  previewElement.onload = () => {
+    previewElement.classList.remove('hidden');
+    statusElement.textContent = 'Image ready';
   };
-  shoppingImagePreview.onerror = () => {
-    shoppingImageStatus.textContent = 'Image URL could not be loaded';
+  previewElement.onerror = () => {
+    statusElement.textContent = 'Image URL could not be loaded';
   };
-  shoppingImagePreview.src = image;
+  previewElement.src = image;
+}
+
+function normalizeProductUrl(value) {
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  try {
+    return new URL(trimmed).href;
+  } catch (error) {
+    try {
+      return new URL(`https://${trimmed}`).href;
+    } catch (fallbackError) {
+      return '';
+    }
+  }
+}
+
+async function fetchProductMetadata(productUrl) {
+  const response = await fetch(`https://api.microlink.io/?url=${encodeURIComponent(productUrl)}`);
+  if (!response.ok) throw new Error('Product lookup failed');
+  const payload = await response.json();
+  if (payload.status === 'fail') throw new Error(payload.message || 'Product lookup failed');
+  const data = payload.data || {};
+  return {
+    name: data.title || data.publisher || '',
+    image: data.image?.url || data.logo?.url || '',
+  };
+}
+
+async function autofillProductFromUrl({ urlInput, nameInput, imageInput, previewElement, statusElement, lookupType }) {
+  const productUrl = normalizeProductUrl(urlInput.value);
+  if (!productUrl) {
+    statusElement.textContent = urlInput.value.trim() ? 'Enter a valid product URL' : '';
+    return;
+  }
+
+  urlInput.value = productUrl;
+  const lookupId = lookupType === 'haul' ? ++shoppingHaulProductLookupId : ++shoppingProductLookupId;
+  statusElement.textContent = 'Looking up product...';
+
+  try {
+    const product = await fetchProductMetadata(productUrl);
+    const latestLookupId = lookupType === 'haul' ? shoppingHaulProductLookupId : shoppingProductLookupId;
+    if (lookupId !== latestLookupId) return;
+
+    if (product.name && !nameInput.value.trim()) nameInput.value = product.name;
+    if (product.image && !imageInput.value.trim()) {
+      imageInput.value = product.image;
+      updateShoppingImagePreview(imageInput, previewElement, statusElement);
+    } else {
+      statusElement.textContent = product.name || product.image ? 'Product info added' : 'No product details found';
+    }
+  } catch (error) {
+    statusElement.textContent = 'Product details could not be fetched';
+  }
+}
+
+shoppingImageInput.addEventListener('input', () => {
+  updateShoppingImagePreview(shoppingImageInput, shoppingImagePreview, shoppingImageStatus);
+});
+
+shoppingProductUrlInput.addEventListener('change', () => {
+  autofillProductFromUrl({
+    urlInput: shoppingProductUrlInput,
+    nameInput: shoppingNameInput,
+    imageInput: shoppingImageInput,
+    previewElement: shoppingImagePreview,
+    statusElement: shoppingImageStatus,
+    lookupType: 'activity',
+  });
+});
+
+shoppingHaulImage.addEventListener('input', () => {
+  updateShoppingImagePreview(shoppingHaulImage, shoppingHaulImagePreview, shoppingHaulImageStatus);
+});
+
+shoppingHaulUrl.addEventListener('change', () => {
+  autofillProductFromUrl({
+    urlInput: shoppingHaulUrl,
+    nameInput: shoppingHaulName,
+    imageInput: shoppingHaulImage,
+    previewElement: shoppingHaulImagePreview,
+    statusElement: shoppingHaulImageStatus,
+    lookupType: 'haul',
+  });
 });
 
 activityCategoryInput.addEventListener('change', () => {
@@ -2008,7 +2108,10 @@ function renderShoppingHaul() {
         shoppingHaulName.value = item.name || '';
         shoppingHaulImage.value = item.image || '';
         shoppingHaulUrl.value = item.url || '';
+        updateShoppingImagePreview(shoppingHaulImage, shoppingHaulImagePreview, shoppingHaulImageStatus);
         shoppingHaulModalTitle.textContent = 'Edit target item';
+        shoppingHaulSubmitBtn.textContent = 'Save item';
+        removeShoppingHaulItemBtn.classList.remove('hidden');
         shoppingHaulModal.classList.remove('hidden');
         shoppingHaulName.focus();
       });
@@ -2019,9 +2122,19 @@ function renderShoppingHaul() {
   });
 }
 
-shoppingHaulForm.addEventListener('submit', (event) => {
+shoppingHaulForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   const activity = state.activities.find((item) => item.id === shoppingHaulActivity.value);
+  if (!shoppingHaulName.value.trim() && shoppingHaulUrl.value.trim()) {
+    await autofillProductFromUrl({
+      urlInput: shoppingHaulUrl,
+      nameInput: shoppingHaulName,
+      imageInput: shoppingHaulImage,
+      previewElement: shoppingHaulImagePreview,
+      statusElement: shoppingHaulImageStatus,
+      lookupType: 'haul',
+    });
+  }
   const name = shoppingHaulName.value.trim();
   if ((!activity && !editingShoppingActivity) || !name) return;
   const targetActivity = editingShoppingActivity || activity;
@@ -2035,10 +2148,15 @@ shoppingHaulForm.addEventListener('submit', (event) => {
   }
   saveState();
   shoppingHaulForm.reset();
+  shoppingHaulImagePreview.src = '';
+  shoppingHaulImagePreview.classList.add('hidden');
+  shoppingHaulImageStatus.textContent = '';
   shoppingHaulActivity.disabled = false;
   editingShoppingItem = null;
   editingShoppingActivity = null;
+  removeShoppingHaulItemBtn.classList.add('hidden');
   shoppingHaulModalTitle.textContent = 'Add target item';
+  shoppingHaulSubmitBtn.textContent = '+ Add item';
   shoppingHaulModal.classList.add('hidden');
   render();
 });
@@ -2048,9 +2166,32 @@ openShoppingHaulFormBtn.addEventListener('click', () => {
   editingShoppingActivity = null;
   shoppingHaulActivity.disabled = false;
   shoppingHaulForm.reset();
+  shoppingHaulImagePreview.src = '';
+  shoppingHaulImagePreview.classList.add('hidden');
+  shoppingHaulImageStatus.textContent = '';
   shoppingHaulModalTitle.textContent = 'Add target item';
+  shoppingHaulSubmitBtn.textContent = '+ Add item';
+  removeShoppingHaulItemBtn.classList.add('hidden');
   shoppingHaulModal.classList.remove('hidden');
   shoppingHaulActivity.focus();
+});
+
+removeShoppingHaulItemBtn.addEventListener('click', () => {
+  if (!editingShoppingItem || !editingShoppingActivity?.shoppingItems) return;
+  editingShoppingActivity.shoppingItems = editingShoppingActivity.shoppingItems.filter((item) => item !== editingShoppingItem);
+  saveState();
+  shoppingHaulForm.reset();
+  shoppingHaulImagePreview.src = '';
+  shoppingHaulImagePreview.classList.add('hidden');
+  shoppingHaulImageStatus.textContent = '';
+  shoppingHaulActivity.disabled = false;
+  editingShoppingItem = null;
+  editingShoppingActivity = null;
+  removeShoppingHaulItemBtn.classList.add('hidden');
+  shoppingHaulModalTitle.textContent = 'Add target item';
+  shoppingHaulSubmitBtn.textContent = '+ Add item';
+  shoppingHaulModal.classList.add('hidden');
+  render();
 });
 
 closeShoppingHaulFormBtn.addEventListener('click', () => shoppingHaulModal.classList.add('hidden'));

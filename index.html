@@ -128,7 +128,9 @@
         </div>
         <div class="spot-route-result" id="spotRouteResult"></div>
         <div class="spot-fare-grid" id="spotFareGrid"></div>
-        <button id="saveSuggestedRouteBtn" class="btn-secondary save-route-button" type="button" data-i18n="saveRoute" disabled>Save route</button>
+        <div class="itinerary-actions save-route-actions">
+          <button id="saveSuggestedRouteBtn" class="btn-primary save-route-button" type="button" data-i18n="saveRoute" disabled>Save route</button>
+        </div>
       </div>
     </section>
 
@@ -187,7 +189,9 @@
       <div id="billTabs" class="bill-tabs" role="tablist" aria-label="Bill members"></div>
       <div id="memberOwesSummary" class="member-owes-summary hidden"></div>
       <div class="expense-list" id="expenseList"></div>
-      <button type="button" id="addExpenseBtn" class="btn-add-expense" data-i18n="addExpense">+ Add Expense</button>
+      <div class="itinerary-actions wallet-expense-actions">
+        <button type="button" id="addExpenseBtn" class="btn-primary" data-i18n="addExpense">+ Add Expense</button>
+      </div>
     </section>
 
     <section class="profile-card card app-view" data-app-view="profile">
@@ -218,7 +222,9 @@
         <div id="profileTripLibrary" class="profile-trip-library-list"></div>
         <button id="newTripBtn" class="btn-secondary profile-new-trip-btn" type="button" data-i18n="newTrip">+ New trip</button>
       </section>
-      <button id="editTripProfileBtn" class="btn-secondary profile-edit-btn" type="button" data-i18n="editTrip">Edit trip</button>
+      <div class="itinerary-actions profile-edit-actions">
+        <button id="editTripProfileBtn" class="btn-primary" type="button" data-i18n="editTrip">Edit trip</button>
+      </div>
       <section class="profile-settings" aria-labelledby="profileSettingsTitle">
         <h3 id="profileSettingsTitle" data-i18n="settings">Settings</h3>
         <div class="profile-setting-row">
@@ -268,7 +274,9 @@
         <div class="shopping-haul-main">
           <div class="shopping-haul-columns"><span>Product</span><span>Quantity</span><span>Status</span><span>Edit</span></div>
           <div id="shoppingHaulList" class="shopping-haul-list"></div>
-          <button id="openShoppingHaulFormBtn" class="btn-secondary shopping-haul-add-button" type="button">+ Add item</button>
+          <div class="itinerary-actions shopping-haul-actions">
+            <button id="openShoppingHaulFormBtn" class="btn-primary" type="button">+ Add item</button>
+          </div>
         </div>
         <aside class="shopping-haul-summary" aria-label="Shopping summary">
           <h3>Order summary</h3>
@@ -286,12 +294,40 @@
           <h2 id="shoppingHaulModalTitle">Add target item</h2>
           <button id="closeShoppingHaulFormBtn" class="icon-btn" type="button" aria-label="Close">&times;</button>
         </div>
-        <form id="shoppingHaulForm" class="shopping-haul-form">
-          <select id="shoppingHaulActivity" aria-label="Shopping activity"></select>
-          <input id="shoppingHaulName" type="text" placeholder="Product name" required>
-          <input id="shoppingHaulImage" type="url" placeholder="Product image URL (optional)">
-          <input id="shoppingHaulUrl" type="url" placeholder="Product URL (optional)">
-          <button class="btn-primary" type="submit">+ Add item</button>
+        <form id="shoppingHaulForm" class="shopping-haul-form modal-detail-form">
+          <section class="activity-form-section" aria-labelledby="shoppingHaulDetailsTitle">
+            <div class="activity-section-heading">
+              <span class="activity-section-icon" aria-hidden="true">1</span>
+              <div>
+                <h3 id="shoppingHaulDetailsTitle">Target Item</h3>
+                <p>Choose the shopping stop and product details</p>
+              </div>
+            </div>
+            <div class="activity-section-grid">
+              <label class="grow">
+                Shopping stop
+                <select id="shoppingHaulActivity" aria-label="Shopping activity"></select>
+              </label>
+              <label class="grow">
+                Product URL
+                <input id="shoppingHaulUrl" type="url" placeholder="Paste product URL first">
+              </label>
+              <label class="grow">
+                Product name
+                <input id="shoppingHaulName" type="text" placeholder="Product name">
+              </label>
+              <label class="grow">
+                Product image URL
+                <input id="shoppingHaulImage" type="url" placeholder="Product image URL (optional)">
+              </label>
+              <img id="shoppingHaulImagePreview" class="shopping-input-preview hidden" alt="Product preview">
+              <span id="shoppingHaulImageStatus" class="shopping-image-status" aria-live="polite"></span>
+            </div>
+          </section>
+          <div class="activity-form-actions">
+            <button id="removeShoppingHaulItemBtn" class="btn-danger hidden" type="button">Remove item</button>
+            <button id="shoppingHaulSubmitBtn" class="btn-primary" type="submit">+ Add item</button>
+          </div>
         </form>
       </section>
     </div>
@@ -304,136 +340,200 @@
             <button id="closeActivityModalBtn" class="icon-btn" type="button" aria-label="Close">&times;</button>
           </div>
           <form id="activityForm" class="activity-form">
-            <label class="activity-date-field">
-              Date
-              <input type="date" id="activityDate" required>
-            </label>
-            <label class="activity-time-field">
-              Time
-              <input type="time" id="activityTime">
-            </label>
-            <label class="grow">
-              Item Name
-              <input type="text" id="activityTitle" placeholder="e.g. Visit Colosseum">
-            </label>
-            <label>
-              Category
-              <select id="activityCategory">
-                <option value="flight">Flight</option>
-                <option value="sight">Sightseeing</option>
-                <option value="meal">Meal</option>
-                <option value="transport">Transport</option>
-                <option value="hotel">Hotel</option>
-                <option value="shopping">Shopping</option>
-                <option value="other">Other</option>
-              </select>
-            </label>
-            <div id="flightDetails" class="flight-details hidden">
-              <label>
-                Flight Number
-                <input type="text" id="flightNumber" placeholder="e.g. UA 1234">
-              </label>
-              <label>
-                Departure Airport
-                <input type="text" id="flightDeparture" placeholder="e.g. SFO">
-              </label>
-              <label>
-                Arrival Airport
-                <input type="text" id="flightArrival" placeholder="e.g. LIH">
-              </label>
-              <label>
-                Arrival Date
-                <input type="date" id="flightArrivalDate">
-              </label>
-              <label>
-                Arrival Time
-                <input type="time" id="flightArrivalTime">
-              </label>
-              <label>
-                Departure Terminal
-                <input type="text" id="departureTerminal" placeholder="e.g. A">
-              </label>
-              <label>
-                Departure Gate
-                <input type="text" id="departureGate" placeholder="e.g. 2">
-              </label>
-              <label>
-                Arrival Terminal
-                <input type="text" id="arrivalTerminal" placeholder="e.g. B">
-              </label>
-              <label>
-                Arrival Gate
-                <input type="text" id="arrivalGate" placeholder="e.g. 5">
-              </label>
-            </div>
-            <label class="grow">
-              Location
-              <input type="text" id="activityLocation" list="locationSuggestions" placeholder="Search a place or address">
-              <datalist id="locationSuggestions"></datalist>
-            </label>
-            <p class="field-hint hidden" id="placeLookupStatus" aria-live="polite"></p>
-            <label>
-              Rating
-              <input type="number" id="activityRating" min="0" max="5" step="0.1" inputmode="decimal" placeholder="e.g. 4.2">
-            </label>
-            <label class="grow">
-              Address
-              <input type="text" id="activityDescription" placeholder="Place address">
-            </label>
-            <label>
-              Map
-              <select id="activityMapProvider">
-                <option value="google">Google Maps</option>
-                <option value="naver">Naver Maps</option>
-                <option value="kakao">Kakao Map</option>
-              </select>
-            </label>
-            <label class="grow">
-              Naver place link (optional)
-              <input type="url" id="activityNaverUrl" placeholder="Paste the exact Naver place URL">
-            </label>
-            <div id="shoppingDetails" class="shopping-details hidden">
-              <div class="shopping-section-title"><span aria-hidden="true">🛒</span> <span data-i18n="targetItems">Target items</span></div>
+            <section class="activity-form-section activity-section-schedule" aria-labelledby="activityScheduleTitle">
+              <div class="activity-section-heading">
+                <span class="activity-section-icon" aria-hidden="true">1</span>
+                <div>
+                  <h3 id="activityScheduleTitle">Schedule</h3>
+                  <p>When this item happens</p>
+                </div>
+              </div>
+              <div class="activity-section-grid">
+                <label class="activity-date-field">
+                  Date
+                  <input type="date" id="activityDate" required>
+                </label>
+                <label class="activity-time-field">
+                  Time
+                  <input type="time" id="activityTime">
+                </label>
+                <label class="grow">
+                  Item Name
+                  <input type="text" id="activityTitle" placeholder="e.g. Visit Colosseum">
+                </label>
+                <label>
+                  Category
+                  <select id="activityCategory">
+                    <option value="flight">Flight</option>
+                    <option value="sight">Sightseeing</option>
+                    <option value="meal">Meal</option>
+                    <option value="transport">Transport</option>
+                    <option value="hotel">Hotel</option>
+                    <option value="shopping">Shopping</option>
+                    <option value="other">Other</option>
+                  </select>
+                </label>
+                <label class="grow">
+                  Remarks
+                  <input type="text" id="activityRemarks" placeholder="Optional remarks">
+                </label>
+              </div>
+            </section>
+
+            <section id="flightDetails" class="activity-form-section flight-details hidden" aria-labelledby="flightDetailsTitle">
+              <div class="activity-section-heading">
+                <span class="activity-section-icon" aria-hidden="true">✈</span>
+                <div>
+                  <h3 id="flightDetailsTitle">Flight Details</h3>
+                  <p>Airport, terminal, and arrival information</p>
+                </div>
+              </div>
+              <div class="activity-section-grid">
+                <label>
+                  Flight Number
+                  <input type="text" id="flightNumber" placeholder="e.g. UA 1234">
+                </label>
+                <label>
+                  Departure Airport
+                  <input type="text" id="flightDeparture" placeholder="e.g. SFO">
+                </label>
+                <label>
+                  Arrival Airport
+                  <input type="text" id="flightArrival" placeholder="e.g. LIH">
+                </label>
+                <label>
+                  Arrival Date
+                  <input type="date" id="flightArrivalDate">
+                </label>
+                <label>
+                  Arrival Time
+                  <input type="time" id="flightArrivalTime">
+                </label>
+                <label>
+                  Departure Terminal
+                  <input type="text" id="departureTerminal" placeholder="e.g. A">
+                </label>
+                <label>
+                  Departure Gate
+                  <input type="text" id="departureGate" placeholder="e.g. 2">
+                </label>
+                <label>
+                  Arrival Terminal
+                  <input type="text" id="arrivalTerminal" placeholder="e.g. B">
+                </label>
+                <label>
+                  Arrival Gate
+                  <input type="text" id="arrivalGate" placeholder="e.g. 5">
+                </label>
+              </div>
+            </section>
+
+            <section class="activity-form-section activity-section-place" aria-labelledby="activityPlaceTitle">
+              <div class="activity-section-heading">
+                <span class="activity-section-icon" aria-hidden="true">2</span>
+                <div>
+                  <h3 id="activityPlaceTitle">Place Details</h3>
+                  <p>Where to go and which map to open</p>
+                </div>
+              </div>
+              <div class="activity-section-grid">
+                <label class="grow">
+                  Location
+                  <input type="text" id="activityLocation" list="locationSuggestions" placeholder="Search a place or address">
+                  <datalist id="locationSuggestions"></datalist>
+                </label>
+                <p class="field-hint hidden" id="placeLookupStatus" aria-live="polite"></p>
+                <label>
+                  Rating
+                  <input type="number" id="activityRating" min="0" max="5" step="0.1" inputmode="decimal" placeholder="e.g. 4.2">
+                </label>
+                <label class="grow">
+                  Address
+                  <input type="text" id="activityDescription" placeholder="Place address">
+                </label>
+                <label>
+                  Map
+                  <select id="activityMapProvider">
+                    <option value="google">Google Maps</option>
+                    <option value="naver">Naver Maps</option>
+                    <option value="kakao">Kakao Map</option>
+                  </select>
+                </label>
+                <label class="grow">
+                  Naver place link (optional)
+                  <input type="url" id="activityNaverUrl" placeholder="Paste the exact Naver place URL">
+                </label>
+              </div>
+            </section>
+
+            <section id="shoppingDetails" class="activity-form-section shopping-details hidden" aria-labelledby="shoppingDetailsTitle">
+              <div class="activity-section-heading">
+                <span class="activity-section-icon" aria-hidden="true">$</span>
+                <div>
+                  <h3 id="shoppingDetailsTitle" data-i18n="targetItems">Target items</h3>
+                  <p>Products to look for during this stop</p>
+                </div>
+              </div>
               <div class="shopping-product-fields">
-                <input type="text" id="shoppingNameInput" placeholder="Product name">
-                <input type="url" id="shoppingImageInput" placeholder="Small image URL (optional)">
-                <input type="url" id="shoppingProductUrlInput" placeholder="Product URL (optional)">
+                <label class="grow">
+                  Product URL
+                  <input type="url" id="shoppingProductUrlInput" placeholder="Paste product URL first">
+                </label>
+                <label class="grow">
+                  Product name
+                  <input type="text" id="shoppingNameInput" placeholder="Product name">
+                </label>
+                <label class="grow">
+                  Product image URL
+                  <input type="url" id="shoppingImageInput" placeholder="Product image URL (optional)">
+                </label>
                 <img id="shoppingImagePreview" class="shopping-input-preview hidden" alt="Product preview">
                 <span id="shoppingImageStatus" class="shopping-image-status" aria-live="polite"></span>
-                <button type="button" id="addShoppingItemBtn" class="btn-secondary">+ Add item</button>
+                <button type="button" id="addShoppingItemBtn" class="btn-primary">+ Add item</button>
               </div>
               <div id="shoppingItemList" class="shopping-item-list"></div>
+            </section>
+
+            <section class="activity-form-section activity-section-payment" aria-labelledby="activityPaymentTitle">
+              <div class="activity-section-heading">
+                <span class="activity-section-icon" aria-hidden="true">3</span>
+                <div>
+                  <h3 id="activityPaymentTitle">Payment</h3>
+                  <p>Cost, payer, and bill sharing</p>
+                </div>
+              </div>
+              <div class="activity-section-grid">
+                <label>
+                  Upfront Payment
+                  <input type="text" id="activityExpense" placeholder="e.g. $20 or NT$500">
+                </label>
+                <label>
+                  Currency
+                  <select id="activityExpenseCurrency"></select>
+                </label>
+                <label>
+                  Paid by
+                  <select id="activityPaidBy">
+                    <option value="">Select payer</option>
+                  </select>
+                </label>
+                <label>
+                  Member
+                  <select id="activityBillMember">
+                    <option value="">Shared / All members</option>
+                  </select>
+                </label>
+                <label class="checkbox-field payment-settled-field">
+                  <input type="checkbox" id="activitySettled">
+                  <span class="toggle-switch" aria-hidden="true"></span>
+                  <span>Payment settled</span>
+                </label>
+              </div>
+            </section>
+
+            <div class="activity-form-actions">
+              <button id="activitySubmitBtn" type="submit" class="btn-primary">Add Item</button>
             </div>
-            <label>
-              Upfront Payment
-              <input type="text" id="activityExpense" placeholder="e.g. $20 or NT$500">
-            </label>
-            <label>
-              Currency
-              <select id="activityExpenseCurrency"></select>
-            </label>
-            <label>
-              Paid by
-              <select id="activityPaidBy">
-                <option value="">Select payer</option>
-              </select>
-            </label>
-            <label>
-              Member
-              <select id="activityBillMember">
-                <option value="">Shared / All members</option>
-              </select>
-            </label>
-            <label class="checkbox-field payment-settled-field">
-              <input type="checkbox" id="activitySettled">
-              <span class="toggle-switch" aria-hidden="true"></span>
-              <span>Payment settled</span>
-            </label>
-            <label class="grow">
-              Remarks
-              <input type="text" id="activityRemarks" placeholder="Optional remarks">
-            </label>
-            <button id="activitySubmitBtn" type="submit" class="btn-primary">Add Item</button>
           </form>
         </section>
       </div>
@@ -445,46 +545,72 @@
           <h2 id="expenseModalTitle">Add Expense</h2>
           <button id="closeExpenseModalBtn" class="icon-btn" type="button" aria-label="Close">&times;</button>
         </div>
-        <form id="expenseForm" class="activity-form">
-          <label class="grow">
-            Title
-            <input type="text" id="billTitle" placeholder="e.g. Taxi fare" required>
-          </label>
-          <label>
-            Date
-            <input type="date" id="billDate">
-          </label>
-          <label>
-            Time
-            <input type="time" id="billTime">
-          </label>
-          <label class="grow">
-            Amount
-            <input type="text" id="billAmount" placeholder="e.g. $20 or NT$500" required>
-          </label>
-          <label>
-            Currency
-            <select id="billExpenseCurrency"></select>
-          </label>
-          <label>
-            Paid by
-            <select id="billPaidBy">
-              <option value="">Select payer</option>
-            </select>
-          </label>
-          <label class="grow">
-            Member
-            <select id="billMember">
-              <option value="">Shared / All members</option>
-            </select>
-          </label>
-          <label class="checkbox-field payment-settled-field">
-            <input type="checkbox" id="billSettled">
-            <span class="toggle-switch" aria-hidden="true"></span>
-            <span>Payment settled</span>
-          </label>
-          <button id="removeExpenseBtn" class="btn-danger hidden" type="button">Remove Expense</button>
-          <button id="expenseSubmitBtn" type="submit" class="btn-primary">Add Expense</button>
+        <form id="expenseForm" class="activity-form modal-detail-form">
+          <section class="activity-form-section activity-section-schedule" aria-labelledby="expenseDetailsTitle">
+            <div class="activity-section-heading">
+              <span class="activity-section-icon" aria-hidden="true">1</span>
+              <div>
+                <h3 id="expenseDetailsTitle">Expense Details</h3>
+                <p>What was paid and when</p>
+              </div>
+            </div>
+            <div class="activity-section-grid">
+              <label class="grow">
+                Title
+                <input type="text" id="billTitle" placeholder="e.g. Taxi fare" required>
+              </label>
+              <label>
+                Date
+                <input type="date" id="billDate">
+              </label>
+              <label>
+                Time
+                <input type="time" id="billTime">
+              </label>
+              <label class="grow">
+                Amount
+                <input type="text" id="billAmount" placeholder="e.g. $20 or NT$500" required>
+              </label>
+            </div>
+          </section>
+
+          <section class="activity-form-section activity-section-payment" aria-labelledby="expensePaymentTitle">
+            <div class="activity-section-heading">
+              <span class="activity-section-icon" aria-hidden="true">2</span>
+              <div>
+                <h3 id="expensePaymentTitle">Payment</h3>
+                <p>Currency, payer, and bill sharing</p>
+              </div>
+            </div>
+            <div class="activity-section-grid">
+              <label>
+                Currency
+                <select id="billExpenseCurrency"></select>
+              </label>
+              <label>
+                Paid by
+                <select id="billPaidBy">
+                  <option value="">Select payer</option>
+                </select>
+              </label>
+              <label class="grow">
+                Member
+                <select id="billMember">
+                  <option value="">Shared / All members</option>
+                </select>
+              </label>
+              <label class="checkbox-field payment-settled-field">
+                <input type="checkbox" id="billSettled">
+                <span class="toggle-switch" aria-hidden="true"></span>
+                <span>Payment settled</span>
+              </label>
+            </div>
+          </section>
+
+          <div class="activity-form-actions expense-form-actions">
+            <button id="removeExpenseBtn" class="btn-danger hidden" type="button">Remove Expense</button>
+            <button id="expenseSubmitBtn" type="submit" class="btn-primary">Add Expense</button>
+          </div>
         </form>
       </section>
     </div>
