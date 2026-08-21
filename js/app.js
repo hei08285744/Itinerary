@@ -2675,7 +2675,6 @@ function renderExpenseList() {
 
   let total = 0;
   const totalCurrencies = new Set();
-  const hasRate = isFinite(currentExchangeRate);
   for (const activity of expenses) {
     const row = document.createElement('div');
     row.className = 'expense-row';
@@ -2736,13 +2735,16 @@ function renderExpenseList() {
     if (isFinite(parsed)) {
       total += isFinite(displayedAmount) ? displayedAmount : 0;
       totalCurrencies.add(originalCurrency);
-      if (!isUpfrontPayment && hasRate) {
-        const cardMarkup = activity.paymentMethod === 'card' ? (Number(activity.cardMarkup) || 0) : 0;
-        const effectiveRate = currentExchangeRate * (1 + cardMarkup / 100);
+      if (!isUpfrontPayment) {
         const converted = document.createElement('span');
         converted.className = 'expense-row-converted';
-        converted.textContent = `≈ ${(displayedAmount * effectiveRate).toFixed(2)} ${currencyToInput.value}`;
+        converted.textContent = state.language === 'zh' ? '換算中…' : 'Converting…';
         amounts.appendChild(converted);
+        getGroupConversionRate(getExpenseRateGroupKey(activity), currencyToInput.value).then((rate) => {
+          converted.textContent = `≈ ${(displayedAmount * rate).toFixed(2)} ${currencyToInput.value}`;
+        }).catch(() => {
+          converted.textContent = state.language === 'zh' ? '無法換算' : 'Conversion unavailable';
+        });
       }
     }
 
@@ -2832,14 +2834,34 @@ async function getExpenseConversionRate(fromCurrency, toCurrency) {
 // interbank rate, so credit card expenses store that markup and get it applied on top of the base rate here.
 function getExpenseRateGroupKey(expense) {
   const currency = getExpenseCurrency(expense.expense) || getCurrencyForDestination(getCityForDate(expense.date));
-  const markup = expense.paymentMethod === 'card' ? (Number(expense.cardMarkup) || 0) : 0;
-  return `${currency}::${markup}`;
+  const isCard = expense.paymentMethod === 'card';
+  const markup = isCard ? (Number(expense.cardMarkup) || 0) : 0;
+  return `${currency}::${isCard ? 'card' : 'cash'}::${markup}`;
+}
+
+// Card networks publish rates as the ECB reference rate plus their own markup, so credit card conversions
+// use the ECB rate (via the free, key-less Frankfurter API) as the base instead of the blended mid-market rate.
+const ECB_CURRENCIES = new Set(['AUD', 'BRL', 'CAD', 'CHF', 'CNY', 'CZK', 'DKK', 'EUR', 'GBP', 'HKD', 'HUF', 'IDR', 'ILS', 'INR', 'ISK', 'JPY', 'KRW', 'MXN', 'MYR', 'NOK', 'NZD', 'PHP', 'PLN', 'RON', 'SEK', 'SGD', 'THB', 'TRY', 'USD', 'ZAR']);
+
+async function getEcbBaseRate(fromCurrency, toCurrency) {
+  if (fromCurrency === toCurrency) return 1;
+  if (!ECB_CURRENCIES.has(fromCurrency) || !ECB_CURRENCIES.has(toCurrency)) return null;
+  const key = `ecb_${fromCurrency}_${toCurrency}`;
+  if (isFinite(expenseConversionRates[key])) return expenseConversionRates[key];
+  const response = await fetch(`https://api.frankfurter.dev/v1/latest?base=${encodeURIComponent(fromCurrency)}&symbols=${encodeURIComponent(toCurrency)}`);
+  if (!response.ok) return null;
+  const data = await response.json();
+  const rate = data.rates && data.rates[toCurrency];
+  if (!rate) return null;
+  expenseConversionRates[key] = rate;
+  return rate;
 }
 
 async function getGroupConversionRate(groupKey, toCurrency) {
-  const [currency, markupStr] = groupKey.split('::');
+  const [currency, methodTag, markupStr] = groupKey.split('::');
   const markup = Number(markupStr) || 0;
-  const baseRate = await getExpenseConversionRate(currency, toCurrency);
+  const isCard = methodTag === 'card';
+  const baseRate = (isCard ? await getEcbBaseRate(currency, toCurrency) : null) ?? await getExpenseConversionRate(currency, toCurrency);
   return baseRate * (1 + markup / 100);
 }
 
