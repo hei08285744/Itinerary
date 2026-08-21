@@ -3727,7 +3727,7 @@ select:focus,
   input,
   select,
   textarea {
-    font-size: 16px;
+    font-size: 16.1px;
   }
 
   .app-shell {
@@ -4113,7 +4113,7 @@ select:focus,
 
   input[type='date'],
   input[type='time'] {
-    font-size: 16px;
+    font-size: 16.1px;
   }
 
   .modal-overlay {
@@ -4311,6 +4311,6 @@ select:focus,
   input,
   select,
   textarea {
-    font-size: 16px;
+    font-size: 16.1px;
   }
 }
