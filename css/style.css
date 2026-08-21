@@ -2041,7 +2041,9 @@ select:focus {
 #activityCardNetworkField.hidden,
 #activityCardMarkupField.hidden,
 #billCardNetworkField.hidden,
-#billCardMarkupField.hidden {
+#billCardMarkupField.hidden,
+#activityCardRateHint.hidden,
+#billCardRateHint.hidden {
   display: none;
 }
 

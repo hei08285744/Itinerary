@@ -38,6 +38,7 @@ const activityCardNetworkField = document.getElementById('activityCardNetworkFie
 const activityCardNetworkInput = document.getElementById('activityCardNetwork');
 const activityCardMarkupField = document.getElementById('activityCardMarkupField');
 const activityCardMarkupInput = document.getElementById('activityCardMarkup');
+const activityCardRateHint = document.getElementById('activityCardRateHint');
 const activityPaidByInput = document.getElementById('activityPaidBy');
 const activityBillMemberInput = document.getElementById('activityBillMember');
 const activitySettledInput = document.getElementById('activitySettled');
@@ -80,6 +81,7 @@ const billCardNetworkField = document.getElementById('billCardNetworkField');
 const billCardNetworkInput = document.getElementById('billCardNetwork');
 const billCardMarkupField = document.getElementById('billCardMarkupField');
 const billCardMarkupInput = document.getElementById('billCardMarkup');
+const billCardRateHint = document.getElementById('billCardRateHint');
 const removeExpenseBtn = document.getElementById('removeExpenseBtn');
 const splitBillModalOverlay = document.getElementById('splitBillModalOverlay');
 const closeSplitBillModalBtn = document.getElementById('closeSplitBillModalBtn');
@@ -90,17 +92,18 @@ let currentExchangeRate = null;
 const expenseConversionRates = {};
 
 // Shows/hides the card network + markup fields depending on the chosen payment method.
-function toggleCardFields(methodSelect, networkField, markupField) {
+function toggleCardFields(methodSelect, networkField, markupField, rateHint) {
   const isCard = methodSelect.value === 'card';
   networkField.classList.toggle('hidden', !isCard);
   markupField.classList.toggle('hidden', !isCard);
+  rateHint.classList.toggle('hidden', !isCard);
 }
 
 activityPaymentMethodInput.addEventListener('change', () => (
-  toggleCardFields(activityPaymentMethodInput, activityCardNetworkField, activityCardMarkupField)
+  toggleCardFields(activityPaymentMethodInput, activityCardNetworkField, activityCardMarkupField, activityCardRateHint)
 ));
 billPaymentMethodInput.addEventListener('change', () => (
-  toggleCardFields(billPaymentMethodInput, billCardNetworkField, billCardMarkupField)
+  toggleCardFields(billPaymentMethodInput, billCardNetworkField, billCardMarkupField, billCardRateHint)
 ));
 let editingActivityId = null;
 let editingBillId = null;
@@ -699,7 +702,7 @@ function openActivityModal(activity = null) {
     activityPaymentMethodInput.value = activity.paymentMethod || 'cash';
     activityCardNetworkInput.value = activity.cardNetwork || 'visa';
     activityCardMarkupInput.value = isFinite(activity.cardMarkup) && activity.cardMarkup !== 0 ? activity.cardMarkup : 1;
-    toggleCardFields(activityPaymentMethodInput, activityCardNetworkField, activityCardMarkupField);
+    toggleCardFields(activityPaymentMethodInput, activityCardNetworkField, activityCardMarkupField, activityCardRateHint);
     document.getElementById('activityRemarks').value = activity.remarks || '';
     document.getElementById('flightNumber').value = activity.flightNumber || '';
     document.getElementById('flightDeparture').value = activity.flightDeparture || '';
@@ -713,7 +716,7 @@ function openActivityModal(activity = null) {
   } else if (selectedDate) {
     document.getElementById('activityDate').value = selectedDate;
   }
-  if (!activity) toggleCardFields(activityPaymentMethodInput, activityCardNetworkField, activityCardMarkupField);
+  if (!activity) toggleCardFields(activityPaymentMethodInput, activityCardNetworkField, activityCardMarkupField, activityCardRateHint);
   activityModalOverlay.classList.remove('hidden');
 }
 
@@ -3455,7 +3458,7 @@ function openExpenseModal() {
     billSettledInput.checked = false;
     document.getElementById('billDate').value = selectedDate;
   }
-  toggleCardFields(billPaymentMethodInput, billCardNetworkField, billCardMarkupField);
+  toggleCardFields(billPaymentMethodInput, billCardNetworkField, billCardMarkupField, billCardRateHint);
   expenseModalOverlay.classList.remove('hidden');
 }
 
