@@ -2681,13 +2681,10 @@ function renderExpenseList() {
     const meta = document.createElement('span');
     meta.className = 'expense-row-meta';
     const paidByText = activity.paidBy
-      ? `${state.language === 'zh' ? '付款' : 'Paid by'} ${activity.paidBy}`
-      : '';
-    const paymentMethodText = activity.paymentMethod === 'card'
-      ? (state.language === 'zh' ? '信用卡' : 'Credit card')
+      ? `${state.language === 'zh' ? '付款' : 'Paid by'} ${activity.paidBy}${activity.paymentMethod === 'card' ? ' 💳' : ''}`
       : '';
     const settledText = activity.settled ? (state.language === 'zh' ? '已結清' : 'Settled') : '';
-    meta.textContent = [activity.date, formatTime(activity.time), paidByText, paymentMethodText, settledText].filter(Boolean).join(' · ');
+    meta.textContent = [activity.date, formatTime(activity.time), paidByText, settledText].filter(Boolean).join(' · ');
     main.appendChild(meta);
 
     row.appendChild(main);
@@ -2725,9 +2722,10 @@ function renderExpenseList() {
           const fee = convertedAmount * feeRate / 100;
           const feeEl = document.createElement('span');
           feeEl.className = 'expense-row-fee';
-          feeEl.textContent = state.language === 'zh'
-            ? `+${feeRate}% 海外刷卡手續費 ≈ ${fee.toFixed(2)} ${currencyToInput.value}`
-            : `+${feeRate}% overseas card fee ≈ ${fee.toFixed(2)} ${currencyToInput.value}`;
+          feeEl.textContent = `💳 +${fee.toFixed(2)} ${currencyToInput.value}`;
+          feeEl.title = state.language === 'zh'
+            ? `${feeRate}% 海外刷卡手續費`
+            : `${feeRate}% overseas card fee`;
           amounts.appendChild(feeEl);
         }
       }
