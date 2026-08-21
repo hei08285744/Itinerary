@@ -2681,6 +2681,9 @@ function renderExpenseList() {
     row.classList.toggle('is-settled', Boolean(activity.settled));
     row.classList.toggle('is-owed-highlight', isSelectedMemberOwedPayment(activity, highlightedOwedMember));
 
+    const top = document.createElement('div');
+    top.className = 'expense-row-top';
+
     const main = document.createElement('div');
     main.className = 'expense-row-main';
 
@@ -2706,13 +2709,11 @@ function renderExpenseList() {
     const paidByText = activity.paidBy
       ? `${state.language === 'zh' ? '付款' : 'Paid by'} ${activity.paidBy}`
       : '';
-    const cardLabel = activity.cardNetwork === 'mastercard' ? 'Mastercard' : 'Visa';
-    const paymentMethodText = activity.paymentMethod === 'card' ? cardLabel : '';
     const settledText = activity.settled ? (state.language === 'zh' ? '已結清' : 'Settled') : '';
-    meta.textContent = [activity.date, formatTime(activity.time), paidByText, paymentMethodText, settledText].filter(Boolean).join(' · ');
+    meta.textContent = [activity.date, formatTime(activity.time), paidByText, settledText].filter(Boolean).join(' · ');
     main.appendChild(meta);
 
-    row.appendChild(main);
+    top.appendChild(main);
 
     const amounts = document.createElement('div');
     amounts.className = 'expense-row-amounts';
@@ -2742,7 +2743,7 @@ function renderExpenseList() {
         amounts.appendChild(converted);
         const rateNote = document.createElement('span');
         rateNote.className = 'expense-row-rate-note';
-        amounts.appendChild(rateNote);
+        row.appendChild(rateNote);
         getGroupConversionRate(getExpenseRateGroupKey(activity), currencyToInput.value).then((rate) => {
           converted.textContent = `≈ ${(displayedAmount * rate).toFixed(2)} ${currencyToInput.value}`;
           const cardLabel = activity.cardNetwork === 'mastercard' ? 'Mastercard' : 'Visa';
@@ -2770,7 +2771,8 @@ function renderExpenseList() {
       amounts.appendChild(splitButton);
     }
 
-    row.appendChild(amounts);
+    top.appendChild(amounts);
+    row.insertBefore(top, row.firstChild);
     expenseList.appendChild(row);
   }
 
@@ -3336,6 +3338,8 @@ function setDefaultWalletCurrencies(destination) {
   if (!currencyFromInput.options.length) return;
   currencyFromInput.value = getCurrencyForDestination(destination);
   currencyToInput.value = 'HKD';
+  // Drop cached rates so a destination change always re-fetches the latest ECB/mid-market rate.
+  Object.keys(expenseConversionRates).forEach((key) => delete expenseConversionRates[key]);
   fetchLiveExchangeRate();
 }
 

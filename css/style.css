@@ -1508,17 +1508,24 @@ input[type='time'] {
 
 .expense-row {
   display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 0.75rem;
+  flex-direction: column;
+  gap: 0.15rem;
   font-size: 0.85rem;
   color: #3d3929;
   padding: 0.3rem 0;
 }
 
+.expense-row-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+
 .expense-row.is-settled .expense-row-label,
 .expense-row.is-settled .expense-row-meta,
-.expense-row.is-settled .expense-row-amounts {
+.expense-row.is-settled .expense-row-amounts,
+.expense-row.is-settled .expense-row-rate-note {
   opacity: 0.62;
   text-decoration: line-through;
 }
@@ -1634,10 +1641,10 @@ input[type='time'] {
 }
 
 .expense-row-rate-note {
-  max-width: 12rem;
+  max-width: 100%;
   font-size: 0.62rem;
   color: #b3ac96;
-  text-align: right;
+  text-align: left;
   white-space: normal;
 }
 
@@ -1735,6 +1742,10 @@ input[type='time'] {
 }
 
 .expense-row-total {
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
   margin-top: 0.3rem;
   border-top: 1px dashed var(--theme-border);
   padding-top: 0.5rem;
