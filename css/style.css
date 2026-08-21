@@ -150,7 +150,7 @@ h1, h2, h3 {
   border-radius: 28px;
   box-shadow: 0 12px 30px rgba(36, 56, 49, 0.12);
   overflow: hidden;
-  padding-bottom: 1rem;
+  padding-bottom: calc(76px + 2rem + max(1rem, env(safe-area-inset-bottom)));
 }
 
 .top-bar {
@@ -3217,15 +3217,17 @@ select:focus {
 .app-tab-bar {
   --active-tab-index: 0;
   --tab-ball-size: clamp(48px, 13vw, 56px);
-  position: sticky;
+  position: fixed;
   z-index: 50;
+  left: 50%;
   bottom: max(1rem, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   align-items: center;
   width: min(calc(100% - 2rem), 440px);
   min-height: 76px;
-  margin: 1rem auto max(1rem, env(safe-area-inset-bottom));
+  margin: 0;
   padding: 0.35rem 1rem max(0.55rem, env(safe-area-inset-bottom));
   overflow: visible;
   border: 1px solid color-mix(in srgb, var(--theme-surface) 20%, transparent);
