@@ -189,6 +189,7 @@
       <div id="billTabs" class="bill-tabs" role="tablist" aria-label="Bill members"></div>
       <div id="memberOwesSummary" class="member-owes-summary hidden"></div>
       <div class="expense-list" id="expenseList"></div>
+      <section id="settlementLog" class="settlement-log hidden" aria-live="polite"></section>
       <div class="itinerary-actions wallet-expense-actions">
         <button type="button" id="addExpenseBtn" class="btn-primary" data-i18n="addExpense">+ Add Expense</button>
       </div>
@@ -521,6 +522,10 @@
                 </div>
               </div>
               <div class="activity-section-grid">
+                <label class="grow">
+                  Upfront payment title
+                  <input type="text" id="activityUpfrontPaymentTitle" placeholder="e.g. Museum admission">
+                </label>
                 <label>
                   Upfront Payment
                   <input type="text" id="activityExpense" placeholder="e.g. $20 or NT$500">
@@ -561,11 +566,6 @@
                   <select id="activityBillMember">
                     <option value="">Shared / All members</option>
                   </select>
-                </label>
-                <label class="checkbox-field payment-settled-field">
-                  <input type="checkbox" id="activitySettled">
-                  <span class="toggle-switch" aria-hidden="true"></span>
-                  <span>Payment settled</span>
                 </label>
               </div>
             </section>
@@ -682,7 +682,24 @@
           <button id="closeSplitBillModalBtn" class="icon-btn" type="button" aria-label="Close">&times;</button>
         </div>
         <p id="splitBillModalHint" class="split-bill-hint">Choose the members sharing this expense.</p>
+        <div class="split-bill-mode" role="group" aria-label="Split method">
+          <label><input type="radio" name="splitMode" value="even" checked> Split evenly</label>
+          <label><input type="radio" name="splitMode" value="specific"> Specific amounts</label>
+        </div>
         <div id="splitBillMemberOptions" class="split-bill-member-options"></div>
+        <section class="split-service-charge" id="splitServiceChargeField" aria-label="Service charge">
+          <div class="split-service-charge-copy">
+            <strong>Service charge</strong>
+            <span>Split evenly across selected members</span>
+          </div>
+          <div class="split-service-charge-controls">
+            <div class="split-service-charge-percent">
+              <input id="splitServiceChargePercent" type="text" inputmode="decimal" value="0" placeholder="0" aria-label="Service charge percentage">
+              <span>%</span>
+            </div>
+            <strong id="splitServiceChargeTotal">+ 0.00</strong>
+          </div>
+        </section>
         <div class="split-bill-actions">
           <button id="cancelSplitBillBtn" class="btn-secondary" type="button">Cancel</button>
           <button id="applySplitBillBtn" class="btn-primary" type="button">Apply split</button>

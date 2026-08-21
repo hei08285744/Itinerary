@@ -940,6 +940,23 @@ input[type='time'] {
   margin-top: 0.55rem;
 }
 
+.saved-route-day-group {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.saved-route-day-heading {
+  margin: 0.35rem 0 0;
+  color: var(--theme-muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.saved-route-day-group + .saved-route-day-group {
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--theme-border);
+}
+
 .saved-routes-heading {
   display: flex;
   align-items: center;
@@ -1079,6 +1096,65 @@ input[type='time'] {
   overflow-wrap: anywhere;
   font-family: 'Nimbus Mono PS', 'Courier New', monospace;
   font-size: 0.68rem;
+}
+
+.transit-route-details {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+  padding: 0.55rem;
+  border: 1px solid var(--theme-border);
+  border-radius: 8px;
+  background: var(--theme-surface);
+}
+
+.transit-route-heading {
+  font-size: 0.68rem;
+  color: var(--theme-ink);
+}
+
+.transit-route-list {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.transit-route-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.15rem 0.45rem;
+  min-width: 0;
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--theme-border);
+}
+
+.transit-route-list li:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.transit-route-service,
+.transit-route-timing {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-family: 'Nimbus Mono PS', 'Courier New', monospace;
+}
+
+.transit-route-service {
+  font-size: 0.68rem;
+}
+
+.transit-route-stops,
+.transit-route-timing {
+  color: var(--theme-muted);
+  font-size: 0.6rem;
+}
+
+.transit-route-timing {
+  grid-column: 1 / -1;
 }
 
 .map-status {
@@ -1642,6 +1718,60 @@ input[type='time'] {
   white-space: normal;
 }
 
+.settlement-log {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0.9rem 0 1.25rem;
+  padding: 0.75rem;
+  border-top: 1px solid var(--theme-border);
+  border-bottom: 1px solid var(--theme-border);
+  background: color-mix(in srgb, var(--theme-accent-soft) 20%, var(--theme-surface));
+}
+
+.settlement-log.hidden {
+  display: none;
+}
+
+.settlement-log h4 {
+  margin: 0 0 0.15rem;
+  color: var(--theme-ink);
+  font-size: 0.74rem;
+}
+
+.settlement-log-entry {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.35rem 0.6rem;
+  padding: 0.35rem 0;
+  border-top: 1px solid color-mix(in srgb, var(--theme-border) 70%, transparent);
+  color: var(--theme-ink);
+  font-size: 0.72rem;
+}
+
+.settlement-log-people {
+  display: flex;
+  gap: 0.3rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.settlement-log-people span {
+  color: var(--theme-muted);
+}
+
+.settlement-log-amount {
+  font-family: 'Nimbus Mono PS', 'Courier New', monospace;
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+
+.settlement-log-entry time {
+  flex: 0 0 auto;
+  color: var(--theme-muted);
+  font-size: 0.65rem;
+}
+
 .bill-split-btn {
   margin-top: 0.15rem;
   padding: 0.15rem 0.45rem;
@@ -1668,6 +1798,108 @@ input[type='time'] {
   margin: 0 0 0.85rem;
   color: var(--theme-muted);
   font-size: 0.82rem;
+}
+
+.split-bill-mode {
+  display: flex;
+  gap: 0.45rem;
+  margin: 0 0 0.7rem;
+}
+
+.split-bill-mode label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 32px;
+  padding: 0.3rem 0.55rem;
+  border: 1px solid var(--theme-border);
+  border-radius: 999px;
+  color: var(--theme-muted);
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+.split-bill-mode label:has(input:checked) {
+  border-color: var(--theme-accent);
+  background: var(--theme-accent-soft);
+  color: var(--theme-ink);
+}
+
+.split-service-charge {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 0.7rem 0 0.7rem;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--theme-border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--theme-accent-soft) 42%, var(--theme-surface));
+}
+
+.split-service-charge.is-visible {
+  display: flex;
+}
+
+.split-service-charge-copy {
+  display: grid;
+  gap: 0.12rem;
+  min-width: 0;
+}
+
+.split-service-charge-copy strong {
+  color: var(--theme-ink);
+  font-size: 0.74rem;
+}
+
+.split-service-charge-copy span {
+  color: var(--theme-muted);
+  font-size: 0.62rem;
+}
+
+.split-service-charge-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex: 0 0 auto;
+}
+
+.split-service-charge-percent {
+  display: flex;
+  align-items: center;
+  width: 52px;
+  min-height: 28px;
+  padding: 0.2rem 0.3rem 0.2rem 0.4rem;
+  border: 1px solid var(--theme-border);
+  border-radius: 6px;
+  background: var(--theme-surface);
+}
+
+.split-service-charge input {
+  flex: 1;
+  width: 1px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--theme-ink);
+  font: inherit;
+  font-size: 0.72rem;
+}
+
+.split-service-charge-percent span {
+  color: var(--theme-muted);
+  font-size: 0.7rem;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.split-service-charge-controls > strong {
+  min-width: 52px;
+  color: var(--theme-ink);
+  font-family: 'Nimbus Mono PS', 'Courier New', monospace;
+  font-size: 0.72rem;
+  text-align: right;
 }
 
 .split-bill-member-options {
@@ -1726,6 +1958,29 @@ input[type='time'] {
   height: 1rem;
   margin: 0 0 0 auto;
   accent-color: var(--theme-accent);
+}
+
+.split-bill-member-option .split-bill-amount {
+  display: none;
+  flex: 0 0 82px;
+  width: 82px;
+  min-width: 0;
+  min-height: 30px;
+  padding: 0.25rem 0.4rem;
+  border: 1px solid var(--theme-border);
+  border-radius: 6px;
+  background: var(--theme-surface);
+  color: var(--theme-ink);
+  font: inherit;
+  font-size: 0.72rem;
+}
+
+.split-bill-member-options.is-specific .split-bill-amount {
+  display: block;
+}
+
+.split-bill-member-option:not(:has(input:checked)) .split-bill-amount {
+  opacity: 0.45;
 }
 
 .split-bill-actions {
@@ -3189,14 +3444,25 @@ select:focus {
   letter-spacing: 0.03em;
 }
 
-.item-booking-details {
-  display: grid;
-  gap: 0.2rem;
+.item-booking-reference {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.55rem;
   margin: 0.55rem 0 0.6rem;
-  padding: 0.5rem 0.6rem;
-  border-left: 3px solid var(--theme-accent);
+  color: var(--theme-muted);
+  font-size: 0.72rem;
+  overflow-wrap: anywhere;
+}
+
+.item-booking-reference code {
+  min-width: 0;
+  padding: 0.18rem 0.4rem;
+  border: 1px solid var(--theme-border);
+  border-radius: 4px;
   background: var(--theme-accent-soft);
   color: var(--theme-ink);
+  font-family: 'Nimbus Mono PS', 'Courier New', monospace;
   font-size: 0.72rem;
   overflow-wrap: anywhere;
 }

@@ -68,6 +68,7 @@ const walletBudgetLeft = document.getElementById('walletBudgetLeft');
 const expenseList = document.getElementById('expenseList');
 const memberOwesSummary = document.getElementById('memberOwesSummary');
 const billTabs = document.getElementById('billTabs');
+const settlementLog = document.getElementById('settlementLog');
 const addExpenseBtn = document.getElementById('addExpenseBtn');
 const expenseModalOverlay = document.getElementById('expenseModalOverlay');
 const closeExpenseModalBtn = document.getElementById('closeExpenseModalBtn');
@@ -280,8 +281,9 @@ function loadState() {
     activities: [],
     bills: [],
     routeFees: {},
+    settlementLogs: [],
     walletBudget: 0,
-    theme: 'joy',
+    theme: 'cobalt',
     savedRoutes: [],
     walletTargetCurrency: 'HKD',
   };
@@ -318,11 +320,12 @@ function init() {
   tripDestinationInput.value = state.tripDestination || '';
   tripStartDateInput.value = state.tripStartDate || '';
   tripEndDateInput.value = state.tripEndDate || '';
-  if (!['joy', 'violet', 'cobalt', 'coffee'].includes(state.theme)) state.theme = 'joy';
+  if (!['joy', 'violet', 'cobalt', 'coffee'].includes(state.theme)) state.theme = 'cobalt';
   applyTheme();
   if (!state.geocodeCache) state.geocodeCache = {};
   if (!state.bills) state.bills = [];
   if (!state.routeFees) state.routeFees = {};
+  if (!Array.isArray(state.settlementLogs)) state.settlementLogs = [];
   if (!isFinite(Number(state.walletBudget))) state.walletBudget = 0;
   if (!Array.isArray(state.savedRoutes)) state.savedRoutes = [];
   if (!state.walletTargetCurrency) state.walletTargetCurrency = 'HKD';
@@ -609,6 +612,10 @@ cityPeriods.addEventListener('input', (event) => {
   const index = Number(period.dataset.cityIndex);
   state.cities[index][field] = event.target.value;
   saveState();
+});
+
+cityPeriods.addEventListener('change', (event) => {
+  if (!event.target.dataset.cityField) return;
   render();
 });
 
@@ -646,7 +653,8 @@ activityForm.addEventListener('submit', (e) => {
     date, time, title, category, location, rating, description, expense, remarks,
     paidBy: activityPaidByInput.value,
     billMember: activityBillMemberInput.value,
-    settled: activitySettledInput.checked,
+    settled: Boolean(existingActivity?.settled),
+    settledMembers: existingActivity?.settledMembers || [],
     paymentMethod: activityPaymentMethodInput.value,
     cardNetwork: activityPaymentMethodInput.value === 'card' ? activityCardNetworkInput.value : '',
     cardMarkup: activityPaymentMethodInput.value === 'card' ? Number(activityCardMarkupInput.value) || 0 : 0,
@@ -654,6 +662,7 @@ activityForm.addEventListener('submit', (e) => {
     mapProvider: activityMapProviderInput.value || 'google',
     naverUrl: activityNaverUrlInput.value.trim(),
     shoppingItems: category === 'shopping' ? shoppingItemsDraft : [],
+    upfrontPaymentTitle: document.getElementById('activityUpfrontPaymentTitle').value.trim(),
     bookingDetails: document.getElementById('activityBookingDetails').value.trim(),
     contactDetails: document.getElementById('activityContactDetails').value.trim(),
     flightNumber: document.getElementById('flightNumber').value.trim(),
@@ -666,16 +675,20 @@ activityForm.addEventListener('submit', (e) => {
     arrivalTerminal: document.getElementById('arrivalTerminal').value.trim(),
     arrivalGate: document.getElementById('arrivalGate').value.trim(),
   };
+  let savedActivity;
   if (editingActivityId) {
     const activity = state.activities.find((item) => item.id === editingActivityId);
-    if (activity) Object.assign(activity, activityData);
+    if (activity) {
+      Object.assign(activity, activityData);
+      savedActivity = activity;
+    }
   } else {
-    state.activities.push({
+    savedActivity = {
       id: Date.now().toString(36) + Math.random().toString(36).slice(2),
       ...activityData,
-    });
+    };
+    state.activities.push(savedActivity);
   }
-
   saveState();
   render();
   activityForm.reset();
@@ -723,13 +736,13 @@ function openActivityModal(activity = null) {
     document.getElementById('activityDescription').value = activity.address || activity.description || '';
     activityMapProviderInput.value = activity.mapProvider || 'google';
     activityNaverUrlInput.value = activity.naverUrl || '';
+    document.getElementById('activityUpfrontPaymentTitle').value = activity.upfrontPaymentTitle || '';
     document.getElementById('activityBookingDetails').value = activity.bookingDetails || '';
     document.getElementById('activityContactDetails').value = activity.contactDetails || '';
     document.getElementById('activityExpense').value = activity.expense || '';
     activityExpenseCurrencyInput.value = getExpenseCurrency(activity.expense) || activityExpenseCurrencyInput.value;
     activityPaidByInput.value = activity.paidBy || '';
     activityBillMemberInput.value = activity.billMember || '';
-    activitySettledInput.checked = Boolean(activity.settled);
     activityPaymentMethodInput.value = activity.paymentMethod || 'cash';
     activityCardNetworkInput.value = activity.cardNetwork || 'visa';
     activityCardMarkupInput.value = activity.cardMarkup !== '' && isFinite(activity.cardMarkup)
@@ -947,6 +960,7 @@ function updateActivityExpenseHint(date) {
 
 function deleteActivity(id) {
   state.activities = state.activities.filter((a) => a.id !== id);
+  state.settlementLogs = (state.settlementLogs || []).filter((log) => log.entryId !== id);
   saveState();
   render();
 }
@@ -1687,7 +1701,9 @@ function requestSuggestedRoute() {
   spotFareGrid.innerHTML = '';
   currentSuggestedRoute = null;
   saveSuggestedRouteBtn.disabled = true;
-  directionsService.route({ origin, destination, travelMode: google.maps.TravelMode[mode] }, (result, status) => {
+  const request = { origin, destination, travelMode: google.maps.TravelMode[mode] };
+  if (mode === 'TRANSIT') request.transitOptions = { departureTime: new Date() };
+  directionsService.route(request, (result, status) => {
     if (status !== 'OK' || !result.routes.length) {
       spotRouteStatus.textContent = state.language === 'zh'
         ? `找不到路線（${status}）`
@@ -1703,22 +1719,24 @@ function requestSuggestedRoute() {
     suggestedRouteRenderer.setDirections(result);
     map.fitBounds(result.routes[0].bounds);
     const leg = result.routes[0].legs[0];
+    const transitDetails = getTransitRouteDetails(leg, result.routes[0]);
     spotRouteStatus.textContent = state.language === 'zh' ? '建議路線' : 'Suggested route';
     spotRouteResult.textContent = `${leg.distance.text} · ${leg.duration.text}`;
-    renderFareEstimates(Number(leg.distance.value) || 0, leg.duration.text, false);
-    currentSuggestedRoute = buildSuggestedRoute(from, to, mode, leg.distance.text, leg.duration.text, false, leg.start_location, leg.end_location);
+    renderFareEstimates(Number(leg.distance.value) || 0, leg.duration.text, false, transitDetails);
+    currentSuggestedRoute = buildSuggestedRoute(from, to, mode, leg.distance.text, leg.duration.text, false, leg.start_location, leg.end_location, transitDetails);
     saveSuggestedRouteBtn.disabled = false;
   });
 }
 
-function buildSuggestedRoute(from, to, mode, distance, duration, estimated, fromPosition = null, toPosition = null) {
+function buildSuggestedRoute(from, to, mode, distance, duration, estimated, fromPosition = null, toPosition = null, transitDetails = null) {
   const fromCity = getCityForDate(from.date);
   const toCity = getCityForDate(to.date);
   const currency = getCurrencyForDestination(fromCity || toCity);
   return {
     id: `route-${Date.now().toString(36)}`,
-    fromTitle: from.title || from.location,
-    toTitle: to.title || to.location,
+    date: from.date || '',
+    fromTitle: from.location || from.title,
+    toTitle: to.location || to.title,
     fromLocation: from.location,
     toLocation: to.location,
     fromCity,
@@ -1730,9 +1748,63 @@ function buildSuggestedRoute(from, to, mode, distance, duration, estimated, from
     duration,
     taxiFare: estimateTaxiFare(distance, currency),
     taxiCurrency: currency,
+    transitDetails,
     estimated,
     savedAt: new Date().toISOString(),
   };
+}
+
+function getTransitRouteDetails(leg, route) {
+  const legs = (leg.steps || [])
+    .filter((step) => step.transit)
+    .map((step) => {
+      const transit = step.transit;
+      const line = transit.line || {};
+      const vehicle = line.vehicle?.name || line.vehicle?.type || 'Transit';
+      const service = line.short_name || line.name || vehicle;
+      return {
+        service: service === vehicle ? vehicle : `${vehicle} ${service}`,
+        headsign: transit.headsign || '',
+        stops: transit.num_stops || 0,
+        departureStop: transit.departure_stop?.name || '',
+        arrivalStop: transit.arrival_stop?.name || '',
+        departureTime: transit.departure_time?.text || '',
+        arrivalTime: transit.arrival_time?.text || '',
+      };
+    });
+
+  if (!legs.length) return null;
+  return { legs, fare: route.fare?.text || leg.fare?.text || '' };
+}
+
+function createTransitDetailsElement(transitDetails) {
+  const details = document.createElement('section');
+  details.className = 'transit-route-details';
+  const heading = document.createElement('strong');
+  heading.className = 'transit-route-heading';
+  heading.textContent = 'Public transport';
+  const list = document.createElement('ol');
+  list.className = 'transit-route-list';
+  transitDetails.legs.forEach((transitLeg) => {
+    const item = document.createElement('li');
+    const service = document.createElement('strong');
+    service.className = 'transit-route-service';
+    service.textContent = `${transitLeg.service}${transitLeg.headsign ? ` to ${transitLeg.headsign}` : ''}`;
+    const stops = document.createElement('span');
+    stops.className = 'transit-route-stops';
+    stops.textContent = `${transitLeg.stops} stops`;
+    const timing = document.createElement('span');
+    timing.className = 'transit-route-timing';
+    timing.textContent = [
+      [transitLeg.departureStop, transitLeg.departureTime].filter(Boolean).join(' '),
+      [transitLeg.arrivalStop, transitLeg.arrivalTime].filter(Boolean).join(' '),
+    ].filter(Boolean).join(' to ');
+    item.append(service, stops);
+    if (timing.textContent) item.appendChild(timing);
+    list.appendChild(item);
+  });
+  details.append(heading, list);
+  return details;
 }
 
 function estimateTaxiFare(distance, currency) {
@@ -1747,11 +1819,27 @@ function estimateTaxiFare(distance, currency) {
   return `${currency} ${Math.round(rule.base + distanceValue * rule.perKm).toLocaleString()}`;
 }
 
-function renderFareEstimates(distanceMeters, durationText, isEstimate) {
+function renderFareEstimates(distanceMeters, durationText, isEstimate, transitDetails = null) {
   const km = distanceMeters / 1000;
-  spotFareGrid.innerHTML = `
-    <div class="spot-fare-card"><span>Distance</span><strong>${km.toFixed(1)} km</strong></div>
-    <div class="spot-fare-card"><span>ETA</span><strong>${durationText}</strong></div>`;
+  const metrics = [
+    ['Distance', `${km.toFixed(1)} km`],
+    ['ETA', durationText],
+  ];
+  if (transitDetails) {
+    if (transitDetails.fare) metrics.push(['Fare', transitDetails.fare]);
+  }
+  spotFareGrid.innerHTML = '';
+  metrics.forEach(([label, value]) => {
+    const card = document.createElement('div');
+    card.className = 'spot-fare-card';
+    const metricLabel = document.createElement('span');
+    metricLabel.textContent = label;
+    const metricValue = document.createElement('strong');
+    metricValue.textContent = value;
+    card.append(metricLabel, metricValue);
+    spotFareGrid.appendChild(card);
+  });
+  if (transitDetails) spotFareGrid.appendChild(createTransitDetailsElement(transitDetails));
 }
 
 function clearSuggestedGeometry() {
@@ -1796,11 +1884,13 @@ function geocodeSuggestedSpots(from, to, mode) {
 }
 
 function requestCoordinateRoute(positions, from, to, mode) {
-  directionsService.route({
+  const request = {
     origin: positions[0],
     destination: positions[1],
     travelMode: google.maps.TravelMode[mode],
-  }, (result, status) => {
+  };
+  if (mode === 'TRANSIT') request.transitOptions = { departureTime: new Date() };
+  directionsService.route(request, (result, status) => {
     if (status === 'OK' && result.routes.length) {
       if (!suggestedRouteRenderer) suggestedRouteRenderer = new google.maps.DirectionsRenderer({ suppressMarkers: false, preserveViewport: false });
       clearSuggestedGeometry();
@@ -1808,10 +1898,11 @@ function requestCoordinateRoute(positions, from, to, mode) {
       suggestedRouteRenderer.setDirections(result);
       map.fitBounds(result.routes[0].bounds);
       const leg = result.routes[0].legs[0];
+      const transitDetails = getTransitRouteDetails(leg, result.routes[0]);
       spotRouteStatus.textContent = state.language === 'zh' ? '建議路線' : 'Suggested route';
       spotRouteResult.textContent = `${leg.distance.text} · ${leg.duration.text}`;
-      renderFareEstimates(Number(leg.distance.value) || 0, leg.duration.text, false);
-      currentSuggestedRoute = buildSuggestedRoute(from, to, mode, leg.distance.text, leg.duration.text, false, leg.start_location, leg.end_location);
+      renderFareEstimates(Number(leg.distance.value) || 0, leg.duration.text, false, transitDetails);
+      currentSuggestedRoute = buildSuggestedRoute(from, to, mode, leg.distance.text, leg.duration.text, false, leg.start_location, leg.end_location, transitDetails);
       saveSuggestedRouteBtn.disabled = false;
       return;
     }
@@ -2077,7 +2168,7 @@ function renderShoppingHaul() {
     .sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.time || '').localeCompare(b.time || ''));
   shoppingHaulActivity.innerHTML = '';
   allShoppingActivities.forEach((activity) => {
-    shoppingHaulActivity.add(new Option(`${activity.title} · ${activity.date || 'No date'}`, activity.id));
+    shoppingHaulActivity.add(new Option(`${activity.location || activity.title} · ${activity.date || 'No date'}`, activity.id));
   });
   openShoppingHaulFormBtn.disabled = !allShoppingActivities.length;
   const shoppingActivities = state.activities
@@ -2108,7 +2199,11 @@ function renderShoppingHaul() {
     group.className = 'shopping-haul-group';
     const heading = document.createElement('div');
     heading.className = 'shopping-haul-group-heading';
-    heading.innerHTML = `<strong>${activity.title}</strong><span>${activity.date || ''}</span>`;
+    const shopName = document.createElement('strong');
+    shopName.textContent = activity.location || activity.title;
+    const shopDate = document.createElement('span');
+    shopDate.textContent = activity.date || '';
+    heading.append(shopName, shopDate);
     group.appendChild(heading);
 
     activity.shoppingItems.forEach((item) => {
@@ -2294,6 +2389,14 @@ function renderSavedRoutes() {
   renderSavedRoutePanel();
 }
 
+function getSavedRouteDate(route) {
+  if (route.date) return route.date;
+  const fromActivity = state.activities.find((activity) => (
+    activity.location === route.fromLocation && activity.date
+  ));
+  return fromActivity?.date || '';
+}
+
 function getSavedRouteUrl(route, provider) {
   const originName = route.fromCity ? `${route.fromLocation}, ${route.fromCity}` : route.fromLocation;
   const destinationName = route.toCity ? `${route.toLocation}, ${route.toCity}` : route.toLocation;
@@ -2368,7 +2471,24 @@ function renderSavedRoutePanel() {
     savedRoutePanel.appendChild(empty);
     return;
   }
+  const routesByDate = new Map();
   state.savedRoutes.forEach((route) => {
+    const date = getSavedRouteDate(route);
+    if (!routesByDate.has(date)) routesByDate.set(date, []);
+    routesByDate.get(date).push(route);
+  });
+  [...routesByDate.entries()]
+    .sort(([firstDate], [secondDate]) => secondDate.localeCompare(firstDate))
+    .forEach(([date, routes]) => {
+      const group = document.createElement('section');
+      group.className = 'saved-route-day-group';
+      const heading = document.createElement('h3');
+      heading.className = 'saved-route-day-heading';
+      heading.textContent = date
+        ? new Date(`${date}T00:00:00`).toLocaleDateString(state.language === 'zh' ? 'zh-TW' : 'en-US', { month: 'short', day: 'numeric', weekday: 'short' })
+        : (state.language === 'zh' ? '未指定日期' : 'Unscheduled');
+      group.appendChild(heading);
+      routes.forEach((route) => {
     const row = document.createElement('div');
     row.className = 'saved-route-row';
     const entry = document.createElement('a');
@@ -2379,14 +2499,19 @@ function renderSavedRoutePanel() {
     const taxiFare = route.taxiFare || estimateTaxiFare(route.distance, route.taxiCurrency || getCurrencyForDestination(route.fromCity));
     const routeTitle = document.createElement('strong');
     routeTitle.className = 'saved-route-title';
-    routeTitle.textContent = `${route.fromTitle} → ${route.toTitle}`;
+    routeTitle.textContent = `${route.fromLocation || route.fromTitle} → ${route.toLocation || route.toTitle}`;
     const routeMetrics = document.createElement('div');
     routeMetrics.className = 'saved-route-metrics';
-    [
+    const metrics = [
       ['Distance', route.distance],
       ['ETA', route.duration],
-      ['Taxi', taxiFare],
-    ].forEach(([label, value]) => {
+    ];
+    if (route.mode === 'TRANSIT' && route.transitDetails) {
+      if (route.transitDetails.fare) metrics.push(['Fare', route.transitDetails.fare]);
+    } else {
+      metrics.push(['Taxi', taxiFare]);
+    }
+    metrics.forEach(([label, value]) => {
       const metric = document.createElement('span');
       metric.className = 'saved-route-metric';
       const metricLabel = document.createElement('small');
@@ -2397,6 +2522,7 @@ function renderSavedRoutePanel() {
       routeMetrics.appendChild(metric);
     });
     entry.append(routeTitle, routeMetrics);
+    if (route.mode === 'TRANSIT' && route.transitDetails) entry.appendChild(createTransitDetailsElement(route.transitDetails));
     const removeButton = document.createElement('button');
     removeButton.type = 'button';
     removeButton.className = 'saved-route-remove';
@@ -2409,8 +2535,10 @@ function renderSavedRoutePanel() {
       renderSavedRoutePanel();
     });
     row.append(entry, removeButton);
-    savedRoutePanel.appendChild(row);
-  });
+    group.appendChild(row);
+      });
+      savedRoutePanel.appendChild(group);
+    });
 }
 
 savedRoutePlatform.addEventListener('change', renderSavedRoutePanel);
@@ -2503,6 +2631,84 @@ function getBillShareMembers(expense) {
   return members;
 }
 
+function getBillMemberAmount(expense, member) {
+  const total = Number.parseFloat(String(expense.expense || '').replace(/[^0-9.]/g, ''));
+  const shareMembers = getBillShareMembers(expense);
+  const specificAmount = Number(expense.splitAmounts?.[member]);
+  if (Number.isFinite(specificAmount) && specificAmount >= 0) return specificAmount;
+  return isFinite(total) && shareMembers.length ? total / shareMembers.length : 0;
+}
+
+function getBillDebtors(expense) {
+  return getBillShareMembers(expense).filter((member) => member && member !== expense.paidBy);
+}
+
+function isMemberSettlement(expense, member) {
+  return Boolean(expense.settled || expense.fullySettled || (member && Array.isArray(expense.settledMembers) && expense.settledMembers.includes(member)));
+}
+
+function createSettlementLog(expense, member, kind, paidAt = new Date().toISOString()) {
+  const shareMembers = getBillShareMembers(expense);
+  const amount = getBillMemberAmount(expense, member);
+  if (!isFinite(amount) || !shareMembers.includes(member) || !expense.paidBy || expense.paidBy === member) return null;
+  const currency = getExpenseCurrency(expense.expense) || getCurrencyForDestination(getCityForDate(expense.date));
+  return {
+    id: `settlement-${Date.now().toString(36)}-${member}`,
+    entryId: expense.id,
+    from: member,
+    to: expense.paidBy,
+    amount: `${currency} ${amount.toFixed(2)}`,
+    kind,
+    paidAt,
+  };
+}
+
+function setMemberSettlement(expense, member, isSettled) {
+  if (!member) return;
+  const settledMembers = new Set(expense.settledMembers || []);
+  if (isSettled) settledMembers.add(member);
+  else settledMembers.delete(member);
+  expense.settledMembers = [...settledMembers];
+  const debtors = getBillDebtors(expense);
+  expense.fullySettled = debtors.length > 0 && debtors.every((debtor) => settledMembers.has(debtor));
+
+  if (!Array.isArray(state.settlementLogs)) state.settlementLogs = [];
+  const existingLog = state.settlementLogs.find((log) => log.entryId === expense.id && log.from === member);
+  state.settlementLogs = state.settlementLogs.filter((log) => !(log.entryId === expense.id && log.from === member));
+  if (!isSettled) return;
+  const log = createSettlementLog(expense, member, 'member', existingLog?.paidAt);
+  if (log) state.settlementLogs.unshift({ ...log, id: existingLog?.id || log.id });
+}
+
+function setAllSettlement(expense, isSettled) {
+  expense.settled = isSettled;
+  if (!Array.isArray(state.settlementLogs)) state.settlementLogs = [];
+  state.settlementLogs = state.settlementLogs.filter((log) => !(log.entryId === expense.id && log.kind === 'all'));
+  if (!isSettled) {
+    const settledMembers = new Set(expense.settledMembers || []);
+    const debtors = getBillDebtors(expense);
+    expense.fullySettled = debtors.length > 0 && debtors.every((debtor) => settledMembers.has(debtor));
+    return;
+  }
+  expense.fullySettled = false;
+  getBillDebtors(expense).forEach((member) => {
+    const log = createSettlementLog(expense, member, 'all');
+    if (log) state.settlementLogs.push(log);
+  });
+}
+
+function syncSettlementLogs(expenses) {
+  if (!Array.isArray(state.settlementLogs)) state.settlementLogs = [];
+  const entriesById = new Map(expenses.map((expense) => [expense.id, expense]));
+  const previousLength = state.settlementLogs.length;
+  state.settlementLogs = state.settlementLogs.filter((log) => {
+    const expense = entriesById.get(log.entryId);
+    if (!expense || log.to !== expense.paidBy || !getBillDebtors(expense).includes(log.from)) return false;
+    return log.kind === 'all' ? Boolean(expense.settled) : Boolean(expense.settledMembers?.includes(log.from));
+  });
+  if (state.settlementLogs.length !== previousLength) saveState();
+}
+
 function calculateMemberOwesByCurrency(expenses) {
   const totals = new Map((state.members || []).filter(Boolean).map((member) => [member, new Map()]));
   expenses.forEach((expense) => {
@@ -2511,11 +2717,11 @@ function calculateMemberOwesByCurrency(expenses) {
     const shareMembers = getBillShareMembers(expense).filter(Boolean);
     if (!shareMembers.length) return;
     const groupKey = getExpenseRateGroupKey(expense);
-    const shareAmount = parsed / shareMembers.length;
     shareMembers.forEach((member) => {
+      if (isMemberSettlement(expense, member)) return;
       if (!totals.has(member)) totals.set(member, new Map());
       const memberTotals = totals.get(member);
-      memberTotals.set(groupKey, (memberTotals.get(groupKey) || 0) + shareAmount);
+      memberTotals.set(groupKey, (memberTotals.get(groupKey) || 0) + getBillMemberAmount(expense, member));
     });
   });
   return totals;
@@ -2525,17 +2731,15 @@ function calculateSelectedMemberOwesByCurrency(expenses, debtor) {
   const members = (state.members || []).filter((member) => member && member !== debtor);
   const totals = new Map(members.map((member) => [member, new Map()]));
   expenses.forEach((expense) => {
-    if (expense.settled) return;
     if (!expense.paidBy || expense.paidBy === debtor) return;
     const parsed = parseFloat(String(expense.expense || '').replace(/[^0-9.]/g, ''));
     if (!isFinite(parsed)) return;
     const shareMembers = getBillShareMembers(expense).filter(Boolean);
-    if (!shareMembers.includes(debtor)) return;
+    if (!shareMembers.includes(debtor) || isMemberSettlement(expense, debtor)) return;
     const groupKey = getExpenseRateGroupKey(expense);
-    const shareAmount = parsed / shareMembers.length;
     if (!totals.has(expense.paidBy)) totals.set(expense.paidBy, new Map());
     const payerTotals = totals.get(expense.paidBy);
-    payerTotals.set(groupKey, (payerTotals.get(groupKey) || 0) + shareAmount);
+    payerTotals.set(groupKey, (payerTotals.get(groupKey) || 0) + getBillMemberAmount(expense, debtor));
   });
   return totals;
 }
@@ -2563,7 +2767,7 @@ async function calculateSelectedMemberOwesConverted(expenses, debtor) {
 function isSelectedMemberOwedPayment(expense, paidBy) {
   if (selectedBillMember === 'all') return false;
   if (!paidBy || expense.paidBy !== paidBy || expense.paidBy === selectedBillMember) return false;
-  if (expense.settled) return false;
+  if (isMemberSettlement(expense, selectedBillMember)) return false;
   return getBillShareMembers(expense).includes(selectedBillMember);
 }
 
@@ -2639,6 +2843,39 @@ function renderMemberOwesSummary(expenses) {
   });
 }
 
+function renderSettlementLog() {
+  settlementLog.innerHTML = '';
+  const logs = (state.settlementLogs || []).filter((log) => (
+    selectedBillMember === 'all' || log.from === selectedBillMember || log.to === selectedBillMember
+  ));
+  settlementLog.classList.toggle('hidden', !logs.length);
+  if (!logs.length) return;
+  const heading = document.createElement('h4');
+  heading.textContent = state.language === 'zh' ? '付款紀錄' : 'Payment activity';
+  settlementLog.appendChild(heading);
+  logs.forEach((log) => {
+    const entry = document.createElement('div');
+    entry.className = 'settlement-log-entry';
+    const people = document.createElement('div');
+    people.className = 'settlement-log-people';
+    const from = document.createElement('strong');
+    from.textContent = log.from;
+    const direction = document.createElement('span');
+    direction.textContent = state.language === 'zh' ? '已付款給' : 'paid';
+    const to = document.createElement('strong');
+    to.textContent = log.to;
+    people.append(from, direction, to);
+    const amount = document.createElement('strong');
+    amount.className = 'settlement-log-amount';
+    amount.textContent = log.amount;
+    const time = document.createElement('time');
+    time.dateTime = log.paidAt;
+    time.textContent = new Date(log.paidAt).toLocaleDateString(state.language === 'zh' ? 'zh-TW' : 'en-US', { month: 'short', day: 'numeric' });
+    entry.append(people, amount, time);
+    settlementLog.appendChild(entry);
+  });
+}
+
 function openSplitBillModal(id) {
   const bill = getBillEntries().find((entry) => entry.id === id);
   const members = (state.members || []).filter(Boolean);
@@ -2650,6 +2887,34 @@ function openSplitBillModal(id) {
   const selectedMembers = Array.isArray(bill.splitMembers) && bill.splitMembers.length
     ? new Set(bill.splitMembers)
     : new Set(members);
+  const splitModeInputs = document.querySelectorAll('input[name="splitMode"]');
+  const hasSpecificAmounts = Object.keys(bill.splitAmounts || {}).length > 0;
+  const serviceChargeField = document.getElementById('splitServiceChargeField');
+  const serviceChargePercent = document.getElementById('splitServiceChargePercent');
+  const serviceChargeTotal = document.getElementById('splitServiceChargeTotal');
+  serviceChargePercent.value = bill.splitServiceChargePercent || 0;
+  const updateServiceChargePreview = () => {
+    const selectedAmounts = [...splitBillMemberOptions.querySelectorAll('input[type="checkbox"]:checked')]
+      .map((checkbox) => [...splitBillMemberOptions.querySelectorAll('[data-split-amount]')]
+        .find((input) => input.dataset.splitAmount === checkbox.value)?.value)
+      .map(Number)
+      .filter((amount) => isFinite(amount) && amount >= 0);
+    const baseTotal = selectedAmounts.reduce((sum, amount) => sum + amount, 0);
+    const percentage = Number(serviceChargePercent.value) || 0;
+    const currency = getExpenseCurrency(bill.expense) || getCurrencyForDestination(getCityForDate(bill.date));
+    serviceChargeTotal.textContent = `+ ${currency} ${(baseTotal * percentage / 100).toFixed(2)}`;
+  };
+  splitModeInputs.forEach((input) => {
+    input.checked = input.value === (hasSpecificAmounts ? 'specific' : 'even');
+    input.onchange = () => {
+      const isSpecific = input.value === 'specific' && input.checked;
+      splitBillMemberOptions.classList.toggle('is-specific', isSpecific);
+      serviceChargeField.classList.toggle('is-visible', isSpecific);
+      updateServiceChargePreview();
+    };
+  });
+  splitBillMemberOptions.classList.toggle('is-specific', hasSpecificAmounts);
+  serviceChargeField.classList.toggle('is-visible', hasSpecificAmounts);
   splitBillMemberOptions.innerHTML = '';
   members.forEach((member) => {
     const label = document.createElement('label');
@@ -2674,8 +2939,26 @@ function openSplitBillModal(id) {
     checkbox.value = member;
     checkbox.checked = selectedMembers.has(member);
     label.appendChild(checkbox);
+    const amount = document.createElement('input');
+    amount.type = 'text';
+    amount.className = 'split-bill-amount';
+    amount.dataset.splitAmount = member;
+    amount.min = '0';
+    amount.step = '0.01';
+    amount.inputMode = 'decimal';
+    amount.placeholder = 'Amount';
+    amount.value = bill.splitBaseAmounts?.[member] ?? bill.splitAmounts?.[member] ?? '';
+    amount.disabled = !checkbox.checked;
+    checkbox.addEventListener('change', () => {
+      amount.disabled = !checkbox.checked;
+      updateServiceChargePreview();
+    });
+    amount.addEventListener('input', updateServiceChargePreview);
+    label.appendChild(amount);
     splitBillMemberOptions.appendChild(label);
   });
+  serviceChargePercent.addEventListener('input', updateServiceChargePreview);
+  updateServiceChargePreview();
   splitBillModalOverlay.classList.remove('hidden');
 }
 
@@ -2690,7 +2973,39 @@ function applyBillSplit() {
   if (!bill) return;
   const selectedMembers = [...splitBillMemberOptions.querySelectorAll('input[type="checkbox"]:checked')]
     .map((checkbox) => checkbox.value);
+  const splitMode = document.querySelector('input[name="splitMode"]:checked')?.value || 'even';
+  if (!selectedMembers.length) return;
+  const splitAmounts = {};
+  const splitBaseAmounts = {};
+  let splitServiceChargePercent = 0;
+  if (splitMode === 'specific') {
+    selectedMembers.forEach((member) => {
+      const amountInput = [...splitBillMemberOptions.querySelectorAll('[data-split-amount]')]
+        .find((input) => input.dataset.splitAmount === member);
+      splitBaseAmounts[member] = Number(amountInput?.value);
+    });
+    splitServiceChargePercent = Number(document.getElementById('splitServiceChargePercent').value) || 0;
+    const baseTotal = Object.values(splitBaseAmounts).reduce((sum, amount) => sum + amount, 0);
+    const serviceCharge = baseTotal * splitServiceChargePercent / 100;
+    if (Object.values(splitBaseAmounts).some((amount) => !isFinite(amount) || amount < 0) || !isFinite(splitServiceChargePercent) || splitServiceChargePercent < 0) {
+      alert(state.language === 'zh' ? '請輸入有效的指定金額與服務費百分比。' : 'Enter valid specific amounts and a service charge percentage.');
+      return;
+    }
+    const evenServiceCharge = serviceCharge / selectedMembers.length;
+    selectedMembers.forEach((member) => {
+      splitAmounts[member] = splitBaseAmounts[member] + evenServiceCharge;
+    });
+    const currency = getExpenseCurrency(bill.expense) || getCurrencyForDestination(getCityForDate(bill.date));
+    bill.expense = `${currency} ${(baseTotal + serviceCharge).toFixed(2)}`;
+  }
   bill.splitMembers = selectedMembers;
+  bill.splitAmounts = splitMode === 'specific' ? splitAmounts : {};
+  bill.splitBaseAmounts = splitMode === 'specific' ? splitBaseAmounts : {};
+  bill.splitServiceChargePercent = splitMode === 'specific' ? splitServiceChargePercent : 0;
+  bill.settled = false;
+  bill.fullySettled = false;
+  bill.settledMembers = [];
+  state.settlementLogs = (state.settlementLogs || []).filter((log) => log.entryId !== bill.id);
   saveState();
   closeSplitBillModal();
   renderExpenseList();
@@ -2704,7 +3019,9 @@ function renderExpenseList() {
   renderBillTabs();
 
   const allExpenses = getBillEntries();
+  syncSettlementLogs(allExpenses);
   renderMemberOwesSummary(allExpenses);
+  renderSettlementLog();
   const expenses = allExpenses.filter((expense) => (
     selectedBillMember === 'all'
     || (expense.billMember && expense.billMember === selectedBillMember)
@@ -2724,7 +3041,7 @@ function renderExpenseList() {
   for (const activity of expenses) {
     const row = document.createElement('div');
     row.className = 'expense-row';
-    row.classList.toggle('is-settled', Boolean(activity.settled));
+    row.classList.toggle('is-settled', isMemberSettlement(activity, selectedBillMember === 'all' ? '' : selectedBillMember));
     row.classList.toggle('is-owed-highlight', isSelectedMemberOwedPayment(activity, highlightedOwedMember));
 
     const top = document.createElement('div');
@@ -2738,7 +3055,7 @@ function renderExpenseList() {
     label.type = 'button';
     const isUpfrontPayment = state.activities.some((item) => item.id === activity.id);
     label.textContent = isUpfrontPayment
-      ? `${activity.title} · ${state.language === 'zh' ? '預付款' : 'Upfront'}`
+      ? `${activity.upfrontPaymentTitle || activity.location || activity.title} · ${state.language === 'zh' ? '預付款' : 'Upfront'}`
       : activity.title;
     label.title = state.language === 'zh' ? '編輯支出' : 'Edit expense';
     label.addEventListener('click', () => {
@@ -2755,7 +3072,9 @@ function renderExpenseList() {
     const paidByText = activity.paidBy
       ? `${state.language === 'zh' ? '付款' : 'Paid by'} ${activity.paidBy}`
       : '';
-    const settledText = activity.settled ? (state.language === 'zh' ? '已結清' : 'Settled') : '';
+    const settledText = isMemberSettlement(activity, selectedBillMember === 'all' ? '' : selectedBillMember)
+      ? (state.language === 'zh' ? '已結清' : 'Settled')
+      : '';
     meta.textContent = [activity.date, formatTime(activity.time), paidByText, settledText].filter(Boolean).join(' · ');
     main.appendChild(meta);
 
@@ -2772,7 +3091,7 @@ function renderExpenseList() {
     const shareMembers = getBillShareMembers(activity);
     const isMemberShare = selectedBillMember !== 'all' && shareMembers.includes(selectedBillMember) && shareMembers.length > 1;
     const displayedAmount = selectedBillMember !== 'all' && shareMembers.includes(selectedBillMember)
-      ? parsed / shareMembers.length
+      ? getBillMemberAmount(activity, selectedBillMember)
       : parsed;
     amount.textContent = (isSplit || isMemberShare) && isFinite(displayedAmount)
       ? `${originalCurrency} ${displayedAmount.toFixed(2)}`
@@ -2927,7 +3246,9 @@ async function calculateAllBillsConvertedTotal(expenses, member) {
     const parsed = parseFloat(String(expense.expense || '').replace(/[^0-9.]/g, ''));
     if (!isFinite(parsed)) return;
     const shareMembers = getBillShareMembers(expense);
-    const amount = member !== 'all' && shareMembers.includes(member) ? parsed / shareMembers.length : parsed;
+    const amount = member !== 'all' && shareMembers.includes(member)
+      ? getBillMemberAmount(expense, member)
+      : parsed;
     const groupKey = getExpenseRateGroupKey(expense);
     totals.set(groupKey, (totals.get(groupKey) || 0) + amount);
   });
@@ -3131,14 +3452,14 @@ function renderItineraryForSelectedDay(days) {
       itemCard.appendChild(addressEl);
     }
 
-    if (activity.bookingDetails || activity.contactDetails) {
+    if (activity.bookingDetails) {
       const bookingInfo = document.createElement('div');
-      bookingInfo.className = 'item-booking-details';
-      if (activity.bookingDetails) {
-        const bookingEl = document.createElement('span');
-        bookingEl.textContent = `Booking: ${activity.bookingDetails}`;
-        bookingInfo.appendChild(bookingEl);
-      }
+      bookingInfo.className = 'item-booking-reference';
+      const bookingLabel = document.createElement('span');
+      bookingLabel.textContent = state.language === 'zh' ? '確認碼' : 'Confirmation';
+      const bookingCode = document.createElement('code');
+      bookingCode.textContent = activity.bookingDetails;
+      bookingInfo.append(bookingLabel, bookingCode);
       itemCard.appendChild(bookingInfo);
     }
 
@@ -3536,7 +3857,7 @@ function openExpenseModal() {
     document.getElementById('billTime').value = bill.time || '';
     document.getElementById('billAmount').value = getExpenseNumber(bill.expense);
     billPaidByInput.value = bill.paidBy || '';
-    billSettledInput.checked = Boolean(bill.settled);
+    billSettledInput.checked = isMemberSettlement(bill, selectedBillMember === 'all' ? '' : selectedBillMember);
     populateMemberOptions(billMemberInput, bill.billMember || '');
     billPaymentMethodInput.value = bill.paymentMethod || 'cash';
     billCardNetworkInput.value = bill.cardNetwork || 'visa';
@@ -3561,6 +3882,7 @@ removeExpenseBtn.addEventListener('click', () => {
   const message = state.language === 'zh' ? '確定要移除此支出嗎？' : 'Remove this expense?';
   if (!confirm(message)) return;
   state.bills = state.bills.filter((bill) => bill.id !== editingBillId);
+  state.settlementLogs = (state.settlementLogs || []).filter((log) => log.entryId !== editingBillId);
   saveState();
   editingBillId = null;
   closeExpenseModal();
@@ -3576,6 +3898,7 @@ expenseForm.addEventListener('submit', (e) => {
   const amount = normalizeExpenseValue(document.getElementById('billAmount').value.trim(), billExpenseCurrencyInput.value);
 
   if (!title || !amount) return;
+  const existingBill = editingBillId ? state.bills.find((item) => item.id === editingBillId) : null;
 
   const billData = {
     title,
@@ -3584,16 +3907,29 @@ expenseForm.addEventListener('submit', (e) => {
     expense: amount,
     paidBy: billPaidByInput.value,
     billMember: billMemberInput.value,
-    settled: billSettledInput.checked,
+    settled: selectedBillMember === 'all' ? billSettledInput.checked : Boolean(existingBill?.settled),
+    settledMembers: [],
     paymentMethod: billPaymentMethodInput.value,
     cardNetwork: billPaymentMethodInput.value === 'card' ? billCardNetworkInput.value : '',
     cardMarkup: billPaymentMethodInput.value === 'card' ? Number(billCardMarkupInput.value) || 0 : 0,
   };
+  let savedBill;
   if (editingBillId) {
-    const bill = state.bills.find((item) => item.id === editingBillId);
-    if (bill) Object.assign(bill, billData);
+    const bill = existingBill;
+    if (bill) {
+      billData.settledMembers = bill.settledMembers || [];
+      Object.assign(bill, billData);
+      savedBill = bill;
+    }
   } else {
-    state.bills.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2), ...billData });
+    savedBill = { id: Date.now().toString(36) + Math.random().toString(36).slice(2), ...billData };
+    state.bills.push(savedBill);
+  }
+  if (savedBill && selectedBillMember !== 'all') {
+    setMemberSettlement(savedBill, selectedBillMember, billSettledInput.checked);
+  }
+  if (savedBill && selectedBillMember === 'all') {
+    setAllSettlement(savedBill, billSettledInput.checked);
   }
 
   saveState();
