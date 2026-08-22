@@ -147,6 +147,7 @@ let currentPlaceAddress = '';
 const routeList = document.getElementById('routeList');
 const routeStatus = document.getElementById('routeStatus');
 const routeModeSelect = document.getElementById('routeMode');
+const routeModeButtons = document.querySelectorAll('[data-route-mode]');
 const savedRoutePanel = document.getElementById('savedRoutePanel');
 const savedRoutePlatform = document.getElementById('savedRoutePlatform');
 const spotASelect = document.getElementById('spotASelect');
@@ -231,7 +232,7 @@ const TRANSLATIONS = {
     tripDetails: 'Trip Details', tripName: 'Trip Name', destination: 'Destination', theme: 'Theme', settings: 'Settings', language: 'Language', targetCurrency: 'Target currency',
     startDate: 'Start Date', endDate: 'End Date', saveClose: 'Save & Close', today: 'TODAY',
     addItem: '+ Add Item', clearDay: 'Clear Day', tripMap: 'Trip Map', route: 'Route', suggestedRoute: 'Suggested route · Google Maps', bestTravelMode: 'Best travel mode', spotA: 'Spot A', spotB: 'Spot B', saveRoute: 'Save route', savedRoutes: 'Saved routes',
-    travelMode: 'Travel Mode', driving: 'Driving', automobile: 'Automobile', walking: 'Walking', transit: 'Transit', mapPlatform: 'Map platform',
+    travelMode: 'Travel Mode', driving: 'Driving', automobile: 'Car', walking: 'Walk', bicycling: 'Bicycle', transit: 'Transit', mapPlatform: 'Map platform',
     itinerary: 'Itinerary', profile: 'Profile', tripProfile: 'Trip profile', editTrip: 'Edit trip', tripFiles: 'Trip Files', tripFilesHint: 'Load another saved itinerary to replace this trip.', loadAnotherTrip: 'Load another trip', trips: 'Trips', currentTrip: 'Current trip', removeSavedTrip: 'Remove saved trip', removeSavedTripConfirm: 'Remove this saved trip?', days: 'Days', items: 'Items', wallet: 'Wallet', tripBudget: 'Trip budget', totalSpent: 'Total spent', budgetLeft: 'Budget left', currencyExchange: 'Currency Exchange', bills: 'Bills', billsRateNote: 'Credit card amounts apply your entered markup over the European Central Bank (ECB) reference rate.', addExpense: '+ Add Expense',
     multipleCities: 'Multiple cities', addCity: '+ Add city', city: 'City', remove: 'Remove', editItem: 'Edit Item', saveItem: 'Save Item',
     members: 'Trip members', addMember: '+ Add', memberPlaceholder: 'e.g. Alex', shoppingHaul: 'Shopping Haul', shoppingHaulKicker: 'Shopping haul', shoppingHaulHint: 'Keep every shopping target in one place.', targetItems: 'Target items',
@@ -241,7 +242,7 @@ const TRANSLATIONS = {
     tripDetails: '行程詳情', tripName: '行程名稱', destination: '目的地', theme: '主題', settings: '設定', language: '語言', targetCurrency: '目標貨幣',
     startDate: '開始日期', endDate: '結束日期', saveClose: '儲存並關閉', today: '今天',
     addItem: '+ 新增項目', clearDay: '清除當天', tripMap: '行程地圖', route: '路線', suggestedRoute: '建議路線 · Google 地圖', bestTravelMode: '最佳交通方式', spotA: '地點 A', spotB: '地點 B', saveRoute: '儲存路線', savedRoutes: '已儲存路線',
-    travelMode: '交通方式', driving: '開車', automobile: '汽車', walking: '步行', transit: '大眾運輸', mapPlatform: '地圖平台',
+    travelMode: '交通方式', driving: '開車', automobile: '汽車', walking: '步行', bicycling: '自行車', transit: '大眾運輸', mapPlatform: '地圖平台',
     itinerary: '行程', profile: '個人檔案', tripProfile: '行程檔案', editTrip: '編輯行程', tripFiles: '行程檔案', tripFilesHint: '載入另一個已儲存的行程以取代目前行程。', loadAnotherTrip: '載入其他行程', trips: '行程', currentTrip: '目前行程', removeSavedTrip: '移除已儲存行程', removeSavedTripConfirm: '要移除這個已儲存行程嗎？', days: '天', items: '項目', wallet: '錢包', tripBudget: '旅程預算', totalSpent: '已支出', budgetLeft: '剩餘預算', currencyExchange: '貨幣兌換', bills: '帳單', billsRateNote: '信用卡金額會在歐洲央行（ECB）參考匯率上，加計你輸入的加成％。', addExpense: '+ 新增支出',
     multipleCities: '多城市行程', addCity: '+ 新增城市', city: '城市', remove: '移除', editItem: '編輯項目', saveItem: '儲存項目',
     members: '同行成員', addMember: '+ 新增', memberPlaceholder: '例如：小明', shoppingHaul: '購物清單', shoppingHaulKicker: '購物整理', shoppingHaulHint: '把所有想買的商品集中在這裡。', targetItems: '目標商品',
@@ -446,6 +447,7 @@ function applyTheme() {
     button.classList.toggle('is-selected', isSelected);
     button.setAttribute('aria-pressed', String(isSelected));
   });
+  if (map) map.setOptions({ styles: getTravelMapStyles(state.theme) });
 }
 
 settingsBtn.addEventListener('click', () => {
@@ -1440,53 +1442,39 @@ let mapsApiLoaded = false;
 let mapsApiLoading = false;
 let placeAutocomplete = null;
 
-const TRAVEL_MAP_STYLES = [
-  {
-    featureType: 'administrative',
-    elementType: 'labels.text.fill',
-    stylers: [{ color: '#56635f' }],
+const TRAVEL_MAP_PALETTES = {
+  joy: {
+    label: '#56635f', land: '#f3f0e8', poi: '#e3eedf', road: '#ffffff',
+    roadStroke: '#dedbd2', highway: '#dceeb0', transit: '#d8e4e0', water: '#b9e3e8',
   },
-  {
-    featureType: 'landscape',
-    elementType: 'geometry.fill',
-    stylers: [{ color: '#f3f0e8' }],
+  violet: {
+    label: '#625e70', land: '#f2f0f8', poi: '#e8e5f4', road: '#ffffff',
+    roadStroke: '#ddd8eb', highway: '#ded6fa', transit: '#e1def0', water: '#cdddea',
   },
-  {
-    featureType: 'poi',
-    elementType: 'geometry.fill',
-    stylers: [{ color: '#e3eedf' }],
+  cobalt: {
+    label: '#536c8d', land: '#eef4fa', poi: '#e2edf5', road: '#ffffff',
+    roadStroke: '#ceddea', highway: '#d4e6f7', transit: '#dbe8f2', water: '#bcdcf0',
   },
-  {
-    featureType: 'poi',
-    elementType: 'labels.text',
-    stylers: [{ visibility: 'off' }],
+  coffee: {
+    label: '#666675', land: '#f5efe3', poi: '#e9e1ce', road: '#fffdf8',
+    roadStroke: '#dfd2bd', highway: '#ead9af', transit: '#e3ddd2', water: '#c4dce3',
   },
-  {
-    featureType: 'road',
-    elementType: 'geometry',
-    stylers: [{ color: '#ffffff' }],
-  },
-  {
-    featureType: 'road',
-    elementType: 'geometry.stroke',
-    stylers: [{ color: '#dedbd2' }],
-  },
-  {
-    featureType: 'road.highway',
-    elementType: 'geometry.fill',
-    stylers: [{ color: '#f7d7a8' }],
-  },
-  {
-    featureType: 'transit',
-    elementType: 'geometry',
-    stylers: [{ color: '#d8e4e0' }],
-  },
-  {
-    featureType: 'water',
-    elementType: 'geometry.fill',
-    stylers: [{ color: '#b9e3e8' }],
-  },
-];
+};
+
+function getTravelMapStyles(theme) {
+  const palette = TRAVEL_MAP_PALETTES[theme] || TRAVEL_MAP_PALETTES.joy;
+  return [
+    { featureType: 'administrative', elementType: 'labels.text.fill', stylers: [{ color: palette.label }] },
+    { featureType: 'landscape', elementType: 'geometry.fill', stylers: [{ color: palette.land }] },
+    { featureType: 'poi', elementType: 'geometry.fill', stylers: [{ color: palette.poi }] },
+    { featureType: 'poi', elementType: 'labels.text', stylers: [{ visibility: 'off' }] },
+    { featureType: 'road', elementType: 'geometry', stylers: [{ color: palette.road }] },
+    { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: palette.roadStroke }] },
+    { featureType: 'road.highway', elementType: 'geometry.fill', stylers: [{ color: palette.highway }] },
+    { featureType: 'transit', elementType: 'geometry', stylers: [{ color: palette.transit }] },
+    { featureType: 'water', elementType: 'geometry.fill', stylers: [{ color: palette.water }] },
+  ];
+}
 
 function loadGoogleMaps(apiKey) {
   if (!apiKey || mapsApiLoaded || mapsApiLoading) return;
@@ -1517,7 +1505,7 @@ function loadGoogleMaps(apiKey) {
       fullscreenControl: false,
       mapTypeControl: false,
       keyboardShortcuts: false,
-      styles: TRAVEL_MAP_STYLES,
+      styles: getTravelMapStyles(state.theme),
     });
     geocoder = new google.maps.Geocoder();
     placesService = new google.maps.places.PlacesService(map);
@@ -2014,14 +2002,10 @@ function renderMapLegend(days) {
     const chip = document.createElement('button');
     chip.type = 'button';
     chip.className = 'legend-chip';
+    chip.style.setProperty('--day-color', getDayColor(index));
     chip.classList.toggle('selected', index === selectedDayIndex);
     chip.setAttribute('aria-pressed', String(index === selectedDayIndex));
     chip.addEventListener('click', () => selectDay(index));
-
-    const dot = document.createElement('span');
-    dot.className = 'legend-dot';
-    dot.style.background = getDayColor(index);
-    chip.appendChild(dot);
 
     const label = document.createElement('span');
     label.textContent = `Day ${index + 1}`;
@@ -2179,8 +2163,21 @@ function renderRoutePanel(days) {
 }
 
 routeModeSelect.addEventListener('change', () => {
+  routeModeButtons.forEach((button) => {
+    const selected = button.dataset.routeMode === routeModeSelect.value;
+    button.classList.toggle('selected', selected);
+    button.setAttribute('aria-pressed', String(selected));
+  });
   renderRoutePanel(getTripDays());
   requestSuggestedRoute();
+});
+
+routeModeButtons.forEach((button) => {
+  button.addEventListener('click', () => {
+    if (routeModeSelect.value === button.dataset.routeMode) return;
+    routeModeSelect.value = button.dataset.routeMode;
+    routeModeSelect.dispatchEvent(new Event('change'));
+  });
 });
 
 function renderGreetingAndDaySelector(days) {
