@@ -249,6 +249,19 @@
           </div>
         </div>
       </section>
+      <section class="profile-collaboration" aria-labelledby="profileCollaborationTitle">
+        <div class="profile-collaboration-heading">
+          <h3 id="profileCollaborationTitle" data-i18n="sharedTrip">Shared trip</h3>
+          <span id="collaborationStatus" class="collaboration-status" data-status="connecting" aria-live="polite">
+            <span class="collaboration-status-indicator" aria-hidden="true"></span>
+            <span id="collaborationStatusText">Connecting…</span>
+          </span>
+        </div>
+        <button id="shareTripBtn" class="btn-secondary profile-share-trip-btn" type="button" disabled>
+          <svg class="file-action-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 10.5 6.8-4m-6.8 7 6.8 4"/></svg>
+          <span id="shareTripBtnText" data-i18n="shareTrip">Share trip</span>
+        </button>
+      </section>
       <section class="profile-trip-files" aria-labelledby="profileTripFilesTitle">
         <h3 id="profileTripFilesTitle" data-i18n="tripFiles">Trip Files</h3>
         <p data-i18n="tripFilesHint">Load another saved itinerary to replace this trip.</p>
@@ -733,6 +746,11 @@
 
   </div>
 
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+  <script src="js/firebase-config.js"></script>
+  <script src="js/firebase-sync.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

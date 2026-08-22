@@ -4,6 +4,8 @@ const STORAGE_KEY = 'itinerary-app-data';
 const GOOGLE_MAPS_API_KEY = 'AIzaSyDpcKhIMm0_2uX79oKv1WkvZOSyXhCWX74';
 
 const state = loadState();
+const requestedTripId = new URLSearchParams(window.location.search).get('trip');
+if (/^[a-zA-Z0-9_-]{8,80}$/.test(requestedTripId || '')) state.activeTripId = requestedTripId;
 let selectedDayIndex = 0;
 const weatherCache = {};
 let weatherRequestId = 0;
@@ -11,6 +13,9 @@ let destinationClockTimer = null;
 let destinationClockRequestId = 0;
 let currentDestinationCity = '';
 let currentDestinationCoordinates = null;
+let collaborationStarted = false;
+let applyingRemoteState = false;
+let cloudSaveTimer = null;
 
 const tripNameInput = document.getElementById('tripName');
 const tripDestinationInput = document.getElementById('tripDestination');
@@ -189,6 +194,10 @@ const profileImportItineraryInput = document.getElementById('profileImportItiner
 const profileExportItineraryBtn = document.getElementById('profileExportItineraryBtn');
 const newTripBtn = document.getElementById('newTripBtn');
 const profileTripLibrary = document.getElementById('profileTripLibrary');
+const collaborationStatus = document.getElementById('collaborationStatus');
+const collaborationStatusText = document.getElementById('collaborationStatusText');
+const shareTripBtn = document.getElementById('shareTripBtn');
+const shareTripBtnText = document.getElementById('shareTripBtnText');
 const shoppingHaulList = document.getElementById('shoppingHaulList');
 const shoppingHaulCount = document.getElementById('shoppingHaulCount');
 const shoppingHaulProgress = document.getElementById('shoppingHaulProgress');
@@ -226,7 +235,7 @@ const TRANSLATIONS = {
     itinerary: 'Itinerary', profile: 'Profile', tripProfile: 'Trip profile', editTrip: 'Edit trip', tripFiles: 'Trip Files', tripFilesHint: 'Load another saved itinerary to replace this trip.', loadAnotherTrip: 'Load another trip', trips: 'Trips', currentTrip: 'Current trip', removeSavedTrip: 'Remove saved trip', removeSavedTripConfirm: 'Remove this saved trip?', days: 'Days', items: 'Items', wallet: 'Wallet', tripBudget: 'Trip budget', totalSpent: 'Total spent', budgetLeft: 'Budget left', currencyExchange: 'Currency Exchange', bills: 'Bills', billsRateNote: 'Credit card amounts apply your entered markup over the European Central Bank (ECB) reference rate.', addExpense: '+ Add Expense',
     multipleCities: 'Multiple cities', addCity: '+ Add city', city: 'City', remove: 'Remove', editItem: 'Edit Item', saveItem: 'Save Item',
     members: 'Trip members', addMember: '+ Add', memberPlaceholder: 'e.g. Alex', shoppingHaul: 'Shopping Haul', shoppingHaulKicker: 'Shopping haul', shoppingHaulHint: 'Keep every shopping target in one place.', targetItems: 'Target items',
-    exportItinerary: 'Download trip', importItinerary: 'Load itinerary', newTrip: '+ New trip',
+    exportItinerary: 'Download trip', importItinerary: 'Load itinerary', newTrip: '+ New trip', sharedTrip: 'Shared trip', shareTrip: 'Share trip',
   },
   zh: {
     tripDetails: '行程詳情', tripName: '行程名稱', destination: '目的地', theme: '主題', settings: '設定', language: '語言', targetCurrency: '目標貨幣',
@@ -236,7 +245,7 @@ const TRANSLATIONS = {
     itinerary: '行程', profile: '個人檔案', tripProfile: '行程檔案', editTrip: '編輯行程', tripFiles: '行程檔案', tripFilesHint: '載入另一個已儲存的行程以取代目前行程。', loadAnotherTrip: '載入其他行程', trips: '行程', currentTrip: '目前行程', removeSavedTrip: '移除已儲存行程', removeSavedTripConfirm: '要移除這個已儲存行程嗎？', days: '天', items: '項目', wallet: '錢包', tripBudget: '旅程預算', totalSpent: '已支出', budgetLeft: '剩餘預算', currencyExchange: '貨幣兌換', bills: '帳單', billsRateNote: '信用卡金額會在歐洲央行（ECB）參考匯率上，加計你輸入的加成％。', addExpense: '+ 新增支出',
     multipleCities: '多城市行程', addCity: '+ 新增城市', city: '城市', remove: '移除', editItem: '編輯項目', saveItem: '儲存項目',
     members: '同行成員', addMember: '+ 新增', memberPlaceholder: '例如：小明', shoppingHaul: '購物清單', shoppingHaulKicker: '購物整理', shoppingHaulHint: '把所有想買的商品集中在這裡。', targetItems: '目標商品',
-    exportItinerary: '下載行程', importItinerary: '載入行程', newTrip: '+ 新行程',
+    exportItinerary: '下載行程', importItinerary: '載入行程', newTrip: '+ 新行程', sharedTrip: '共享行程', shareTrip: '分享行程',
   },
 };
 
@@ -254,6 +263,7 @@ function applyTranslations() {
   document.querySelectorAll('[data-i18n-placeholder]').forEach((element) => {
     element.placeholder = t(element.dataset.i18nPlaceholder);
   });
+  if (collaborationStatus?.dataset.status) updateCollaborationStatus(collaborationStatus.dataset.status);
   settingsBtn.setAttribute('aria-label', language === 'zh' ? '行程設定' : 'Trip settings');
   renderCityPeriods();
   renderMembers();
@@ -292,6 +302,13 @@ function loadState() {
 function saveState() {
   syncCurrentTripToLibrary();
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  if (!collaborationStarted || applyingRemoteState || !window.itinerarySync?.isConfigured()) return;
+  clearTimeout(cloudSaveTimer);
+  const tripId = state.activeTripId;
+  const snapshot = createTripSnapshot();
+  cloudSaveTimer = setTimeout(() => {
+    if (state.activeTripId === tripId) window.itinerarySync.save(tripId, snapshot);
+  }, 350);
 }
 
 function createTripId() {
@@ -312,6 +329,62 @@ function syncCurrentTripToLibrary() {
   const index = state.tripLibrary.findIndex((trip) => trip.id === state.activeTripId);
   if (index >= 0) state.tripLibrary[index] = snapshot;
   else state.tripLibrary.unshift(snapshot);
+}
+
+function updateCollaborationStatus(status) {
+  if (!collaborationStatus || !collaborationStatusText) return;
+  const labels = state.language === 'zh'
+    ? { 'not-configured': '需要設定 Firebase', connecting: '連線中…', saving: '儲存中…', online: '已同步', error: '同步無法使用' }
+    : { 'not-configured': 'Firebase setup required', connecting: 'Connecting…', saving: 'Saving…', online: 'Synced', error: 'Sync unavailable' };
+  collaborationStatus.dataset.status = status;
+  collaborationStatusText.textContent = labels[status] || labels.error;
+  if (shareTripBtn) shareTripBtn.disabled = status === 'not-configured' || status === 'error';
+}
+
+function applyRemoteTrip(remoteState) {
+  if (!remoteState || typeof remoteState !== 'object') return;
+  applyingRemoteState = true;
+  const tripLibrary = state.tripLibrary || [];
+  const activeTripId = state.activeTripId;
+  Object.keys(state).forEach((key) => delete state[key]);
+  Object.assign(state, remoteState, { tripLibrary, activeTripId });
+  syncCurrentTripToLibrary();
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  init();
+  applyingRemoteState = false;
+}
+
+function connectActiveTrip() {
+  if (!collaborationStarted || !window.itinerarySync) return;
+  const shareUrl = new URL(window.location.href);
+  shareUrl.searchParams.set('trip', state.activeTripId);
+  window.history.replaceState(null, '', shareUrl);
+  window.itinerarySync.connect({
+    tripId: state.activeTripId,
+    initialState: createTripSnapshot(),
+    onRemoteState: applyRemoteTrip,
+    onStatus: updateCollaborationStatus,
+  });
+}
+
+async function copyActiveTripLink() {
+  const shareUrl = new URL(window.location.href);
+  shareUrl.searchParams.set('trip', state.activeTripId);
+  try {
+    await navigator.clipboard.writeText(shareUrl.toString());
+    shareTripBtnText.textContent = state.language === 'zh' ? '已複製連結' : 'Link copied';
+    setTimeout(() => {
+      shareTripBtnText.textContent = t('shareTrip');
+    }, 1800);
+  } catch (error) {
+    window.prompt(state.language === 'zh' ? '複製此行程連結' : 'Copy this trip link', shareUrl.toString());
+  }
+}
+
+function initializeCollaboration() {
+  collaborationStarted = true;
+  if (shareTripBtn) shareTripBtn.addEventListener('click', copyActiveTripLink);
+  connectActiveTrip();
 }
 
 function init() {
@@ -349,6 +422,7 @@ function init() {
   selectedDayIndex = closestDayIndexToToday();
   render();
   loadGoogleMaps(GOOGLE_MAPS_API_KEY);
+  if (collaborationStarted) connectActiveTrip();
 }
 
 languageSelect.addEventListener('change', () => {
@@ -3082,6 +3156,8 @@ function renderExpenseList() {
 
     const amounts = document.createElement('div');
     amounts.className = 'expense-row-amounts';
+    const actions = document.createElement('div');
+    actions.className = 'expense-row-actions';
 
     const amount = document.createElement('span');
     amount.className = 'expense-row-amount';
@@ -3101,28 +3177,34 @@ function renderExpenseList() {
     if (isFinite(parsed)) {
       total += isFinite(displayedAmount) ? displayedAmount : 0;
       totalCurrencies.add(originalCurrency);
-      if (!isUpfrontPayment) {
-        const converted = document.createElement('span');
-        converted.className = 'expense-row-converted';
-        converted.textContent = state.language === 'zh' ? '換算中…' : 'Converting…';
-        amounts.appendChild(converted);
-        const rateNote = document.createElement('span');
-        rateNote.className = 'expense-row-rate-note';
-        row.appendChild(rateNote);
-        getGroupConversionRate(getExpenseRateGroupKey(activity), currencyToInput.value).then((rate) => {
-          converted.textContent = `≈ ${(displayedAmount * rate).toFixed(2)} ${currencyToInput.value}`;
-          const cardLabel = getCardNetworkLabel(activity.cardNetwork);
-          rateNote.textContent = activity.paymentMethod === 'card'
-            ? `1 ${originalCurrency} ≈ ${rate.toFixed(4)} ${currencyToInput.value} · ${cardLabel} +${Number(activity.cardMarkup) || 0}% over ECB rate`
-            : `1 ${originalCurrency} ≈ ${rate.toFixed(4)} ${currencyToInput.value}`;
-        }).catch(() => {
-          converted.textContent = state.language === 'zh' ? '無法換算' : 'Conversion unavailable';
-        });
-      }
+    }
+
+    if (isFinite(parsed) && originalCurrency !== currencyToInput.value) {
+      const converted = document.createElement('span');
+      converted.className = 'expense-row-converted';
+      converted.textContent = state.language === 'zh' ? '換算中…' : 'Converting…';
+      amounts.appendChild(converted);
+      const rateDetails = document.createElement('div');
+      rateDetails.className = 'expense-row-rate-details';
+      const rateNote = document.createElement('span');
+      rateNote.className = 'expense-row-rate-note';
+      rateDetails.appendChild(rateNote);
+      actions.appendChild(rateDetails);
+      getGroupConversionRate(getExpenseRateGroupKey(activity), currencyToInput.value).then((rate) => {
+        converted.textContent = `≈ ${(displayedAmount * rate).toFixed(2)} ${currencyToInput.value}`;
+        const cardLabel = getCardNetworkLabel(activity.cardNetwork);
+        rateNote.textContent = activity.paymentMethod === 'card'
+          ? `1 ${originalCurrency} ≈ ${rate.toFixed(4)} ${currencyToInput.value} · ${cardLabel} +${Number(activity.cardMarkup) || 0}% over ECB rate`
+          : `1 ${originalCurrency} ≈ ${rate.toFixed(4)} ${currencyToInput.value}`;
+      }).catch(() => {
+        converted.textContent = state.language === 'zh' ? '無法換算' : 'Conversion unavailable';
+      });
     }
 
     const canSplit = selectedBillMember === 'all' && !activity.billMember;
     if (canSplit) {
+      const splitActions = document.createElement('div');
+      splitActions.className = 'expense-row-split-actions';
       const splitButton = document.createElement('button');
       splitButton.type = 'button';
       splitButton.className = `bill-split-btn${isSplit ? ' split' : ''}`;
@@ -3133,11 +3215,13 @@ function renderExpenseList() {
         ? (state.language === 'zh' ? '選擇分攤成員' : 'Choose split members')
         : (state.language === 'zh' ? '選擇分攤成員' : 'Choose members to split');
       splitButton.addEventListener('click', () => openSplitBillModal(activity.id));
-      amounts.appendChild(splitButton);
+      splitActions.appendChild(splitButton);
+      actions.appendChild(splitActions);
     }
 
     top.appendChild(amounts);
     row.insertBefore(top, row.firstChild);
+    if (actions.childElementCount) row.appendChild(actions);
     expenseList.appendChild(row);
   }
 
@@ -3942,3 +4026,4 @@ expenseForm.addEventListener('submit', (e) => {
 if (destinationClockTimer) clearInterval(destinationClockTimer);
 destinationClockTimer = setInterval(refreshDestinationClock, 60 * 1000);
 init();
+initializeCollaboration();

@@ -1711,11 +1711,33 @@ input[type='time'] {
 }
 
 .expense-row-rate-note {
-  max-width: 100%;
+  display: block;
+  min-width: 0;
   font-size: 0.62rem;
   color: #b3ac96;
   text-align: left;
-  white-space: normal;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.expense-row-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.expense-row-rate-details {
+  grid-column: 1;
+  min-width: 0;
+}
+
+.expense-row-split-actions {
+  grid-column: 2;
+  display: flex;
+  justify-content: flex-end;
 }
 
 .settlement-log {
@@ -1773,13 +1795,13 @@ input[type='time'] {
 }
 
 .bill-split-btn {
-  margin-top: 0.15rem;
   padding: 0.15rem 0.45rem;
   border: 1px solid var(--theme-border);
   border-radius: 999px;
   background: transparent;
   color: var(--theme-accent-dark);
   cursor: pointer;
+  flex: 0 0 auto;
   font: inherit;
   font-size: 0.65rem;
 }
@@ -4069,6 +4091,61 @@ select:focus,
 
 .profile-theme-setting .theme-picker {
   min-height: 32px;
+}
+
+.profile-collaboration {
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 1.1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--theme-border);
+}
+
+.profile-collaboration-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.profile-collaboration h3 {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.collaboration-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--theme-muted);
+  font-size: 0.7rem;
+}
+
+.collaboration-status-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #b7b9b2;
+}
+
+.collaboration-status[data-status='online'] .collaboration-status-indicator {
+  background: #4d8a4a;
+}
+
+.collaboration-status[data-status='saving'] .collaboration-status-indicator,
+.collaboration-status[data-status='connecting'] .collaboration-status-indicator {
+  background: #cc8b2e;
+}
+
+.collaboration-status[data-status='error'] .collaboration-status-indicator {
+  background: #b84b45;
+}
+
+.profile-share-trip-btn {
+  justify-self: start;
+  min-height: 40px;
+  gap: 0.4rem;
+  padding: 0.5rem 0.75rem;
 }
 
 .profile-trip-files {
