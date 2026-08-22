@@ -825,24 +825,48 @@ input[type='time'] {
 }
 
 .map-card {
-  margin: 1.5rem 1.5rem 1.5rem;
+  margin: 1.5rem;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  background: #fff;
+  box-shadow: 0 12px 28px rgba(30, 33, 29, 0.14);
 }
 
 .trip-map {
   width: 100%;
-  height: 210px;
-  border-radius: 16px;
+  height: clamp(430px, 66vh, 620px);
+  border-radius: 0;
   background: #eae7dc;
-  margin-top: 0.75rem;
+  margin: 0;
   display: block;
 }
 
 .spot-route-panel {
-  margin: 0.75rem 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: #fff;
+}
+
+.map-stage {
+  position: relative;
+  min-height: 430px;
+}
+
+.map-route-toolbar {
+  position: absolute;
+  z-index: 2;
+  top: 0.85rem;
+  right: 0.85rem;
+  left: 0.85rem;
   padding: 0.75rem;
-  border: 1px solid var(--theme-border);
+  border: 1px solid rgba(213, 216, 207, 0.9);
   border-radius: 8px;
-  background: var(--theme-surface);
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 8px 24px rgba(30, 33, 29, 0.16);
+  backdrop-filter: blur(12px);
 }
 
 .spot-route-heading {
@@ -858,6 +882,12 @@ input[type='time'] {
   font-weight: 700;
 }
 
+.spot-route-heading h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
 .spot-route-status {
   color: var(--theme-muted);
   font-size: 0.68rem;
@@ -870,6 +900,7 @@ input[type='time'] {
   align-items: center;
   justify-content: initial;
   margin-top: 0.6rem;
+  gap: 0.45rem;
 }
 
 .spot-route-options {
@@ -916,11 +947,46 @@ input[type='time'] {
 
 .spot-route-result {
   min-height: 1rem;
-  margin-top: 0.5rem;
+  margin-top: 0.2rem;
   color: var(--theme-accent-dark);
   font-family: 'Nimbus Mono PS', 'Courier New', monospace;
-  font-size: 0.72rem;
-  font-weight: 600;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.route-summary-sheet {
+  position: relative;
+  z-index: 3;
+  margin-top: -1.15rem;
+  padding: 0.65rem 1rem 1rem;
+  border-radius: 18px 18px 0 0;
+  background: #fff;
+  box-shadow: 0 -10px 30px rgba(30, 33, 29, 0.12);
+}
+
+.route-sheet-handle {
+  display: block;
+  width: 36px;
+  height: 4px;
+  margin: 0 auto 0.75rem;
+  border-radius: 999px;
+  background: #d5d8cf;
+}
+
+.route-summary-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(120px, 0.7fr);
+  align-items: end;
+  gap: 0.8rem;
+}
+
+.route-summary-kicker {
+  display: block;
+  color: var(--theme-muted);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .save-route-button {
@@ -930,8 +996,12 @@ input[type='time'] {
 }
 
 .save-route-actions {
-  justify-content: center;
+  justify-content: stretch;
   margin-top: 0.75rem;
+}
+
+.save-route-actions .save-route-button {
+  width: 100%;
 }
 
 .saved-route-panel {
@@ -1076,26 +1146,33 @@ input[type='time'] {
 .spot-fare-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.4rem;
-  margin-top: 0.5rem;
+  gap: 0;
+  margin-top: 0.85rem;
+  border-top: 1px solid var(--theme-border);
+  border-bottom: 1px solid var(--theme-border);
 }
 
 .spot-fare-card {
   display: grid;
   gap: 0.2rem;
   min-width: 0;
-  padding: 0.45rem;
-  border-radius: 8px;
-  background: var(--theme-accent-soft);
+  padding: 0.75rem 0.65rem;
+  border-radius: 0;
+  background: #fff;
   color: var(--theme-ink);
   font-size: 0.62rem;
+  text-align: center;
+}
+
+.spot-fare-card + .spot-fare-card {
+  border-left: 1px solid var(--theme-border);
 }
 
 .spot-fare-card strong {
   min-width: 0;
   overflow-wrap: anywhere;
   font-family: 'Nimbus Mono PS', 'Courier New', monospace;
-  font-size: 0.68rem;
+  font-size: 0.82rem;
 }
 
 .transit-route-details {
@@ -1158,9 +1235,18 @@ input[type='time'] {
 }
 
 .map-status {
+  position: absolute;
+  z-index: 2;
+  top: 9.6rem;
+  right: 0.85rem;
+  left: 0.85rem;
   margin: 0;
-  font-size: 0.85rem;
-  color: #83816f;
+  padding: 0.55rem 0.7rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 5px 16px rgba(30, 33, 29, 0.12);
+  font-size: 0.75rem;
+  color: #686b64;
 }
 
 .route-card {
@@ -2041,12 +2127,17 @@ input[type='time'] {
 }
 
 .map-legend {
+  position: absolute;
+  z-index: 2;
+  right: 0;
+  bottom: 1.8rem;
+  left: 0;
   display: flex;
   flex-wrap: nowrap;
   overflow-x: auto;
   gap: 0.4rem;
-  margin-top: 0.75rem;
-  padding: 0.1rem 0.05rem 0.35rem;
+  margin: 0;
+  padding: 0.1rem 0.85rem 0.35rem;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
 }
@@ -2064,8 +2155,9 @@ input[type='time'] {
   padding: 0.3rem 0.65rem;
   border: 1px solid var(--theme-border);
   border-radius: 999px;
-  background: var(--theme-surface);
+  background: rgba(255, 255, 255, 0.94);
   color: var(--theme-ink);
+  box-shadow: 0 4px 14px rgba(30, 33, 29, 0.12);
   cursor: pointer;
   font-size: 0.72rem;
   white-space: nowrap;
@@ -2137,6 +2229,10 @@ input[type='time'] {
   padding: 1.4rem 1.6rem;
   margin-bottom: 1.5rem;
   box-shadow: 0 1px 2px rgba(61, 57, 41, 0.05);
+}
+
+.card.map-card {
+  padding: 0;
 }
 
 .card h2 {
@@ -4760,6 +4856,26 @@ select:focus,
     margin-right: 0.75rem;
     padding-left: 0.9rem;
     padding-right: 0.9rem;
+  }
+
+  .map-card {
+    padding-right: 0;
+    padding-left: 0;
+  }
+
+  .trip-map {
+    height: max(470px, 62svh);
+  }
+
+  .map-route-toolbar {
+    top: 0.65rem;
+    right: 0.65rem;
+    left: 0.65rem;
+  }
+
+  .route-summary-heading {
+    grid-template-columns: minmax(0, 1fr) 120px;
+    gap: 0.6rem;
   }
 
   .day-strip-section,

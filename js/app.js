@@ -477,6 +477,7 @@ function setActiveAppView(viewName) {
   });
   updateAppTabIndicator();
   if (viewName === 'map' && mapsApiLoaded) {
+    google.maps.event.trigger(map, 'resize');
     updateMapMarkers();
   }
 }

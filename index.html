@@ -96,40 +96,51 @@
     </section>
 
     <section class="map-card card app-view" data-app-view="map">
-      <h2 data-i18n="tripMap">Trip Map</h2>
       <div class="spot-route-panel">
-        <div class="spot-route-heading">
-          <span data-i18n="suggestedRoute">Suggested route</span>
-          <span class="spot-route-status" id="spotRouteStatus"></span>
+        <div class="map-stage">
+          <div id="tripMap" class="trip-map"></div>
+          <div class="map-route-toolbar">
+            <div class="spot-route-heading">
+              <h2 data-i18n="tripMap">Trip Map</h2>
+              <span class="spot-route-status" id="spotRouteStatus"></span>
+            </div>
+            <div class="spot-route-fields">
+              <label>
+                <span data-i18n="spotA">Spot A</span>
+                <select id="spotASelect" aria-label="Spot A"></select>
+              </label>
+              <span class="spot-route-arrow" aria-hidden="true">→</span>
+              <label>
+                <span data-i18n="spotB">Spot B</span>
+                <select id="spotBSelect" aria-label="Spot B"></select>
+              </label>
+            </div>
+          </div>
+          <p class="map-status" id="mapStatus">Loading map…</p>
+          <div class="map-legend" id="mapLegend"></div>
         </div>
-        <div class="map-legend" id="mapLegend"></div>
-        <div class="spot-route-fields">
-          <label>
-            <span data-i18n="spotA">Spot A</span>
-            <select id="spotASelect" aria-label="Spot A"></select>
-          </label>
-          <span class="spot-route-arrow" aria-hidden="true">→</span>
-          <label>
-            <span data-i18n="spotB">Spot B</span>
-            <select id="spotBSelect" aria-label="Spot B"></select>
-          </label>
-        </div>
-        <p class="map-status" id="mapStatus">Loading map…</p>
-        <div id="tripMap" class="trip-map"></div>
-        <div class="spot-route-options">
-          <label>
-            <span data-i18n="bestTravelMode">Best travel mode</span>
-            <select id="routeMode">
-              <option value="DRIVING" data-i18n="automobile" selected>Automobile</option>
-              <option value="WALKING" data-i18n="walking">Walking</option>
-              <option value="TRANSIT" data-i18n="transit">Transit</option>
-            </select>
-          </label>
-        </div>
-        <div class="spot-route-result" id="spotRouteResult"></div>
-        <div class="spot-fare-grid" id="spotFareGrid"></div>
-        <div class="itinerary-actions save-route-actions">
-          <button id="saveSuggestedRouteBtn" class="btn-primary save-route-button" type="button" data-i18n="saveRoute" disabled>Save route</button>
+        <div class="route-summary-sheet">
+          <span class="route-sheet-handle" aria-hidden="true"></span>
+          <div class="route-summary-heading">
+            <div>
+              <span class="route-summary-kicker" data-i18n="suggestedRoute">Suggested route</span>
+              <div class="spot-route-result" id="spotRouteResult"></div>
+            </div>
+            <div class="spot-route-options">
+              <label>
+                <span data-i18n="bestTravelMode">Best travel mode</span>
+                <select id="routeMode">
+                  <option value="DRIVING" data-i18n="automobile" selected>Automobile</option>
+                  <option value="WALKING" data-i18n="walking">Walking</option>
+                  <option value="TRANSIT" data-i18n="transit">Transit</option>
+                </select>
+              </label>
+            </div>
+          </div>
+          <div class="spot-fare-grid" id="spotFareGrid"></div>
+          <div class="itinerary-actions save-route-actions">
+            <button id="saveSuggestedRouteBtn" class="btn-primary save-route-button" type="button" data-i18n="saveRoute" disabled>Save route</button>
+          </div>
         </div>
       </div>
     </section>
