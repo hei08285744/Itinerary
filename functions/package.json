@@ -1,0 +1,16 @@
+{
+  "name": "itinerary-functions",
+  "private": true,
+  "main": "index.js",
+  "engines": {
+    "node": "22"
+  },
+  "scripts": {
+    "check": "node --check index.js"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.10.0",
+    "firebase-functions": "^7.3.2",
+    "google-auth-library": "^11.0.2"
+  }
+}

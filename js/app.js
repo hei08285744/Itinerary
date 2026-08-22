@@ -16,6 +16,11 @@ let currentDestinationCoordinates = null;
 let collaborationStarted = false;
 let applyingRemoteState = false;
 let cloudSaveTimer = null;
+let aiPlansRemaining = null;
+let aiPlansUnlimited = false;
+let pendingAIRoutePreview = null;
+let pendingAICreatePreview = null;
+let pendingAIActivitySuggestions = null;
 
 const tripNameInput = document.getElementById('tripName');
 const tripDestinationInput = document.getElementById('tripDestination');
@@ -29,6 +34,32 @@ const activityForm = document.getElementById('activityForm');
 const itineraryDays = document.getElementById('itineraryDays');
 const emptyState = document.getElementById('emptyState');
 const addActivityBtn = document.getElementById('addActivityBtn');
+const aiPlanBtn = document.getElementById('aiPlanBtn');
+const aiPlanUsageBadge = document.getElementById('aiPlanUsageBadge');
+const aitineraryAssistantDock = document.getElementById('aitineraryAssistantDock');
+const hideAitineraryBtn = document.getElementById('hideAitineraryBtn');
+const showAitineraryBtn = document.getElementById('showAitineraryBtn');
+const aiPlannerModal = document.getElementById('aiPlannerModal');
+const aiPlannerForm = document.getElementById('aiPlannerForm');
+const closeAIPlannerBtn = document.getElementById('closeAIPlannerBtn');
+const generateAIPlanBtn = document.getElementById('generateAIPlanBtn');
+const aiPlannerDestination = document.getElementById('aiPlannerDestination');
+const aiPlannerStartDate = document.getElementById('aiPlannerStartDate');
+const aiPlannerEndDate = document.getElementById('aiPlannerEndDate');
+const aiPlannerPreferences = document.getElementById('aiPlannerPreferences');
+const aiPlannerStatus = document.getElementById('aiPlannerStatus');
+const aiPlannerUsageRemaining = document.getElementById('aiPlannerUsageRemaining');
+const aiPlannerUsageReset = document.getElementById('aiPlannerUsageReset');
+const aiThinkingIndicator = document.getElementById('aiThinkingIndicator');
+const aiSearchHistory = document.getElementById('aiSearchHistory');
+const aiSearchHistoryList = document.getElementById('aiSearchHistoryList');
+const aiPlannerDetailsTitle = document.getElementById('aiPlannerDetailsTitle');
+const aiPlannerDescription = document.getElementById('aiPlannerDescription');
+const aiRoutePreview = document.getElementById('aiRoutePreview');
+const aiRoutePreviewList = document.getElementById('aiRoutePreviewList');
+const aiRoutePreviewSummary = document.getElementById('aiRoutePreviewSummary');
+const applyAIRouteBtn = document.getElementById('applyAIRouteBtn');
+const aiPreviewTitle = document.getElementById('aiPreviewTitle');
 const activityModalOverlay = document.getElementById('activityModalOverlay');
 const closeActivityModalBtn = document.getElementById('closeActivityModalBtn');
 const activityLocationInput = document.getElementById('activityLocation');
@@ -58,6 +89,7 @@ const shoppingImagePreview = document.getElementById('shoppingImagePreview');
 const shoppingImageStatus = document.getElementById('shoppingImageStatus');
 const shoppingItemList = document.getElementById('shoppingItemList');
 let shoppingItemsDraft = [];
+const AITINERARY_LAUNCHER_HIDDEN_KEY = 'mytinerary-aitinerary-launcher-hidden';
 const placeLookupStatus = document.getElementById('placeLookupStatus');
 
 const currencyFromInput = document.getElementById('currencyFrom');
@@ -231,7 +263,7 @@ const TRANSLATIONS = {
   en: {
     tripDetails: 'Trip Details', tripName: 'Trip Name', destination: 'Destination', theme: 'Theme', settings: 'Settings', language: 'Language', targetCurrency: 'Target currency',
     startDate: 'Start Date', endDate: 'End Date', saveClose: 'Save & Close', today: 'TODAY',
-    addItem: '+ Add Item', clearDay: 'Clear Day', tripMap: 'Trip Map', route: 'Route', suggestedRoute: 'Suggested route · Google Maps', bestTravelMode: 'Best travel mode', spotA: 'Spot A', spotB: 'Spot B', saveRoute: 'Save route', savedRoutes: 'Saved routes',
+    addItem: '+ Add Item', aiPlan: 'Aitinerary', clearDay: 'Clear Day', tripMap: 'Trip Map', route: 'Route', suggestedRoute: 'Suggested route · Google Maps', bestTravelMode: 'Best travel mode', spotA: 'Spot A', spotB: 'Spot B', saveRoute: 'Save route', savedRoutes: 'Saved routes',
     travelMode: 'Travel Mode', driving: 'Driving', automobile: 'Car', walking: 'Walk', bicycling: 'Bicycle', transit: 'Transit', mapPlatform: 'Map platform',
     itinerary: 'Itinerary', profile: 'Profile', tripProfile: 'Trip profile', editTrip: 'Edit trip', tripFiles: 'Trip Files', tripFilesHint: 'Load another saved itinerary to replace this trip.', loadAnotherTrip: 'Load another trip', trips: 'Trips', currentTrip: 'Current trip', removeSavedTrip: 'Remove saved trip', removeSavedTripConfirm: 'Remove this saved trip?', days: 'Days', items: 'Items', wallet: 'Wallet', tripBudget: 'Trip budget', totalSpent: 'Total spent', budgetLeft: 'Budget left', currencyExchange: 'Currency Exchange', bills: 'Bills', billsRateNote: 'Credit card amounts apply your entered markup over the European Central Bank (ECB) reference rate.', addExpense: '+ Add Expense',
     multipleCities: 'Multiple cities', addCity: '+ Add city', city: 'City', remove: 'Remove', editItem: 'Edit Item', saveItem: 'Save Item',
@@ -241,7 +273,7 @@ const TRANSLATIONS = {
   zh: {
     tripDetails: '行程詳情', tripName: '行程名稱', destination: '目的地', theme: '主題', settings: '設定', language: '語言', targetCurrency: '目標貨幣',
     startDate: '開始日期', endDate: '結束日期', saveClose: '儲存並關閉', today: '今天',
-    addItem: '+ 新增項目', clearDay: '清除當天', tripMap: '行程地圖', route: '路線', suggestedRoute: '建議路線 · Google 地圖', bestTravelMode: '最佳交通方式', spotA: '地點 A', spotB: '地點 B', saveRoute: '儲存路線', savedRoutes: '已儲存路線',
+    addItem: '+ 新增項目', aiPlan: 'Aitinerary', clearDay: '清除當天', tripMap: '行程地圖', route: '路線', suggestedRoute: '建議路線 · Google 地圖', bestTravelMode: '最佳交通方式', spotA: '地點 A', spotB: '地點 B', saveRoute: '儲存路線', savedRoutes: '已儲存路線',
     travelMode: '交通方式', driving: '開車', automobile: '汽車', walking: '步行', bicycling: '自行車', transit: '大眾運輸', mapPlatform: '地圖平台',
     itinerary: '行程', profile: '個人檔案', tripProfile: '行程檔案', editTrip: '編輯行程', tripFiles: '行程檔案', tripFilesHint: '載入另一個已儲存的行程以取代目前行程。', loadAnotherTrip: '載入其他行程', trips: '行程', currentTrip: '目前行程', removeSavedTrip: '移除已儲存行程', removeSavedTripConfirm: '要移除這個已儲存行程嗎？', days: '天', items: '項目', wallet: '錢包', tripBudget: '旅程預算', totalSpent: '已支出', budgetLeft: '剩餘預算', currencyExchange: '貨幣兌換', bills: '帳單', billsRateNote: '信用卡金額會在歐洲央行（ECB）參考匯率上，加計你輸入的加成％。', addExpense: '+ 新增支出',
     multipleCities: '多城市行程', addCity: '+ 新增城市', city: '城市', remove: '移除', editItem: '編輯項目', saveItem: '儲存項目',
@@ -268,6 +300,7 @@ function applyTranslations() {
   settingsBtn.setAttribute('aria-label', language === 'zh' ? '行程設定' : 'Trip settings');
   renderCityPeriods();
   renderMembers();
+  updateAIPlanUsage();
 }
 
 function loadState() {
@@ -296,6 +329,7 @@ function loadState() {
     walletBudget: 0,
     theme: 'cobalt',
     savedRoutes: [],
+    aiSearchHistory: [],
     walletTargetCurrency: 'HKD',
   };
 }
@@ -396,12 +430,14 @@ function init() {
   tripEndDateInput.value = state.tripEndDate || '';
   if (!['joy', 'violet', 'cobalt', 'coffee'].includes(state.theme)) state.theme = 'cobalt';
   applyTheme();
+  setAitineraryLauncherHidden(localStorage.getItem(AITINERARY_LAUNCHER_HIDDEN_KEY) === 'true', false);
   if (!state.geocodeCache) state.geocodeCache = {};
   if (!state.bills) state.bills = [];
   if (!state.routeFees) state.routeFees = {};
   if (!Array.isArray(state.settlementLogs)) state.settlementLogs = [];
   if (!isFinite(Number(state.walletBudget))) state.walletBudget = 0;
   if (!Array.isArray(state.savedRoutes)) state.savedRoutes = [];
+  if (!Array.isArray(state.aiSearchHistory)) state.aiSearchHistory = [];
   if (!state.walletTargetCurrency) state.walletTargetCurrency = 'HKD';
   walletBudgetInput.value = state.walletBudget;
   if (!Array.isArray(state.cities)) state.cities = [];
@@ -598,6 +634,7 @@ newTripBtn.addEventListener('click', () => {
     tripName: '', tripDestination: '', tripStartDate: '', tripEndDate: '', multipleCities: false,
     cities: [], members: [], language, departureFlight: '', returnFlight: '', geocodeCache: {},
     activities: [], bills: [], routeFees: {}, walletBudget: 0, theme, savedRoutes: [],
+    aiSearchHistory: [],
     tripLibrary, activeTripId: createTripId(),
   });
   saveState();
@@ -776,6 +813,749 @@ activityForm.addEventListener('submit', (e) => {
 
 addActivityBtn.addEventListener('click', () => {
   openActivityModal();
+});
+
+aiPlanBtn.addEventListener('click', openAIPlanner);
+hideAitineraryBtn.addEventListener('click', () => setAitineraryLauncherHidden(true));
+showAitineraryBtn.addEventListener('click', () => setAitineraryLauncherHidden(false));
+closeAIPlannerBtn.addEventListener('click', closeAIPlanner);
+applyAIRouteBtn.addEventListener('click', applyAIRoutePreview);
+aiPlannerModal.addEventListener('click', (event) => {
+  if (event.target === aiPlannerModal) closeAIPlanner();
+});
+
+async function openAIPlanner() {
+  aiPlannerDestination.value = state.tripDestination || '';
+  aiPlannerStartDate.value = state.tripStartDate || '';
+  aiPlannerEndDate.value = state.tripEndDate || '';
+  aiPlannerStatus.textContent = '';
+  aiPlannerDestination.readOnly = false;
+  aiPlannerStartDate.readOnly = false;
+  aiPlannerEndDate.readOnly = false;
+  setAitineraryAskButton(false);
+  aiPlannerModal.classList.remove('hidden');
+  renderAISearchHistory();
+  aiPlannerDestination.focus();
+  await refreshAIUsageStatus();
+}
+
+async function refreshAIUsageStatus() {
+  aiPlannerUsageRemaining.textContent = state.language === 'zh' ? '正在檢查額度…' : 'Checking usage…';
+  try {
+    if (!window.itinerarySync?.isConfigured()) throw new Error('Firebase is not configured');
+    await window.itinerarySync.authenticate();
+    const getUsage = firebase.app().functions('asia-east2').httpsCallable('getAIUsageStatus');
+    const result = await getUsage();
+    setAIUsage(result.data || {});
+  } catch (error) {
+    console.error('AI usage lookup failed', error);
+    aiPlannerUsageRemaining.textContent = state.language === 'zh' ? '每日最多 5 次' : '5 plans per day';
+    aiPlannerUsageReset.textContent = state.language === 'zh' ? '無法載入即時剩餘額度' : 'Live usage unavailable';
+  }
+}
+
+function setAIUsage(usage) {
+  aiPlansUnlimited = usage.unlimited === true;
+  aiPlansRemaining = Number.isInteger(usage.remaining) ? usage.remaining : null;
+  updateAIPlanUsage();
+}
+
+function closeAIPlanner() {
+  if (generateAIPlanBtn.disabled) return;
+  clearAIRoutePreview();
+  aiPlannerModal.classList.add('hidden');
+}
+
+function setAIThinking(isThinking) {
+  aiPlannerForm.setAttribute('aria-busy', String(isThinking));
+  aiThinkingIndicator.classList.toggle('hidden', !isThinking);
+}
+
+function setAitineraryAskButton(isThinking) {
+  generateAIPlanBtn.replaceChildren();
+  const icon = document.createElement('span');
+  icon.setAttribute('aria-hidden', 'true');
+  icon.textContent = '✦';
+  generateAIPlanBtn.append(icon, document.createTextNode(isThinking
+    ? (state.language === 'zh' ? ' Aitinerary 思考中…' : ' Aitinerary is thinking…')
+    : (state.language === 'zh' ? ' 詢問 Aitinerary' : ' Ask Aitinerary')));
+}
+
+function setAitineraryLauncherHidden(isHidden, persist = true) {
+  aitineraryAssistantDock.classList.toggle('is-collapsed', isHidden);
+  aiPlanBtn.tabIndex = isHidden ? -1 : 0;
+  hideAitineraryBtn.tabIndex = isHidden ? -1 : 0;
+  showAitineraryBtn.tabIndex = isHidden ? 0 : -1;
+  if (persist) localStorage.setItem(AITINERARY_LAUNCHER_HIDDEN_KEY, String(isHidden));
+}
+
+function clearAIRoutePreview() {
+  pendingAIRoutePreview = null;
+  pendingAICreatePreview = null;
+  pendingAIActivitySuggestions = null;
+  aiRoutePreviewList.innerHTML = '';
+  aiRoutePreviewSummary.textContent = '';
+  aiRoutePreview.classList.add('hidden');
+  applyAIRouteBtn.classList.add('hidden');
+}
+
+function getAIHistoryLabel(action) {
+  const labels = state.language === 'zh'
+    ? { 'create-plan': '新行程', 'recommend-activities': '活動建議', 'optimize-route': '路線優化' }
+    : { 'create-plan': 'New trip', 'recommend-activities': 'Activity ideas', 'optimize-route': 'Route update' };
+  return labels[action] || labels['create-plan'];
+}
+
+function saveAISearchHistory(action) {
+  if (!Array.isArray(state.aiSearchHistory)) state.aiSearchHistory = [];
+  const data = action === 'optimize-route'
+    ? pendingAIRoutePreview
+    : action === 'recommend-activities'
+      ? pendingAIActivitySuggestions
+      : pendingAICreatePreview;
+  if (!data || (Array.isArray(data) && !data.length)) return;
+  const prompt = aiPlannerPreferences.value.trim();
+  const entry = {
+    id: `ai-history-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`,
+    action,
+    prompt,
+    destination: aiPlannerDestination.value.trim(),
+    startDate: aiPlannerStartDate.value,
+    endDate: aiPlannerEndDate.value,
+    createdAt: new Date().toISOString(),
+    data: JSON.parse(JSON.stringify(data)),
+  };
+  state.aiSearchHistory = [entry, ...state.aiSearchHistory].slice(0, 5);
+  saveState();
+  renderAISearchHistory();
+}
+
+function openAISearchHistoryEntry(entry) {
+  clearAIRoutePreview();
+  aiPlannerDestination.value = entry.destination || '';
+  aiPlannerStartDate.value = entry.startDate || '';
+  aiPlannerEndDate.value = entry.endDate || '';
+  aiPlannerPreferences.value = entry.prompt || '';
+  if (entry.action === 'optimize-route' && Array.isArray(entry.data)) {
+    pendingAIRoutePreview = JSON.parse(JSON.stringify(entry.data));
+    renderAIRoutePreview();
+  } else if (entry.action === 'recommend-activities' && Array.isArray(entry.data)) {
+    pendingAIActivitySuggestions = JSON.parse(JSON.stringify(entry.data));
+    renderAIActivitySuggestions();
+  } else if (entry.data?.activities?.length) {
+    pendingAICreatePreview = JSON.parse(JSON.stringify(entry.data));
+    renderAICreatePreview();
+  } else {
+    aiPlannerStatus.textContent = state.language === 'zh' ? '此歷史預覽已無法開啟。' : 'This saved preview is no longer available.';
+    return;
+  }
+  aiPlannerStatus.textContent = state.language === 'zh' ? '已開啟最近的 Aitinerary 預覽。確認後即可套用。' : 'Recent Aitinerary preview opened. Review it before applying.';
+}
+
+function renderAISearchHistory() {
+  const history = Array.isArray(state.aiSearchHistory) ? state.aiSearchHistory : [];
+  aiSearchHistoryList.innerHTML = '';
+  aiSearchHistory.classList.toggle('hidden', !history.length);
+  history.forEach((entry) => {
+    const row = document.createElement('div');
+    row.className = 'ai-search-history-item';
+    const openButton = document.createElement('button');
+    openButton.type = 'button';
+    openButton.className = 'ai-search-history-open';
+    const copy = document.createElement('span');
+    const title = document.createElement('strong');
+    title.textContent = entry.prompt || getAIHistoryLabel(entry.action);
+    const meta = document.createElement('small');
+    const date = new Date(entry.createdAt);
+    meta.textContent = `${getAIHistoryLabel(entry.action)} · ${Number.isNaN(date.getTime()) ? '' : date.toLocaleString(state.language === 'zh' ? 'zh-TW' : 'en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}`;
+    copy.append(title, meta);
+    const arrow = document.createElement('span');
+    arrow.className = 'ai-search-history-arrow';
+    arrow.textContent = '›';
+    openButton.append(copy, arrow);
+    openButton.addEventListener('click', () => openAISearchHistoryEntry(entry));
+    const removeButton = document.createElement('button');
+    removeButton.type = 'button';
+    removeButton.className = 'ai-search-history-remove';
+    removeButton.textContent = '×';
+    removeButton.setAttribute('aria-label', state.language === 'zh' ? '刪除此 Aitinerary 歷史' : 'Delete this Aitinerary history');
+    removeButton.addEventListener('click', () => {
+      state.aiSearchHistory = state.aiSearchHistory.filter((item) => item.id !== entry.id);
+      saveState();
+      renderAISearchHistory();
+    });
+    row.append(openButton, removeButton);
+    aiSearchHistoryList.appendChild(row);
+  });
+}
+
+function requestRouteLeg(origin, destination, mode, departureTime = null) {
+  return new Promise((resolve) => {
+    if (!directionsService || !window.google?.maps) {
+      resolve(null);
+      return;
+    }
+    const request = { origin, destination, travelMode: google.maps.TravelMode[mode] };
+    if (mode === 'DRIVING' && departureTime instanceof Date && departureTime > new Date()) {
+      request.drivingOptions = { departureTime };
+    }
+    directionsService.route(request, (result, status) => {
+      if (status !== 'OK' || !result.routes.length) {
+        resolve(null);
+        return;
+      }
+      const leg = result.routes[0].legs[0];
+      const duration = leg.duration_in_traffic || leg.duration;
+      resolve({
+        mode,
+        distanceMeters: Number(leg.distance?.value) || 0,
+        distance: leg.distance?.text || '',
+        durationSeconds: Number(duration?.value) || 0,
+        duration: duration?.text || '',
+      });
+    });
+  });
+}
+
+function verifyAIActivityPlace(activity, destination) {
+  return new Promise((resolve) => {
+    if (!placesService || !window.google?.maps?.places) {
+      resolve(null);
+      return;
+    }
+    const query = [activity.location || activity.title, destination].filter(Boolean).join(', ');
+    placesService.textSearch({ query }, (results, status) => {
+      if (status !== google.maps.places.PlacesServiceStatus.OK || !results?.[0]) {
+        resolve(null);
+        return;
+      }
+      const place = results[0];
+      const rating = Number(place.rating) || 0;
+      const reviewCount = Number(place.user_ratings_total) || 0;
+      resolve({
+        ...activity,
+        location: place.name || activity.location,
+        address: place.formatted_address || '',
+        rating: rating || '',
+        googleReviewCount: reviewCount,
+        googlePlaceReason: rating
+          ? `Google rating ${rating.toFixed(1)}${reviewCount ? ` from ${reviewCount.toLocaleString()} reviews` : ''}`
+          : 'Place verified on Google Maps',
+      });
+    });
+  });
+}
+
+async function verifyAIActivityPlaces(activities, destination) {
+  const verified = [];
+  const batchSize = 4;
+  for (let index = 0; index < activities.length; index += batchSize) {
+    const batch = activities.slice(index, index + batchSize);
+    const results = await Promise.all(batch.map((activity) => verifyAIActivityPlace(activity, destination)));
+    verified.push(...results.filter(Boolean));
+    if (index + batchSize < activities.length) {
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    }
+  }
+  return verified;
+}
+
+function verifyAIDailyMeals(activities, startDate, endDate) {
+  const cursor = new Date(`${startDate}T00:00:00`);
+  const lastDate = new Date(`${endDate}T00:00:00`);
+  while (cursor <= lastDate) {
+    const date = toISODate(cursor);
+    const mealTimes = activities
+      .filter((activity) => activity.date === date && activity.category === 'meal')
+      .map((activity) => activity.time || '');
+    const hasBreakfast = mealTimes.some((time) => time >= '06:00' && time <= '10:30');
+    const hasLunch = mealTimes.some((time) => time >= '11:00' && time <= '15:00');
+    const hasDinner = mealTimes.some((time) => time >= '17:00' && time <= '22:30');
+    if (!hasBreakfast || !hasLunch || !hasDinner) {
+      const missingMeals = [
+        !hasBreakfast ? (state.language === 'zh' ? '早餐' : 'breakfast') : '',
+        !hasLunch ? (state.language === 'zh' ? '午餐' : 'lunch') : '',
+        !hasDinner ? (state.language === 'zh' ? '晚餐' : 'dinner') : '',
+      ].filter(Boolean).join(', ');
+      const firstActivity = activities.find((activity) => activity.date === date);
+      if (firstActivity) {
+        firstActivity.planningWarning = state.language === 'zh'
+          ? `此日缺少已驗證的${missingMeals}，套用後請補上或重新詢問 Aitinerary。`
+          : `This day is missing a verified ${missingMeals}; add it after applying or ask Aitinerary to revise the plan.`;
+      }
+    }
+    cursor.setDate(cursor.getDate() + 1);
+  }
+}
+
+async function verifyAIDailyReachability(activities, destination, validateSuggestedOnly = false) {
+  const sorted = activities.slice().sort((first, second) => first.date.localeCompare(second.date) || first.time.localeCompare(second.time));
+  let previous = null;
+  for (const activity of sorted) {
+    activity.driveFromPrevious = null;
+    const shouldValidateLeg = !validateSuggestedOnly || previous?._aiSuggestion || activity._aiSuggestion;
+    if (previous?.date === activity.date && shouldValidateLeg) {
+      const warningTarget = validateSuggestedOnly && previous._aiSuggestion && !activity._aiSuggestion ? previous : activity;
+      const origin = previous.address || `${previous.location}, ${destination}`;
+      const target = activity.address || `${activity.location}, ${destination}`;
+      const departureTime = new Date(`${previous.date}T${previous.time || '09:00'}:00`);
+      const leg = await requestRouteLeg(origin, target, 'DRIVING', departureTime);
+      if (!leg || !leg.durationSeconds) {
+        warningTarget.reachabilityWarning = state.language === 'zh'
+          ? `無法驗證從 ${previous.location} 前往此處的交通時間，請在套用前確認。`
+          : `Travel time from ${previous.location} could not be verified; check it before applying.`;
+      } else {
+        warningTarget.driveFromPrevious = leg;
+        if (leg.durationSeconds > 3600) {
+          warningTarget.reachabilityWarning = state.language === 'zh'
+            ? `從 ${previous.location} 駕車約 ${leg.duration}；可考慮換成較近地點。`
+            : `About ${leg.duration} by car from ${previous.location}; consider a closer alternative.`;
+        } else if (leg.durationSeconds > 1800) {
+          warningTarget.reachabilityWarning = state.language === 'zh'
+            ? `從上一站駕車約 ${leg.duration}，屬較長移動。`
+            : `About ${leg.duration} by car from the previous stop, a longer transfer.`;
+        }
+      }
+    }
+    previous = activity;
+  }
+  return sorted;
+}
+
+async function getAIRouteEvidence(from, to) {
+  const city = getCityForDate(to.date) || state.tripDestination;
+  const origin = city ? `${from.location}, ${city}` : from.location;
+  const destination = city ? `${to.location}, ${city}` : to.location;
+  const walking = await requestRouteLeg(origin, destination, 'WALKING');
+  if (walking && walking.distanceMeters <= 2000) {
+    return {
+      ...walking,
+      reason: state.language === 'zh'
+        ? `兩站位於相近區域，步行 ${walking.distance}（約 ${walking.duration}）可減少折返。`
+        : `Same-area stops: ${walking.distance} on foot (about ${walking.duration}), reducing backtracking.`,
+    };
+  }
+  const driving = await requestRouteLeg(origin, destination, 'DRIVING');
+  if (driving) {
+    return {
+      ...driving,
+      reason: state.language === 'zh'
+        ? `兩站距離較遠，駕車 ${driving.distance}（約 ${driving.duration}）比步行更實際。`
+        : `The stops are farther apart: ${driving.distance} by car (about ${driving.duration}) is more practical than walking.`,
+    };
+  }
+  if (walking) {
+    return {
+      ...walking,
+      reason: state.language === 'zh'
+        ? `可用步行路線為 ${walking.distance}（約 ${walking.duration}）；請確認是否符合你的步調。`
+        : `A walking route is available for ${walking.distance} (about ${walking.duration}); check that it suits your pace.`,
+    };
+  }
+  return {
+    mode: '', distanceMeters: 0, distance: '', duration: '',
+    reason: state.language === 'zh' ? 'Google Maps 暫時無法驗證此路段，套用前請先確認路線。' : 'Google Maps could not verify this leg; check it before applying.',
+  };
+}
+
+async function buildAIRoutePreview(optimizedActivities) {
+  const currentById = new Map(state.activities.map((activity) => [activity.id, activity]));
+  const preview = optimizedActivities
+    .map((optimized) => {
+      const current = currentById.get(optimized.id);
+      return current ? {
+        id: current.id,
+        date: current.date,
+        title: current.title,
+        location: current.location,
+        originalTime: current.time || '',
+        time: optimized.time,
+        aiReason: optimized.routeNote || '',
+        evidence: null,
+      } : null;
+    })
+    .filter(Boolean)
+    .sort((first, second) => first.date.localeCompare(second.date) || first.time.localeCompare(second.time));
+  let previous = null;
+  for (const item of preview) {
+    if (previous && previous.date === item.date) item.evidence = await getAIRouteEvidence(previous, item);
+    previous = item;
+  }
+  return preview;
+}
+
+function renderAIRoutePreview() {
+  aiRoutePreviewList.innerHTML = '';
+  if (!pendingAIRoutePreview?.length) return;
+  const dayCount = new Set(pendingAIRoutePreview.map((item) => item.date)).size;
+  const verifiedLegs = pendingAIRoutePreview.filter((item) => item.evidence?.distance).length;
+  aiPreviewTitle.textContent = 'Suggested route';
+  applyAIRouteBtn.textContent = state.language === 'zh' ? '套用路線' : 'Apply route';
+  aiRoutePreviewSummary.textContent = `${dayCount} ${dayCount === 1 ? 'day' : 'days'} · ${verifiedLegs} verified legs`;
+  let renderedDate = '';
+  pendingAIRoutePreview.forEach((item, index) => {
+    if (item.date !== renderedDate) {
+      renderedDate = item.date;
+      const dateHeading = document.createElement('h4');
+      dateHeading.textContent = new Date(`${item.date}T00:00:00`).toLocaleDateString(state.language === 'zh' ? 'zh-TW' : 'en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+      aiRoutePreviewList.appendChild(dateHeading);
+    }
+    const row = document.createElement('article');
+    row.className = 'ai-route-preview-item';
+    const order = document.createElement('span');
+    order.className = 'ai-route-preview-order';
+    order.textContent = String(index + 1);
+    const content = document.createElement('div');
+    const heading = document.createElement('div');
+    heading.className = 'ai-route-preview-item-heading';
+    const title = document.createElement('strong');
+    title.textContent = item.location || item.title;
+    const timing = document.createElement('span');
+    timing.textContent = item.originalTime && item.originalTime !== item.time ? `${item.originalTime} → ${item.time}` : item.time;
+    heading.append(title, timing);
+    content.appendChild(heading);
+    const reason = document.createElement('p');
+    reason.textContent = item.evidence?.reason || item.aiReason || (state.language === 'zh' ? '當天建議起點。' : 'Suggested starting point for the day.');
+    content.appendChild(reason);
+    if (item.evidence?.distance) {
+      const metrics = document.createElement('div');
+      metrics.className = 'ai-route-preview-metrics';
+      const modeLabel = item.evidence.mode === 'WALKING' ? (state.language === 'zh' ? '步行' : 'Walk') : (state.language === 'zh' ? '駕車' : 'Drive');
+      [modeLabel, item.evidence.distance, item.evidence.duration].forEach((value) => {
+        const metric = document.createElement('span');
+        metric.textContent = value;
+        metrics.appendChild(metric);
+      });
+      content.appendChild(metrics);
+    }
+    row.append(order, content);
+    aiRoutePreviewList.appendChild(row);
+  });
+  aiRoutePreview.classList.remove('hidden');
+  applyAIRouteBtn.classList.remove('hidden');
+}
+
+function renderAICreatePreview() {
+  aiRoutePreviewList.innerHTML = '';
+  if (!pendingAICreatePreview?.activities.length) return;
+  const activities = pendingAICreatePreview.activities;
+  const dayCount = new Set(activities.map((activity) => activity.date)).size;
+  aiPreviewTitle.textContent = 'Suggested itinerary';
+  applyAIRouteBtn.textContent = state.language === 'zh' ? '新增為新旅程' : 'Add as new trip';
+  aiRoutePreviewSummary.textContent = `${dayCount} ${dayCount === 1 ? 'day' : 'days'} · ${activities.length} stops`;
+  let renderedDate = '';
+  activities.forEach((activity, index) => {
+    if (activity.date !== renderedDate) {
+      renderedDate = activity.date;
+      const dateHeading = document.createElement('h4');
+      dateHeading.textContent = new Date(`${activity.date}T00:00:00`).toLocaleDateString(state.language === 'zh' ? 'zh-TW' : 'en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+      aiRoutePreviewList.appendChild(dateHeading);
+    }
+    const row = document.createElement('article');
+    row.className = 'ai-route-preview-item ai-create-preview-item';
+    const order = document.createElement('span');
+    order.className = 'ai-route-preview-order';
+    order.textContent = String(index + 1);
+    const content = document.createElement('div');
+    const heading = document.createElement('div');
+    heading.className = 'ai-route-preview-item-heading';
+    const title = document.createElement('strong');
+    title.textContent = activity.title;
+    const timing = document.createElement('span');
+    timing.textContent = activity.time || '--:--';
+    heading.append(title, timing);
+    const location = document.createElement('p');
+    location.className = 'ai-create-preview-location';
+    location.textContent = activity.location || activity.description || '';
+    const reason = document.createElement('p');
+    reason.textContent = activity.remarks || activity.description || (state.language === 'zh' ? 'Aitinerary 建議的行程停靠點。' : 'Aitinerary-selected stop for this itinerary.');
+    const metrics = document.createElement('div');
+    metrics.className = 'ai-route-preview-metrics';
+    const category = document.createElement('span');
+    category.textContent = activity.category || 'other';
+    metrics.appendChild(category);
+    if (activity.driveFromPrevious?.duration) {
+      const driveTime = document.createElement('span');
+      driveTime.textContent = `${state.language === 'zh' ? '駕車' : 'Drive'} ${activity.driveFromPrevious.duration}`;
+      metrics.appendChild(driveTime);
+    }
+    if (activity.reachabilityWarning) {
+      const warning = document.createElement('p');
+      warning.className = 'ai-reachability-warning';
+      warning.textContent = activity.reachabilityWarning;
+      content.append(heading, location, reason, warning, metrics);
+    } else {
+      content.append(heading, location, reason, metrics);
+    }
+    if (activity.planningWarning) {
+      const warning = document.createElement('p');
+      warning.className = 'ai-reachability-warning';
+      warning.textContent = activity.planningWarning;
+      content.appendChild(warning);
+    }
+    if (activity.googlePlaceReason) {
+      const placeEvidence = document.createElement('span');
+      placeEvidence.textContent = activity.googlePlaceReason;
+      metrics.appendChild(placeEvidence);
+    }
+    row.append(order, content);
+    aiRoutePreviewList.appendChild(row);
+  });
+  aiRoutePreview.classList.remove('hidden');
+  applyAIRouteBtn.classList.remove('hidden');
+}
+
+function renderAIActivitySuggestions() {
+  aiRoutePreviewList.innerHTML = '';
+  if (!pendingAIActivitySuggestions?.length) return;
+  aiPreviewTitle.textContent = 'Fun stops for this trip';
+  applyAIRouteBtn.textContent = state.language === 'zh' ? '新增活動' : 'Add activities';
+  aiRoutePreviewSummary.textContent = `${pendingAIActivitySuggestions.length} ideas · review before adding`;
+  pendingAIActivitySuggestions.forEach((activity, index) => {
+    const row = document.createElement('article');
+    row.className = 'ai-route-preview-item ai-suggestion-preview-item';
+    const order = document.createElement('span');
+    order.className = 'ai-route-preview-order';
+    order.textContent = String(index + 1);
+    const content = document.createElement('div');
+    const heading = document.createElement('div');
+    heading.className = 'ai-route-preview-item-heading';
+    const title = document.createElement('strong');
+    title.textContent = activity.title;
+    const timing = document.createElement('span');
+    timing.textContent = `${activity.date} · ${activity.time || '--:--'}`;
+    heading.append(title, timing);
+    const location = document.createElement('p');
+    location.className = 'ai-create-preview-location';
+    location.textContent = activity.location;
+    const meta = document.createElement('div');
+    meta.className = 'ai-suggestion-meta';
+    if (activity.rating) {
+      const rating = document.createElement('span');
+      rating.className = 'ai-suggestion-rating';
+      rating.textContent = `★ ${Number(activity.rating).toFixed(1)}${activity.googleReviewCount ? ` · ${Number(activity.googleReviewCount).toLocaleString()} reviews` : ''}`;
+      meta.appendChild(rating);
+    }
+    const vibe = document.createElement('p');
+    vibe.className = 'ai-suggestion-vibe';
+    vibe.textContent = activity.visitorVibe || activity.reviewReason || activity.whyFavorite || activity.remarks;
+    content.append(heading, location);
+    if (meta.childElementCount) content.appendChild(meta);
+    if (vibe.textContent) content.appendChild(vibe);
+    if (activity.reachabilityWarning) {
+      const warning = document.createElement('p');
+      warning.className = 'ai-reachability-warning';
+      warning.textContent = activity.reachabilityWarning;
+      content.appendChild(warning);
+    }
+    row.append(order, content);
+    aiRoutePreviewList.appendChild(row);
+  });
+  aiRoutePreview.classList.remove('hidden');
+  applyAIRouteBtn.classList.remove('hidden');
+}
+
+function applyAIRoutePreview() {
+  if (pendingAICreatePreview?.activities.length) {
+    const { destination, startDate, endDate, activities } = pendingAICreatePreview;
+    saveState();
+    const tripLibrary = state.tripLibrary || [];
+    const aiSearchHistory = state.aiSearchHistory || [];
+    const language = state.language || 'en';
+    const theme = state.theme || 'joy';
+    const walletTargetCurrency = state.walletTargetCurrency || 'HKD';
+    Object.keys(state).forEach((key) => delete state[key]);
+    Object.assign(state, {
+      tripName: `${destination} Aitinerary`, tripDestination: destination,
+      tripStartDate: startDate, tripEndDate: endDate, multipleCities: false,
+      cities: [], members: [], language, departureFlight: '', returnFlight: '', geocodeCache: {},
+      activities: activities.map(createAIActivity), bills: [], routeFees: {}, settlementLogs: [],
+      walletBudget: 0, walletTargetCurrency, theme, savedRoutes: [], aiSearchHistory, tripLibrary,
+      activeTripId: createTripId(),
+    });
+    saveState();
+    selectedDayIndex = 0;
+    aiPlannerPreferences.value = '';
+    clearAIRoutePreview();
+    aiPlannerModal.classList.add('hidden');
+    setActiveAppView('itinerary');
+    init();
+    return;
+  }
+  if (pendingAIActivitySuggestions?.length) {
+    state.activities.push(...pendingAIActivitySuggestions.map(createAIActivity));
+    saveState();
+    render();
+    clearAIRoutePreview();
+    aiPlannerStatus.textContent = state.language === 'zh'
+      ? '活動已加入。你可以在提示中要求 Aitinerary 再優化路線。'
+      : 'Activities added. You can ask Aitinerary to optimize the route next.';
+    return;
+  }
+  if (!pendingAIRoutePreview?.length) return;
+  const previewById = new Map(pendingAIRoutePreview.map((item) => [item.id, item]));
+  state.activities.forEach((activity) => {
+    const preview = previewById.get(activity.id);
+    if (!preview) return;
+    activity.time = preview.time;
+    activity.aiRouteNote = preview.evidence?.reason || preview.aiReason || '';
+  });
+  saveState();
+  render();
+  clearAIRoutePreview();
+  aiPlannerStatus.textContent = state.language === 'zh' ? '最佳路線已套用至目前行程。' : 'The best route has been applied to this trip.';
+}
+
+function updateAIPlanUsage() {
+  if (aiPlansUnlimited) {
+    aiPlanBtn.title = state.language === 'zh' ? '此帳號已啟用開發測試無限額度。' : 'Unlimited Aitinerary usage is enabled for this development tester.';
+    aiPlanUsageBadge.textContent = state.language === 'zh' ? '無限' : 'Unlimited';
+    aiPlannerUsageRemaining.textContent = state.language === 'zh' ? '無限測試額度' : 'Unlimited tester access';
+    aiPlannerUsageReset.textContent = state.language === 'zh' ? '開發測試帳號不計入每日額度' : 'Development calls do not use the daily quota';
+    return;
+  }
+  if (!Number.isInteger(aiPlansRemaining)) return;
+  aiPlanBtn.title = state.language === 'zh'
+    ? `今天還可產生 ${aiPlansRemaining} 次行程；於 UTC 00:00 重設。`
+    : `${aiPlansRemaining} Aitinerary plans remaining today; resets at 00:00 UTC.`;
+  aiPlanUsageBadge.textContent = state.language === 'zh' ? `剩 ${aiPlansRemaining} 次` : `${aiPlansRemaining} left`;
+  aiPlannerUsageRemaining.textContent = state.language === 'zh'
+    ? `今天剩餘 ${aiPlansRemaining} / 5 次`
+    : `${aiPlansRemaining} of 5 plans remaining`;
+  aiPlannerUsageReset.textContent = state.language === 'zh' ? '每日 UTC 00:00 重設' : 'Resets daily at 00:00 UTC';
+}
+
+function createAIActivity(activity, index) {
+  return {
+    id: `${Date.now().toString(36)}ai${index}${Math.random().toString(36).slice(2, 6)}`,
+    date: activity.date,
+    time: activity.time || '',
+    title: activity.title,
+    category: activity.category || 'other',
+    location: activity.location || '',
+    rating: activity.rating || '',
+    description: activity.description || '',
+    expense: '',
+    remarks: activity.remarks || '',
+    aiRecommendationNote: activity.visitorVibe || activity.reviewReason || activity.whyFavorite || '',
+    paidBy: '',
+    billMember: '',
+    settled: false,
+    settledMembers: [],
+    paymentMethod: 'cash',
+    cardNetwork: '',
+    cardMarkup: 0,
+    address: activity.address || activity.description || '',
+    mapProvider: 'google',
+    naverUrl: '',
+    shoppingItems: [],
+    upfrontPaymentTitle: '',
+    bookingDetails: '',
+    contactDetails: '',
+    flightNumber: '',
+    flightDeparture: '',
+    flightArrival: '',
+    flightArrivalDate: '',
+    flightArrivalTime: '',
+    departureTerminal: '',
+    departureGate: '',
+    arrivalTerminal: '',
+    arrivalGate: '',
+  };
+}
+
+aiPlannerForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const startDate = aiPlannerStartDate.value;
+  const endDate = aiPlannerEndDate.value;
+  const tripLength = Math.floor((Date.parse(`${endDate}T00:00:00Z`) - Date.parse(`${startDate}T00:00:00Z`)) / 86400000) + 1;
+  if (!Number.isFinite(tripLength) || tripLength < 1 || tripLength > 14) {
+    aiPlannerStatus.textContent = state.language === 'zh' ? '請選擇 1 至 14 天的日期範圍。' : 'Choose a date range between 1 and 14 days.';
+    return;
+  }
+  const currentActivities = state.activities.filter((activity) => activity.id && activity.date && activity.title && activity.location);
+  clearAIRoutePreview();
+  generateAIPlanBtn.disabled = true;
+  closeAIPlannerBtn.disabled = true;
+  setAIThinking(true);
+  setAitineraryAskButton(true);
+  aiPlannerStatus.textContent = state.language === 'zh' ? 'Aitinerary 正在理解你的要求並選擇合適的操作。' : 'Aitinerary is interpreting your request and choosing the right action.';
+  try {
+    if (!window.itinerarySync?.isConfigured()) throw new Error('Firebase is not configured');
+    await window.itinerarySync.authenticate();
+    const generateItinerary = firebase.app().functions('asia-east2').httpsCallable('generateItinerary');
+    const result = await generateItinerary({
+      mode: 'assistant',
+      destination: aiPlannerDestination.value.trim(),
+      startDate,
+      endDate,
+      preferences: aiPlannerPreferences.value.trim(),
+      language: state.language || 'en',
+      activities: currentActivities,
+    });
+    setAIUsage(result.data?.usage || {});
+    const action = result.data?.action || 'create-plan';
+    if (action === 'optimize-route') {
+      const optimizedActivities = Array.isArray(result.data?.optimizedActivities) ? result.data.optimizedActivities : [];
+      if (optimizedActivities.length < 2) throw new Error('No optimized route returned');
+      aiPlannerStatus.textContent = state.language === 'zh' ? '正在用 Google Maps 驗證距離與交通時間。' : 'Verifying distances and travel times with Google Maps.';
+      pendingAIRoutePreview = await buildAIRoutePreview(optimizedActivities);
+      renderAIRoutePreview();
+      saveAISearchHistory(action);
+    } else if (action === 'recommend-activities') {
+      const suggestions = Array.isArray(result.data?.recommendedActivities) ? result.data.recommendedActivities : [];
+      aiPlannerStatus.textContent = state.language === 'zh' ? '正在用 Google Maps 驗證推薦地點。' : 'Verifying recommendations with Google Maps.';
+      const verifiedSuggestions = await verifyAIActivityPlaces(suggestions, aiPlannerDestination.value.trim());
+      const existingActivities = currentActivities.map((activity) => ({ ...activity }));
+      const taggedSuggestions = verifiedSuggestions.map((activity) => ({ ...activity, _aiSuggestion: true }));
+      const reachableActivities = await verifyAIDailyReachability([...existingActivities, ...taggedSuggestions], aiPlannerDestination.value.trim(), true);
+      pendingAIActivitySuggestions = reachableActivities
+        .filter((activity) => activity._aiSuggestion)
+        .map((activity) => {
+          const suggestion = { ...activity };
+          delete suggestion._aiSuggestion;
+          return suggestion;
+        });
+      if (!pendingAIActivitySuggestions.length) throw new Error('No recommendations returned');
+      renderAIActivitySuggestions();
+      saveAISearchHistory(action);
+    } else {
+      const generatedActivities = Array.isArray(result.data?.activities) ? result.data.activities : [];
+      aiPlannerStatus.textContent = state.language === 'zh' ? '正在用 Google Maps 驗證每個地點。' : 'Verifying every place with Google Maps.';
+      const verifiedActivities = await verifyAIActivityPlaces(generatedActivities, aiPlannerDestination.value.trim());
+      verifyAIDailyMeals(verifiedActivities, startDate, endDate);
+      aiPlannerStatus.textContent = state.language === 'zh' ? '正在比較每日移動時間並標示較長路段。' : 'Comparing daily travel times and flagging longer transfers.';
+      const activities = await verifyAIDailyReachability(verifiedActivities, aiPlannerDestination.value.trim());
+      if (!activities.length) throw new Error('No activities returned');
+      pendingAICreatePreview = {
+        destination: aiPlannerDestination.value.trim(),
+        startDate,
+        endDate,
+        activities: activities.slice().sort((first, second) => first.date.localeCompare(second.date) || first.time.localeCompare(second.time)),
+      };
+      renderAICreatePreview();
+      saveAISearchHistory('create-plan');
+    }
+    aiPlannerStatus.textContent = state.language === 'zh' ? '預覽已產生。確認內容後再套用。' : 'Preview ready. Review it before applying anything.';
+  } catch (error) {
+    console.error('AI itinerary generation failed', error);
+    const rateLimited = error.code === 'functions/resource-exhausted';
+    const localProcessingError = !String(error.code || '').startsWith('functions/');
+    if (rateLimited) {
+      aiPlansRemaining = 0;
+      updateAIPlanUsage();
+    }
+    aiPlannerStatus.textContent = rateLimited
+      ? (state.language === 'zh' ? '今天的 5 次 Aitinerary 規劃已用完，將於 UTC 00:00 重設。' : 'Today’s 5 Aitinerary plans are used. The limit resets at 00:00 UTC.')
+      : localProcessingError && error.message
+        ? (state.language === 'zh' ? `預覽處理失敗：${error.message}` : `Could not prepare the preview: ${error.message}`)
+      : (state.language === 'zh' ? '無法產生行程。請確認 Firebase Functions 與 Vertex AI 已啟用。' : 'Could not generate the plan. Check Firebase Functions and Vertex AI access.');
+  } finally {
+    setAIThinking(false);
+    generateAIPlanBtn.disabled = false;
+    closeAIPlannerBtn.disabled = false;
+    setAitineraryAskButton(false);
+  }
 });
 
 closeActivityModalBtn.addEventListener('click', () => {
@@ -1130,6 +1910,8 @@ function selectDay(index) {
   const days = getTripDays();
   if (!days.length) return;
   selectedDayIndex = Math.max(0, Math.min(index, days.length - 1));
+  mapViewMode = 'day';
+  clearSuggestedRouteDisplay();
   render();
 }
 
@@ -1438,6 +2220,8 @@ let geocoder = null;
 let placesService = null;
 let directionsService = null;
 let markers = [];
+let activityInfoWindow = null;
+let activeActivityInfoMarker = null;
 let mapsApiLoaded = false;
 let mapsApiLoading = false;
 let placeAutocomplete = null;
@@ -1505,11 +2289,13 @@ function loadGoogleMaps(apiKey) {
       fullscreenControl: false,
       mapTypeControl: false,
       keyboardShortcuts: false,
+      clickableIcons: false,
       styles: getTravelMapStyles(state.theme),
     });
     geocoder = new google.maps.Geocoder();
     placesService = new google.maps.places.PlacesService(map);
     directionsService = new google.maps.DirectionsService();
+    activityInfoWindow = new google.maps.InfoWindow({ maxWidth: 260 });
     setupPlaceAutocomplete();
     tripMapEl.style.display = 'block';
     updateMapMarkers();
@@ -1630,8 +2416,65 @@ document.getElementById('activityDate').addEventListener('change', (event) => {
 
 
 function clearMarkers() {
+  if (activityInfoWindow) activityInfoWindow.close();
+  activeActivityInfoMarker = null;
   markers.forEach((marker) => marker.setMap(null));
   markers = [];
+}
+
+function createMapSpotDetails(activity, place = null) {
+  const card = document.createElement('article');
+  card.className = 'map-spot-details';
+  const photo = place?.photos?.[0];
+  if (photo) {
+    const image = document.createElement('img');
+    image.className = 'map-spot-photo';
+    image.src = photo.getUrl({ maxWidth: 480, maxHeight: 240 });
+    image.alt = place.name || activity.location || activity.title;
+    card.appendChild(image);
+  }
+  const body = document.createElement('div');
+  body.className = 'map-spot-body';
+  const title = document.createElement('strong');
+  title.textContent = place?.name || activity.location || activity.title;
+  const activityTitle = document.createElement('span');
+  activityTitle.textContent = activity.title;
+  const address = document.createElement('small');
+  address.textContent = place?.formatted_address || activity.address || activity.description || '';
+  body.append(title, activityTitle);
+  if (address.textContent) body.appendChild(address);
+  if (photo) {
+    const attribution = document.createElement('small');
+    attribution.className = 'map-spot-attribution';
+    attribution.textContent = 'Photo from Google Places';
+    body.appendChild(attribution);
+  }
+  card.appendChild(body);
+  return card;
+}
+
+function openMapSpotDetails(marker, activity) {
+  if (!activityInfoWindow) return;
+  activeActivityInfoMarker = marker;
+  activityInfoWindow.setContent(createMapSpotDetails(activity));
+  activityInfoWindow.open({ map, anchor: marker });
+  if (!placesService) return;
+  const city = getCityForDate(activity.date);
+  const query = city ? `${activity.location}, ${city}` : activity.location;
+  placesService.findPlaceFromQuery(
+    { query, fields: ['place_id'] },
+    (results, status) => {
+      if (status !== google.maps.places.PlacesServiceStatus.OK || !results?.[0]?.place_id) return;
+      placesService.getDetails(
+        { placeId: results[0].place_id, fields: ['name', 'formatted_address', 'photos'] },
+        (place, detailsStatus) => {
+          if (detailsStatus !== google.maps.places.PlacesServiceStatus.OK || !place || activeActivityInfoMarker !== marker) return;
+          activityInfoWindow.setContent(createMapSpotDetails(activity, place));
+          activityInfoWindow.open({ map, anchor: marker });
+        }
+      );
+    }
+  );
 }
 
 function placeMarker(position, color, activity, dayIndex) {
@@ -1654,12 +2497,14 @@ function placeMarker(position, color, activity, dayIndex) {
       scale: 10,
     },
   });
+  marker.addListener('click', () => openMapSpotDetails(marker, activity));
   markers.push(marker);
 }
 
 function updateMapMarkers() {
   if (!map || !geocoder) return;
   clearMarkers();
+  const renderToken = ++mapRenderToken;
 
   const days = getTripDays();
   const selectedDate = days[selectedDayIndex];
@@ -1692,6 +2537,7 @@ function updateMapMarkers() {
     }
 
     geocoder.geocode({ address: query }, (results, status) => {
+      if (mapViewMode !== 'day' || renderToken !== mapRenderToken) return;
       if (status === 'OK' && results[0]) {
         const loc = results[0].geometry.location;
         const coords = { lat: loc.lat(), lng: loc.lng() };
@@ -1713,10 +2559,15 @@ let suggestedRouteRenderer = null;
 let suggestedMarkers = [];
 let suggestedPolyline = null;
 let currentSuggestedRoute = null;
+let mapViewMode = 'day';
+let mapRenderToken = 0;
 
-function renderSpotRouteSelectors(days) {
+function clearSuggestedRouteDisplay() {
   if (suggestedRouteRenderer) suggestedRouteRenderer.setMap(null);
   clearSuggestedGeometry();
+}
+
+function renderSpotRouteSelectors(days) {
   const selectedDate = days[selectedDayIndex];
   const spots = state.activities
     .filter((activity) => activity.date === selectedDate && activity.location)
@@ -1746,8 +2597,9 @@ function renderSpotRouteSelectors(days) {
   spotBSelect.value = spots.some((spot) => spot.id === previousB && spot.id !== spotASelect.value)
     ? previousB
     : spots.find((spot) => spot.id !== spotASelect.value).id;
-  spotRouteStatus.textContent = mapsApiLoaded ? '' : 'Map API loading…';
-  requestSuggestedRoute();
+  spotRouteStatus.textContent = mapsApiLoaded
+    ? (state.language === 'zh' ? '選擇地點與交通方式以查看路線' : 'Choose spots and a travel mode to view the route')
+    : 'Map API loading…';
 }
 
 function requestSuggestedRoute() {
@@ -1759,6 +2611,10 @@ function requestSuggestedRoute() {
   const origin = city ? `${from.location}, ${city}` : from.location;
   const destination = city ? `${to.location}, ${city}` : to.location;
   const mode = routeModeSelect.value;
+  mapViewMode = 'route';
+  const routeToken = ++mapRenderToken;
+  clearMarkers();
+  clearSuggestedRouteDisplay();
   spotRouteStatus.textContent = state.language === 'zh' ? '規劃中…' : 'Planning…';
   spotRouteResult.textContent = '';
   spotFareGrid.innerHTML = '';
@@ -1767,11 +2623,12 @@ function requestSuggestedRoute() {
   const request = { origin, destination, travelMode: google.maps.TravelMode[mode] };
   if (mode === 'TRANSIT') request.transitOptions = { departureTime: new Date() };
   directionsService.route(request, (result, status) => {
+    if (mapViewMode !== 'route' || routeToken !== mapRenderToken) return;
     if (status !== 'OK' || !result.routes.length) {
       spotRouteStatus.textContent = state.language === 'zh'
         ? `找不到路線（${status}）`
         : `Route unavailable (${status})`;
-      geocodeSuggestedSpots(from, to, mode);
+      geocodeSuggestedSpots(from, to, mode, routeToken);
       return;
     }
     if (!suggestedRouteRenderer) {
@@ -1914,7 +2771,7 @@ function clearSuggestedGeometry() {
   }
 }
 
-function geocodeSuggestedSpots(from, to, mode) {
+function geocodeSuggestedSpots(from, to, mode, routeToken) {
   if (!geocoder || !map) return;
   const city = getCityForDate(from.date);
   const bounds = new google.maps.LatLngBounds();
@@ -1923,6 +2780,7 @@ function geocodeSuggestedSpots(from, to, mode) {
   [from, to].forEach((spot, index) => {
     const query = city ? `${spot.location}, ${city}` : spot.location;
     geocoder.geocode({ address: query }, (results, status) => {
+      if (mapViewMode !== 'route' || routeToken !== mapRenderToken) return;
       if (status !== 'OK' || !results[0]) return;
       const position = results[0].geometry.location;
       const marker = new google.maps.Marker({
@@ -1940,13 +2798,13 @@ function geocodeSuggestedSpots(from, to, mode) {
       bounds.extend(position);
       map.fitBounds(bounds);
       if (positions.filter(Boolean).length === 2) {
-        requestCoordinateRoute(positions, from, to, mode);
+        requestCoordinateRoute(positions, from, to, mode, routeToken);
       }
     });
   });
 }
 
-function requestCoordinateRoute(positions, from, to, mode) {
+function requestCoordinateRoute(positions, from, to, mode, routeToken) {
   const request = {
     origin: positions[0],
     destination: positions[1],
@@ -1954,6 +2812,7 @@ function requestCoordinateRoute(positions, from, to, mode) {
   };
   if (mode === 'TRANSIT') request.transitOptions = { departureTime: new Date() };
   directionsService.route(request, (result, status) => {
+    if (mapViewMode !== 'route' || routeToken !== mapRenderToken) return;
     if (status === 'OK' && result.routes.length) {
       if (!suggestedRouteRenderer) suggestedRouteRenderer = new google.maps.DirectionsRenderer({ suppressMarkers: false, preserveViewport: false });
       clearSuggestedGeometry();
@@ -2174,7 +3033,10 @@ routeModeSelect.addEventListener('change', () => {
 
 routeModeButtons.forEach((button) => {
   button.addEventListener('click', () => {
-    if (routeModeSelect.value === button.dataset.routeMode) return;
+    if (routeModeSelect.value === button.dataset.routeMode) {
+      requestSuggestedRoute();
+      return;
+    }
     routeModeSelect.value = button.dataset.routeMode;
     routeModeSelect.dispatchEvent(new Event('change'));
   });
@@ -2225,7 +3087,7 @@ function render() {
   renderProfile(days);
   renderSpotRouteSelectors(days);
   renderMapLegend(days);
-  if (mapsApiLoaded) updateMapMarkers();
+  if (mapsApiLoaded && mapViewMode === 'day') updateMapMarkers();
 
   renderItineraryForSelectedDay(days);
   renderShoppingHaul();
@@ -3550,6 +4412,20 @@ function renderItineraryForSelectedDay(days) {
       remarksEl.className = 'item-remarks';
       remarksEl.textContent = activity.remarks;
       itemCard.appendChild(remarksEl);
+    }
+
+    if (activity.aiRouteNote) {
+      const routeNoteEl = document.createElement('div');
+      routeNoteEl.className = 'item-ai-route-note';
+      routeNoteEl.textContent = activity.aiRouteNote;
+      itemCard.appendChild(routeNoteEl);
+    }
+
+    if (activity.aiRecommendationNote) {
+      const placeReasonEl = document.createElement('div');
+      placeReasonEl.className = 'item-ai-route-note';
+      placeReasonEl.textContent = activity.aiRecommendationNote;
+      itemCard.appendChild(placeReasonEl);
     }
 
     if (activity.location || activity.contactDetails || activity.expense) {

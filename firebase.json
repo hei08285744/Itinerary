@@ -1,4 +1,8 @@
 {
+  "functions": {
+    "source": "functions",
+    "runtime": "nodejs22"
+  },
   "firestore": {
     "rules": "firestore.rules"
   },
@@ -11,6 +15,7 @@
       ".firebase/**",
       ".git/**",
       ".vscode/**",
+      "functions/**",
       "**/node_modules/**",
       "firestore.rules",
       "README.md"

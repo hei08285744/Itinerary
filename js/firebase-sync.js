@@ -92,5 +92,5 @@
     }
   }
 
-  window.itinerarySync = { connect, isConfigured, save };
+  window.itinerarySync = { authenticate: initializeFirebase, connect, isConfigured, save };
 }());
