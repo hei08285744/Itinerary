@@ -21,12 +21,17 @@
   }
 
   async function initializeFirebase() {
-    if (firestore) return;
+    if (firestore) return firebase.auth().currentUser?.uid || '';
     if (!isConfigured()) throw new Error('Firebase is not configured');
     if (!window.firebase) throw new Error('Firebase SDK did not load');
     if (!firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);
-    await firebase.auth().signInAnonymously();
+    const credential = await firebase.auth().signInAnonymously();
     firestore = firebase.firestore();
+    return credential.user?.uid || firebase.auth().currentUser?.uid || '';
+  }
+
+  function getUid() {
+    return window.firebase?.auth().currentUser?.uid || '';
   }
 
   async function connect({ tripId, initialState, onRemoteState, onStatus }) {
@@ -92,5 +97,5 @@
     }
   }
 
-  window.itinerarySync = { authenticate: initializeFirebase, connect, isConfigured, save };
+  window.itinerarySync = { authenticate: initializeFirebase, connect, getUid, isConfigured, save };
 }());

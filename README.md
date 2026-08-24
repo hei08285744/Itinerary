@@ -41,6 +41,32 @@ that URL can edit the same trip. Changes are delivered in real time; if two
 people change the itinerary at nearly the same instant, the latest saved
 snapshot wins.
 
+## Korea maps and routing
+
+Trips whose destination is Korea or a recognized Korean city use a no-key map
+stack:
+
+- Leaflet with OpenStreetMap tiles for the embedded map.
+- Nominatim for Korean place search and geocoding.
+- OSRM for estimated driving routes and travel-time matrices.
+- Naver Maps search links for external navigation.
+
+Other destinations continue to use Google Maps. A mixed-country trip keeps the
+Google trip-map canvas while each Korean activity still opens with Naver Maps
+and uses the Korea route provider. No Naver API credentials are required.
+
+Nominatim requests run through Firebase Functions with a descriptive User-Agent,
+a 1.1-second per-instance delay, and a 30-day Firestore cache. The public
+Nominatim and OSRM endpoints have no production SLA and may rate-limit or reject
+heavy traffic. They are appropriate for development and low-traffic prototypes.
+For production, host Nominatim/OSRM yourself or replace the endpoint with a
+commercial provider while preserving the normalized callable response.
+
+The current Korea integration is driving-first and OSRM times are estimates,
+not live-traffic predictions. ODsay public-transit routing can be added as a
+separate provider without changing the normalized route data supplied to
+Aitinerary.
+
 The provided rules require an authenticated Firebase session, but possession
 of the shared URL grants access to its trip. Add explicit user membership and
 stricter rules before using the app for sensitive travel information.
@@ -66,8 +92,13 @@ wants a new trip, nearby activity recommendations, or route optimization, then
 shows the corresponding preview. No trip data changes until the matching Apply
 button is selected. Route optimization changes only activity times and transport
 notes; titles, places, dates, expenses, remarks, and existing flight times remain
-unchanged. Google Directions travel times appear as guidance in the preview;
-long transfers are warnings rather than hard blockers.
+unchanged. Before route optimization, the browser supplies a Google Maps travel-time
+matrix for same-day stops so the model can reduce total travel time and long transfers
+without sacrificing meals, rest, opening-hour practicality, or worthwhile experiences.
+Verified travel times also appear in the preview. Activity recommendations balance
+traveler fit, local character, variety, pace, setting, accessibility, and geographic
+fit; ratings and review volume are reliability signals rather than primary ranking
+factors.
 
 Each trip keeps its five most recent verified AI previews. The **Recent Aitinerary** list
 can reopen a generated trip, activity suggestion, or route preview without using

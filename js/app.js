@@ -21,6 +21,8 @@ let aiPlansUnlimited = false;
 let pendingAIRoutePreview = null;
 let pendingAICreatePreview = null;
 let pendingAIActivitySuggestions = null;
+let pendingAIReferencePlaceList = null;
+let aiReferencePlaces = [];
 
 const tripNameInput = document.getElementById('tripName');
 const tripDestinationInput = document.getElementById('tripDestination');
@@ -47,9 +49,15 @@ const aiPlannerDestination = document.getElementById('aiPlannerDestination');
 const aiPlannerStartDate = document.getElementById('aiPlannerStartDate');
 const aiPlannerEndDate = document.getElementById('aiPlannerEndDate');
 const aiPlannerPreferences = document.getElementById('aiPlannerPreferences');
+const aiPlacesFileInput = document.getElementById('aiPlacesFileInput');
+const aiPlacesFileSummary = document.getElementById('aiPlacesFileSummary');
+const aiPlacesFileName = document.getElementById('aiPlacesFileName');
+const removeAIPlacesFileBtn = document.getElementById('removeAIPlacesFileBtn');
 const aiPlannerStatus = document.getElementById('aiPlannerStatus');
 const aiPlannerUsageRemaining = document.getElementById('aiPlannerUsageRemaining');
 const aiPlannerUsageReset = document.getElementById('aiPlannerUsageReset');
+const aiPlannerUid = document.getElementById('aiPlannerUid');
+const aiPlannerAccessLevel = document.getElementById('aiPlannerAccessLevel');
 const aiThinkingIndicator = document.getElementById('aiThinkingIndicator');
 const aiSearchHistory = document.getElementById('aiSearchHistory');
 const aiSearchHistoryList = document.getElementById('aiSearchHistoryList');
@@ -90,6 +98,7 @@ const shoppingImageStatus = document.getElementById('shoppingImageStatus');
 const shoppingItemList = document.getElementById('shoppingItemList');
 let shoppingItemsDraft = [];
 const AITINERARY_LAUNCHER_HIDDEN_KEY = 'mytinerary-aitinerary-launcher-hidden';
+const MAX_AI_PLACES_FILE_BYTES = 2 * 1024 * 1024;
 const placeLookupStatus = document.getElementById('placeLookupStatus');
 
 const currencyFromInput = document.getElementById('currencyFrom');
@@ -175,6 +184,10 @@ let selectedBillMember = 'all';
 let highlightedOwedMember = '';
 let splittingBillId = null;
 let currentPlaceAddress = '';
+let currentPlaceId = '';
+let currentPlaceCoordinates = null;
+let currentNaverPlaceName = '';
+let currentGoogleReviewCount = 0;
 
 const routeList = document.getElementById('routeList');
 const routeStatus = document.getElementById('routeStatus');
@@ -458,7 +471,7 @@ function init() {
   renderMembers();
   selectedDayIndex = closestDayIndexToToday();
   render();
-  loadGoogleMaps(GOOGLE_MAPS_API_KEY);
+  loadTripMapProvider();
   if (collaborationStarted) connectActiveTrip();
 }
 
@@ -483,7 +496,7 @@ function applyTheme() {
     button.classList.toggle('is-selected', isSelected);
     button.setAttribute('aria-pressed', String(isSelected));
   });
-  if (map) map.setOptions({ styles: getTravelMapStyles(state.theme) });
+  if (map && activeMapProvider === 'google') map.setOptions({ styles: getTravelMapStyles(state.theme) });
 }
 
 settingsBtn.addEventListener('click', () => {
@@ -505,6 +518,7 @@ editTripProfileBtn.addEventListener('click', () => {
 });
 
 function setActiveAppView(viewName) {
+  document.body.dataset.activeView = viewName;
   appViews.forEach((view) => {
     view.classList.toggle('app-view-hidden', view.dataset.appView !== viewName);
   });
@@ -515,8 +529,13 @@ function setActiveAppView(viewName) {
   });
   updateAppTabIndicator();
   if (viewName === 'map' && mapsApiLoaded) {
-    google.maps.event.trigger(map, 'resize');
-    updateMapMarkers();
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (activeMapProvider === 'naver') map.invalidateSize({ animate: false });
+        else google.maps.event.trigger(map, 'resize');
+        updateMapMarkers();
+      });
+    });
   }
 }
 
@@ -586,6 +605,8 @@ tripDestinationInput.addEventListener('input', () => {
   saveState();
   render();
 });
+
+tripDestinationInput.addEventListener('change', loadTripMapProvider);
 
 tripStartDateInput.addEventListener('input', () => {
   state.tripStartDate = tripStartDateInput.value;
@@ -731,6 +752,7 @@ cityPeriods.addEventListener('input', (event) => {
 cityPeriods.addEventListener('change', (event) => {
   if (!event.target.dataset.cityField) return;
   render();
+  loadTripMapProvider();
 });
 
 cityPeriods.addEventListener('click', (event) => {
@@ -773,7 +795,12 @@ activityForm.addEventListener('submit', (e) => {
     cardNetwork: activityPaymentMethodInput.value === 'card' ? activityCardNetworkInput.value : '',
     cardMarkup: activityPaymentMethodInput.value === 'card' ? Number(activityCardMarkupInput.value) || 0 : 0,
     address: activityDescriptionInput.value.trim() || currentPlaceAddress,
-    mapProvider: activityMapProviderInput.value || 'google',
+    placeId: currentPlaceId,
+    naverPlaceName: currentNaverPlaceName,
+    latitude: currentPlaceCoordinates?.lat,
+    longitude: currentPlaceCoordinates?.lng,
+    googleReviewCount: currentGoogleReviewCount,
+    mapProvider: activityMapProviderInput.value || getMapProviderForDate(date),
     naverUrl: activityNaverUrlInput.value.trim(),
     shoppingItems: category === 'shopping' ? shoppingItemsDraft : [],
     upfrontPaymentTitle: document.getElementById('activityUpfrontPaymentTitle').value.trim(),
@@ -824,11 +851,121 @@ aiPlannerModal.addEventListener('click', (event) => {
   if (event.target === aiPlannerModal) closeAIPlanner();
 });
 
+function clearAIPlacesFile() {
+  aiReferencePlaces = [];
+  aiPlacesFileInput.value = '';
+  aiPlacesFileName.textContent = '';
+  aiPlacesFileSummary.classList.add('hidden');
+}
+
+function normalizeAIReferencePlaces(data) {
+  let entries = [];
+  if (Array.isArray(data)) {
+    entries = data;
+  } else if (data && typeof data === 'object') {
+    const listKeys = ['places', 'savedPlaces', 'locations', 'items', 'activities', 'features'];
+    const listKey = listKeys.find((key) => Array.isArray(data[key]));
+    if (listKey) entries = data[listKey];
+  }
+
+  const seen = new Set();
+  return entries.map((entry) => {
+    if (typeof entry === 'string') return { name: entry.trim() };
+    if (!entry || typeof entry !== 'object') return null;
+    const properties = entry.properties && typeof entry.properties === 'object' ? entry.properties : entry;
+    const normalizedProperties = Object.fromEntries(Object.entries(properties).map(([key, value]) => [
+      key.toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, ''), value,
+    ]));
+    const getValue = (...keys) => keys.map((key) => normalizedProperties[key]).find((value) => value !== undefined && value !== null && value !== '');
+    const locationValue = String(getValue('location', 'place', 'venue') || '').trim();
+    const name = getValue('name', 'title', 'placename', 'locationname') || locationValue;
+    const coordinates = Array.isArray(entry.geometry?.coordinates) ? entry.geometry.coordinates : [];
+    return {
+      name: typeof name === 'string' ? name.trim() : '',
+      address: String(getValue('address', 'streetaddress', 'fulladdress') || locationValue || '').trim(),
+      notes: String(getValue('notes', 'note', 'description', 'remarks', 'comment', 'comments') || '').trim(),
+      category: inferActivityCategory(getValue('category', 'type', 'types')),
+      date: String(getValue('date', 'visitdate') || '').trim(),
+      longitude: Number.isFinite(Number(getValue('longitude', 'lng', 'lon') ?? coordinates[0])) ? Number(getValue('longitude', 'lng', 'lon') ?? coordinates[0]) : undefined,
+      latitude: Number.isFinite(Number(getValue('latitude', 'lat') ?? coordinates[1])) ? Number(getValue('latitude', 'lat') ?? coordinates[1]) : undefined,
+    };
+  }).filter((place) => {
+    if (!place?.name) return false;
+    const key = `${place.name}|${place.address}`.toLocaleLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+async function readAIReferencePlacesFile(file) {
+  const extension = file.name.split('.').pop()?.toLocaleLowerCase();
+  if (extension === 'json') return JSON.parse(await file.text());
+  if (!['csv', 'xls', 'xlsx', 'xlsm', 'ods'].includes(extension)) throw new Error('unsupported-file-type');
+  if (!window.XLSX) throw new Error('spreadsheet-reader-unavailable');
+  const workbook = window.XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true });
+  const firstSheetName = workbook.SheetNames[0];
+  if (!firstSheetName) return [];
+  return window.XLSX.utils.sheet_to_json(workbook.Sheets[firstSheetName], { defval: '', raw: false });
+}
+
+function inferActivityCategory(placeTypes, fallback = 'other') {
+  const values = Array.isArray(placeTypes) ? placeTypes : [placeTypes];
+  const normalized = values
+    .flatMap((value) => String(value || '').toLocaleLowerCase().split(/[,/|]+/))
+    .map((value) => value.replace(/[_-]+/g, ' ').trim())
+    .filter(Boolean);
+  const appCategory = normalized.find((value) => ['flight', 'sight', 'meal', 'transport', 'hotel', 'shopping', 'other'].includes(value));
+  if (appCategory) return appCategory;
+  const matches = (keywords) => normalized.some((value) => keywords.some((keyword) => value.includes(keyword)));
+  if (matches(['airport', 'airline', 'flight'])) return 'flight';
+  if (matches(['lodging', 'hotel', 'hostel', 'motel', 'resort', 'guest house', 'accommodation', '호텔', '숙박', '리조트', '펜션'])) return 'hotel';
+  if (matches(['restaurant', 'cafe', 'coffee', 'bakery', 'bar', 'food', 'meal', 'dining', 'ramen', 'sushi', '음식점', '카페', '식당', '한식', '일식', '중식', '양식'])) return 'meal';
+  if (matches(['store', 'shopping', 'mall', 'market', 'supermarket', 'department store', 'boutique', '쇼핑', '백화점', '시장', '마트'])) return 'shopping';
+  if (matches(['transit', 'station', 'bus', 'train', 'subway', 'taxi', 'car rental', 'transport', '교통', '지하철', '기차역', '버스'])) return 'transport';
+  if (matches(['tourist attraction', 'museum', 'gallery', 'park', 'landmark', 'temple', 'church', 'place of worship', 'zoo', 'aquarium', 'amusement', '관광', '박물관', '미술관', '공원', '궁', '사찰'])) return 'sight';
+  return fallback;
+}
+
+aiPlacesFileInput.addEventListener('change', async () => {
+  const file = aiPlacesFileInput.files?.[0];
+  if (!file) return;
+  aiPlannerStatus.textContent = '';
+  try {
+    if (file.size > MAX_AI_PLACES_FILE_BYTES) throw new Error(state.language === 'zh' ? '附件不可超過 2 MB。' : 'The attachment must be 2 MB or smaller.');
+    const places = normalizeAIReferencePlaces(await readAIReferencePlacesFile(file));
+    if (!places.length) throw new Error(state.language === 'zh' ? '附件中找不到可辨識的地點清單。' : 'No recognizable place list was found in the attachment.');
+    aiReferencePlaces = places;
+    aiPlacesFileName.textContent = state.language === 'zh'
+      ? `${file.name} · ${places.length} 個地點`
+      : `${file.name} · ${places.length} places`;
+    aiPlacesFileSummary.classList.remove('hidden');
+    aiPlannerStatus.textContent = state.language === 'zh' ? '地點清單已附加，Aitinerary 會在規劃時分析。' : 'Place list attached. Aitinerary will analyze it with your request.';
+  } catch (error) {
+    clearAIPlacesFile();
+    if (error instanceof SyntaxError) {
+      aiPlannerStatus.textContent = state.language === 'zh' ? '無法讀取檔案，請選擇有效的 JSON。' : 'Could not read the file. Choose valid JSON.';
+    } else if (error.message === 'unsupported-file-type') {
+      aiPlannerStatus.textContent = state.language === 'zh' ? '請選擇 JSON、CSV、XLS、XLSX、XLSM 或 ODS 檔案。' : 'Choose a JSON, CSV, XLS, XLSX, XLSM, or ODS file.';
+    } else if (error.message === 'spreadsheet-reader-unavailable') {
+      aiPlannerStatus.textContent = state.language === 'zh' ? '試算表讀取器載入失敗，請重新整理後再試。' : 'The spreadsheet reader did not load. Refresh and try again.';
+    } else {
+      aiPlannerStatus.textContent = error.message;
+    }
+  }
+});
+
+removeAIPlacesFileBtn.addEventListener('click', () => {
+  clearAIPlacesFile();
+  aiPlannerStatus.textContent = state.language === 'zh' ? '已移除地點清單。' : 'Place list removed.';
+});
+
 async function openAIPlanner() {
   aiPlannerDestination.value = state.tripDestination || '';
   aiPlannerStartDate.value = state.tripStartDate || '';
   aiPlannerEndDate.value = state.tripEndDate || '';
   aiPlannerStatus.textContent = '';
+  clearAIPlacesFile();
   aiPlannerDestination.readOnly = false;
   aiPlannerStartDate.readOnly = false;
   aiPlannerEndDate.readOnly = false;
@@ -841,9 +978,13 @@ async function openAIPlanner() {
 
 async function refreshAIUsageStatus() {
   aiPlannerUsageRemaining.textContent = state.language === 'zh' ? '正在檢查額度…' : 'Checking usage…';
+  aiPlannerUid.textContent = state.language === 'zh' ? '正在檢查…' : 'Checking…';
+  aiPlannerAccessLevel.textContent = state.language === 'zh' ? '正在檢查權限…' : 'Checking access…';
   try {
     if (!window.itinerarySync?.isConfigured()) throw new Error('Firebase is not configured');
-    await window.itinerarySync.authenticate();
+    const uid = await window.itinerarySync.authenticate();
+    aiPlannerUid.textContent = uid || window.itinerarySync.getUid() || 'Unavailable';
+    aiPlannerUid.title = aiPlannerUid.textContent;
     const getUsage = firebase.app().functions('asia-east2').httpsCallable('getAIUsageStatus');
     const result = await getUsage();
     setAIUsage(result.data || {});
@@ -851,12 +992,18 @@ async function refreshAIUsageStatus() {
     console.error('AI usage lookup failed', error);
     aiPlannerUsageRemaining.textContent = state.language === 'zh' ? '每日最多 5 次' : '5 plans per day';
     aiPlannerUsageReset.textContent = state.language === 'zh' ? '無法載入即時剩餘額度' : 'Live usage unavailable';
+    aiPlannerUid.textContent = window.itinerarySync?.getUid?.() || 'Unavailable';
+    aiPlannerAccessLevel.textContent = state.language === 'zh' ? '無法確認權限' : 'Access unavailable';
   }
 }
 
 function setAIUsage(usage) {
   aiPlansUnlimited = usage.unlimited === true;
   aiPlansRemaining = Number.isInteger(usage.remaining) ? usage.remaining : null;
+  aiPlannerAccessLevel.textContent = aiPlansUnlimited
+    ? (state.language === 'zh' ? '無限測試帳號' : 'Unlimited tester')
+    : (state.language === 'zh' ? '標準額度' : 'Standard access');
+  aiPlannerAccessLevel.classList.toggle('is-unlimited', aiPlansUnlimited);
   updateAIPlanUsage();
 }
 
@@ -893,6 +1040,7 @@ function clearAIRoutePreview() {
   pendingAIRoutePreview = null;
   pendingAICreatePreview = null;
   pendingAIActivitySuggestions = null;
+  pendingAIReferencePlaceList = null;
   aiRoutePreviewList.innerHTML = '';
   aiRoutePreviewSummary.textContent = '';
   aiRoutePreview.classList.add('hidden');
@@ -995,18 +1143,26 @@ function requestRouteLeg(origin, destination, mode, departureTime = null) {
       resolve(null);
       return;
     }
+    let settled = false;
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
+      resolve(result);
+    };
+    const timeoutId = setTimeout(() => finish(null), 7000);
     const request = { origin, destination, travelMode: google.maps.TravelMode[mode] };
     if (mode === 'DRIVING' && departureTime instanceof Date && departureTime > new Date()) {
       request.drivingOptions = { departureTime };
     }
     directionsService.route(request, (result, status) => {
       if (status !== 'OK' || !result.routes.length) {
-        resolve(null);
+        finish(null);
         return;
       }
       const leg = result.routes[0].legs[0];
       const duration = leg.duration_in_traffic || leg.duration;
-      resolve({
+      finish({
         mode,
         distanceMeters: Number(leg.distance?.value) || 0,
         distance: leg.distance?.text || '',
@@ -1023,21 +1179,43 @@ function verifyAIActivityPlace(activity, destination) {
       resolve(null);
       return;
     }
-    const query = [activity.location || activity.title, destination].filter(Boolean).join(', ');
-    placesService.textSearch({ query }, (results, status) => {
+    let settled = false;
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
+      resolve(result);
+    };
+    const timeoutId = setTimeout(() => finish(null), 5000);
+    const queryParts = [activity.location || activity.title, activity.address, destination]
+      .filter((value, index, values) => value && values.indexOf(value) === index);
+    const request = { query: queryParts.join(', ') };
+    if (Number.isFinite(activity.latitude) && Number.isFinite(activity.longitude)) {
+      request.location = { lat: activity.latitude, lng: activity.longitude };
+      request.radius = 5000;
+    }
+    placesService.textSearch(request, (results, status) => {
       if (status !== google.maps.places.PlacesServiceStatus.OK || !results?.[0]) {
-        resolve(null);
+        finish(null);
         return;
       }
       const place = results[0];
       const rating = Number(place.rating) || 0;
       const reviewCount = Number(place.user_ratings_total) || 0;
-      resolve({
+      const latitude = place.geometry?.location?.lat();
+      const longitude = place.geometry?.location?.lng();
+      finish({
         ...activity,
         location: place.name || activity.location,
         address: place.formatted_address || '',
         rating: rating || '',
+        placeId: place.place_id || '',
+        placeTypes: place.types || [],
+        latitude: Number.isFinite(latitude) ? latitude : activity.latitude,
+        longitude: Number.isFinite(longitude) ? longitude : activity.longitude,
+        category: inferActivityCategory(place.types, inferActivityCategory(activity.category)),
         googleReviewCount: reviewCount,
+        googleMapsUrl: place.place_id ? `https://www.google.com/maps/search/?api=1&query_place_id=${encodeURIComponent(place.place_id)}&query=${encodeURIComponent(place.name || activity.location)}` : '',
         googlePlaceReason: rating
           ? `Google rating ${rating.toFixed(1)}${reviewCount ? ` from ${reviewCount.toLocaleString()} reviews` : ''}`
           : 'Place verified on Google Maps',
@@ -1046,17 +1224,124 @@ function verifyAIActivityPlace(activity, destination) {
   });
 }
 
+async function verifyAIKoreaActivityPlace(activity, destination) {
+  const query = [activity.address || activity.location, activity.title, destination].filter(Boolean).join(' ');
+  const fallback = {
+    ...activity,
+    mapProvider: 'naver',
+    naverUrl: `https://map.naver.com/p/search/${encodeURIComponent(activity.address || activity.location || activity.title || query)}`,
+  };
+  const googleVerifiedPlace = await verifyAIActivityPlace(activity, destination);
+  if (Number.isFinite(googleVerifiedPlace?.latitude) && Number.isFinite(googleVerifiedPlace?.longitude)) {
+    return {
+      ...googleVerifiedPlace,
+      mapProvider: 'naver',
+      naverPlaceName: googleVerifiedPlace.location || activity.location || '',
+      naverUrl: '',
+      googleMapsUrl: '',
+      koreaCoordinateSource: 'google-places',
+      googlePlaceReason: state.language === 'zh' ? '已使用 Google Places 驗證地點，並在 Naver Maps 顯示' : 'Place verified with Google Places and shown in Naver Maps',
+    };
+  }
+  if (!window.itinerarySync?.isConfigured()) return fallback;
+  try {
+    await window.itinerarySync.authenticate();
+    const searchKoreaPlaces = firebase.app().functions('asia-east2').httpsCallable('searchKoreaPlaces');
+    const result = await searchKoreaPlaces({
+      query,
+      latitude: activity.latitude,
+      longitude: activity.longitude,
+    });
+    const place = result.data?.places?.[0];
+    if (!place) return fallback;
+    return {
+      ...activity,
+      location: place.naverPlaceName || place.name || activity.location,
+      address: place.address || activity.address || '',
+      description: activity.description || place.description || place.address || '',
+      category: inferActivityCategory(place.category, inferActivityCategory(activity.category)),
+      latitude: Number.isFinite(place.latitude) ? place.latitude : activity.latitude,
+      longitude: Number.isFinite(place.longitude) ? place.longitude : activity.longitude,
+      mapProvider: 'naver',
+      naverPlaceName: place.naverPlaceName || place.name || '',
+      naverUrl: place.naverUrl || fallback.naverUrl,
+      googleMapsUrl: '',
+      googlePlaceReason: state.language === 'zh' ? '已使用韓國地圖資料驗證' : 'Verified with Korea map data',
+    };
+  } catch (error) {
+    console.error('Korea AI place verification failed', error);
+    return fallback;
+  }
+}
+
+function getAttachedReferencePlace(activity) {
+  const normalizeName = (value) => String(value || '').toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+  const activityNames = [activity.location, activity.title].map(normalizeName).filter(Boolean);
+  return aiReferencePlaces.find((place) => {
+    const placeName = normalizeName(place.name);
+    return activityNames.some((name) => name === placeName || (name.length > 5 && placeName.length > 5 && (name.includes(placeName) || placeName.includes(name))));
+  }) || null;
+}
+
 async function verifyAIActivityPlaces(activities, destination) {
   const verified = [];
-  const batchSize = 4;
+  const batchSize = 6;
   for (let index = 0; index < activities.length; index += batchSize) {
     const batch = activities.slice(index, index + batchSize);
-    const results = await Promise.all(batch.map((activity) => verifyAIActivityPlace(activity, destination)));
+    const results = await Promise.all(batch.map((activity) => {
+      const attachedPlace = getAttachedReferencePlace(activity);
+      if (isKoreaDestination(destination)) return verifyAIKoreaActivityPlace(attachedPlace ? {
+        ...activity,
+        location: attachedPlace.name,
+        address: attachedPlace.address || activity.address || '',
+        description: attachedPlace.notes || activity.description || '',
+        latitude: attachedPlace.latitude,
+        longitude: attachedPlace.longitude,
+      } : activity, destination);
+      if (!attachedPlace) return verifyAIActivityPlace(activity, destination);
+      return Promise.resolve({
+        ...activity,
+        location: attachedPlace.name,
+        address: attachedPlace.address || activity.address || '',
+        googlePlaceReason: state.language === 'zh' ? '來自附加的地點清單' : 'From attached saved places',
+      });
+    }));
     verified.push(...results.filter(Boolean));
-    if (index + batchSize < activities.length) {
-      await new Promise((resolve) => setTimeout(resolve, 300));
-    }
+    const processed = Math.min(index + batch.length, activities.length);
+    aiPlannerStatus.textContent = state.language === 'zh'
+      ? `正在驗證地點 ${processed} / ${activities.length}…`
+      : `Verifying places ${processed} / ${activities.length}…`;
   }
+  return verified;
+}
+
+async function verifyAttachedReferencePlaces(destination) {
+  const verified = await Promise.all(aiReferencePlaces.map(async (place) => {
+    const query = [place.name, place.address, destination].filter(Boolean).join(', ');
+    const referenceActivity = {
+      title: place.name,
+      location: place.name,
+      address: place.address || '',
+      description: place.notes || '',
+      category: inferActivityCategory(place.category),
+      latitude: place.latitude,
+      longitude: place.longitude,
+    };
+    const verifiedPlace = isKoreaDestination(destination)
+      ? await verifyAIKoreaActivityPlace(referenceActivity, destination)
+      : await verifyAIActivityPlace(referenceActivity, destination);
+    return {
+      ...verifiedPlace,
+      title: verifiedPlace?.title || place.name,
+      location: verifiedPlace?.location || place.name,
+      address: verifiedPlace?.address || place.address || '',
+      description: place.notes || '',
+      category: inferActivityCategory(verifiedPlace?.placeTypes, inferActivityCategory(place.category)),
+      googleMapsUrl: isKoreaDestination(destination) ? '' : (verifiedPlace?.googleMapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`),
+      naverUrl: verifiedPlace?.naverUrl || '',
+      googlePlaceReason: verifiedPlace?.googlePlaceReason || (state.language === 'zh' ? '來自附件地點清單' : 'From attached saved-place list'),
+    };
+  }));
   return verified;
 }
 
@@ -1088,18 +1373,49 @@ function verifyAIDailyMeals(activities, startDate, endDate) {
   }
 }
 
-async function verifyAIDailyReachability(activities, destination, validateSuggestedOnly = false) {
+async function verifyAIDailyReachability(activities, destination, validateSuggestedOnly = false, mapProvider = '') {
   const sorted = activities.slice().sort((first, second) => first.date.localeCompare(second.date) || first.time.localeCompare(second.time));
-  let previous = null;
-  for (const activity of sorted) {
-    activity.driveFromPrevious = null;
-    const shouldValidateLeg = !validateSuggestedOnly || previous?._aiSuggestion || activity._aiSuggestion;
-    if (previous?.date === activity.date && shouldValidateLeg) {
-      const warningTarget = validateSuggestedOnly && previous._aiSuggestion && !activity._aiSuggestion ? previous : activity;
+  sorted.forEach((activity) => { activity.driveFromPrevious = null; });
+  const routeChecks = sorted.slice(1).map((activity, index) => {
+    const previous = sorted[index];
+    const shouldValidateLeg = !validateSuggestedOnly || previous._aiSuggestion || activity._aiSuggestion;
+    if (previous.date !== activity.date || !shouldValidateLeg) return null;
+    return { previous, activity };
+  }).filter(Boolean);
+
+  const batchSize = 4;
+  for (let index = 0; index < routeChecks.length; index += batchSize) {
+    const batch = routeChecks.slice(index, index + batchSize);
+    const results = await Promise.all(batch.map(({ previous, activity }) => {
+      if ((mapProvider || getMapProviderForDate(activity.date)) === 'naver') return null;
       const origin = previous.address || `${previous.location}, ${destination}`;
       const target = activity.address || `${activity.location}, ${destination}`;
       const departureTime = new Date(`${previous.date}T${previous.time || '09:00'}:00`);
-      const leg = await requestRouteLeg(origin, target, 'DRIVING', departureTime);
+      return requestRouteLeg(origin, target, 'DRIVING', departureTime);
+    }));
+    const koreaChecks = batch.map((check, resultIndex) => ({ ...check, resultIndex }))
+      .filter(({ activity }) => (mapProvider || getMapProviderForDate(activity.date)) === 'naver');
+    if (koreaChecks.length) {
+      const koreaStops = [...new Map(koreaChecks.flatMap(({ previous, activity }) => [previous, activity])
+        .map((activity) => [activity.id, activity])).values()];
+      const koreaRoutes = await requestKoreaRoutes('legs', koreaStops, koreaChecks.map(({ previous, activity }) => ({
+        fromId: previous.id,
+        toId: activity.id,
+      })));
+      koreaChecks.forEach(({ previous, activity, resultIndex }) => {
+        const leg = koreaRoutes?.legs?.find((candidate) => candidate.fromId === previous.id && candidate.toId === activity.id);
+        if (!leg) return;
+        results[resultIndex] = {
+          ...leg,
+          durationSeconds: leg.durationMinutes * 60,
+          duration: `${leg.durationMinutes} min`,
+          distance: `${(leg.distanceMeters / 1000).toFixed(1)} km`,
+        };
+      });
+    }
+    batch.forEach(({ previous, activity }, resultIndex) => {
+      const warningTarget = validateSuggestedOnly && previous._aiSuggestion && !activity._aiSuggestion ? previous : activity;
+      const leg = results[resultIndex];
       if (!leg || !leg.durationSeconds) {
         warningTarget.reachabilityWarning = state.language === 'zh'
           ? `無法驗證從 ${previous.location} 前往此處的交通時間，請在套用前確認。`
@@ -1116,13 +1432,30 @@ async function verifyAIDailyReachability(activities, destination, validateSugges
             : `About ${leg.duration} by car from the previous stop, a longer transfer.`;
         }
       }
-    }
-    previous = activity;
+    });
   }
   return sorted;
 }
 
 async function getAIRouteEvidence(from, to) {
+  if (getMapProviderForDate(to.date) === 'naver') {
+    const result = await requestKoreaRoutes('legs', [from, to], [{ fromId: from.id, toId: to.id }]);
+    const leg = result?.legs?.[0];
+    if (!leg) {
+      return {
+        mode: '', distanceMeters: 0, distance: '', duration: '',
+        reason: state.language === 'zh' ? 'OpenStreetMap 暫時無法驗證此路段，請確認活動的韓文道路地址。' : 'OpenStreetMap could not verify this leg. Check the Korean road addresses.',
+      };
+    }
+    return {
+      ...leg,
+      distance: `${(leg.distanceMeters / 1000).toFixed(1)} km`,
+      duration: `${leg.durationMinutes} min`,
+      reason: state.language === 'zh'
+        ? `OSRM 預估駕車 ${(leg.distanceMeters / 1000).toFixed(1)} 公里，約 ${leg.durationMinutes} 分鐘。`
+        : `OSRM estimates ${(leg.distanceMeters / 1000).toFixed(1)} km by car, about ${leg.durationMinutes} minutes.`,
+    };
+  }
   const city = getCityForDate(to.date) || state.tripDestination;
   const origin = city ? `${from.location}, ${city}` : from.location;
   const destination = city ? `${to.location}, ${city}` : to.location;
@@ -1168,6 +1501,7 @@ async function buildAIRoutePreview(optimizedActivities) {
         date: current.date,
         title: current.title,
         location: current.location,
+        address: current.address || current.description || '',
         originalTime: current.time || '',
         time: optimized.time,
         aiReason: optimized.routeNote || '',
@@ -1355,6 +1689,101 @@ function renderAIActivitySuggestions() {
   applyAIRouteBtn.classList.remove('hidden');
 }
 
+function renderAIReferencePlaceList() {
+  aiRoutePreviewList.innerHTML = '';
+  if (!pendingAIReferencePlaceList?.length) return;
+  aiPreviewTitle.textContent = state.language === 'zh' ? '附件中的已儲存地點' : 'Saved places from attachment';
+  aiRoutePreviewSummary.textContent = state.language === 'zh'
+    ? `${pendingAIReferencePlaceList.length} 個地點`
+    : `${pendingAIReferencePlaceList.length} places`;
+  pendingAIReferencePlaceList.forEach((place, index) => {
+    const row = document.createElement('article');
+    row.className = 'ai-route-preview-item ai-suggestion-preview-item';
+    const order = document.createElement('span');
+    order.className = 'ai-route-preview-order';
+    order.textContent = String(index + 1);
+    const content = document.createElement('div');
+    const heading = document.createElement('div');
+    heading.className = 'ai-route-preview-item-heading';
+    const title = document.createElement('strong');
+    title.textContent = place.location || place.title;
+    heading.appendChild(title);
+    const address = document.createElement('p');
+    address.className = 'ai-create-preview-location';
+    address.textContent = place.address || (state.language === 'zh' ? '附件未提供地址' : 'No address in attachment');
+    const details = document.createElement('p');
+    details.textContent = place.description || '';
+    content.append(heading, address);
+    if (details.textContent) content.appendChild(details);
+    const metrics = document.createElement('div');
+    metrics.className = 'ai-route-preview-metrics';
+    const evidence = document.createElement('span');
+    evidence.textContent = place.googlePlaceReason || (state.language === 'zh' ? '來自附件' : 'From attachment');
+    metrics.appendChild(evidence);
+    const actions = document.createElement('div');
+    actions.className = 'ai-reference-place-actions';
+    const mapUrl = place.naverUrl || place.googleMapsUrl;
+    if (mapUrl) {
+      const mapsLink = document.createElement('a');
+      mapsLink.className = 'ai-reference-place-button ai-reference-map-button';
+      mapsLink.href = mapUrl;
+      mapsLink.target = '_blank';
+      mapsLink.rel = 'noopener noreferrer';
+      const mapIcon = document.createElement('i');
+      mapIcon.dataset.lucide = 'map-pin';
+      mapIcon.setAttribute('aria-hidden', 'true');
+      mapsLink.append(mapIcon, document.createTextNode(place.naverUrl ? 'Naver Maps' : (state.language === 'zh' ? 'Google 地圖' : 'Google Maps')));
+      actions.appendChild(mapsLink);
+    }
+    const addButton = document.createElement('button');
+    addButton.className = 'ai-reference-place-button ai-reference-add-button';
+    addButton.type = 'button';
+    const addIcon = document.createElement('i');
+    addIcon.dataset.lucide = 'calendar-plus';
+    addIcon.setAttribute('aria-hidden', 'true');
+    const tripDays = getTripDays();
+    const activityDate = tripDays[selectedDayIndex] || tripDays[0] || state.tripStartDate || aiPlannerStartDate.value;
+    const isAlreadyAdded = state.activities.some((activity) => activity.date === activityDate
+      && String(activity.location || '').toLocaleLowerCase() === String(place.location || '').toLocaleLowerCase());
+    addButton.disabled = isAlreadyAdded || !activityDate;
+    addButton.append(addIcon, document.createTextNode(isAlreadyAdded
+      ? (state.language === 'zh' ? '已新增' : 'Added')
+      : (state.language === 'zh' ? '新增活動' : 'Add activity')));
+    addButton.addEventListener('click', () => {
+      const activity = createAIActivity({
+        ...place,
+        date: activityDate,
+        time: '',
+        title: place.title || place.location,
+        remarks: place.description || '',
+      }, index);
+      if (!state.tripDestination) state.tripDestination = aiPlannerDestination.value.trim();
+      if (!state.tripStartDate) state.tripStartDate = aiPlannerStartDate.value || activityDate;
+      if (!state.tripEndDate) state.tripEndDate = aiPlannerEndDate.value || activityDate;
+      state.activities.push(activity);
+      saveState();
+      render();
+      addButton.disabled = true;
+      addButton.replaceChildren();
+      const addedIcon = document.createElement('i');
+      addedIcon.dataset.lucide = 'check';
+      addedIcon.setAttribute('aria-hidden', 'true');
+      addButton.append(addedIcon, document.createTextNode(state.language === 'zh' ? '已新增' : 'Added'));
+      window.lucide?.createIcons({ nodes: [addButton] });
+      aiPlannerStatus.textContent = state.language === 'zh'
+        ? `${place.location || place.title} 已新增至 ${activityDate}。`
+        : `${place.location || place.title} added to ${activityDate}.`;
+    });
+    actions.appendChild(addButton);
+    content.append(metrics, actions);
+    row.append(order, content);
+    aiRoutePreviewList.appendChild(row);
+  });
+  aiRoutePreview.classList.remove('hidden');
+  applyAIRouteBtn.classList.add('hidden');
+  window.lucide?.createIcons({ nodes: [aiRoutePreviewList] });
+}
+
 function applyAIRoutePreview() {
   if (pendingAICreatePreview?.activities.length) {
     const { destination, startDate, endDate, activities } = pendingAICreatePreview;
@@ -1431,7 +1860,7 @@ function createAIActivity(activity, index) {
     date: activity.date,
     time: activity.time || '',
     title: activity.title,
-    category: activity.category || 'other',
+    category: inferActivityCategory(activity.placeTypes, inferActivityCategory(activity.category)),
     location: activity.location || '',
     rating: activity.rating || '',
     description: activity.description || '',
@@ -1446,8 +1875,13 @@ function createAIActivity(activity, index) {
     cardNetwork: '',
     cardMarkup: 0,
     address: activity.address || activity.description || '',
-    mapProvider: 'google',
-    naverUrl: '',
+    placeId: activity.placeId || '',
+    latitude: Number.isFinite(activity.latitude) ? activity.latitude : undefined,
+    longitude: Number.isFinite(activity.longitude) ? activity.longitude : undefined,
+    googleReviewCount: Number(activity.googleReviewCount) || 0,
+    mapProvider: getMapProviderForDate(activity.date),
+    naverPlaceName: activity.naverPlaceName || '',
+    naverUrl: activity.naverUrl || '',
     shoppingItems: [],
     upfrontPaymentTitle: '',
     bookingDetails: '',
@@ -1464,6 +1898,134 @@ function createAIActivity(activity, index) {
   };
 }
 
+function isSavedPlaceListRequest(prompt) {
+  if (!aiReferencePlaces.length) return false;
+  const normalized = String(prompt || '').toLocaleLowerCase();
+  const requestsListing = /\b(list|show|display|extract|identify|find)\b/.test(normalized)
+    || /(列出|顯示|展示|提取|識別|找出)/.test(normalized);
+  const mentionsPlaces = /\b(place|places|location|locations|saved list|json|attachment|attached)\b/.test(normalized)
+    || /(地點|位置|清單|列表|附件)/.test(normalized);
+  return requestsListing && mentionsPlaces;
+}
+
+function isRouteOptimizationRequest(prompt) {
+  const normalized = String(prompt || '').toLocaleLowerCase();
+  return /\b(optimi[sz]e|reorder|rearrange|route|routing|travel time|backtrack|efficient order)\b/.test(normalized)
+    || /(優化|最佳化|重新排序|重排行程|路線|交通時間|移動時間|減少折返|順路)/.test(normalized);
+}
+
+function requestTravelTimeMatrix(origins, destinations, mode) {
+  return new Promise((resolve) => {
+    if (!window.google?.maps?.DistanceMatrixService || !origins.length || !destinations.length) {
+      resolve([]);
+      return;
+    }
+    const service = new google.maps.DistanceMatrixService();
+    const request = {
+      origins: origins.map((activity) => activity.address || `${activity.location}, ${getCityForDate(activity.date)}`),
+      destinations: destinations.map((activity) => activity.address || `${activity.location}, ${getCityForDate(activity.date)}`),
+      travelMode: google.maps.TravelMode[mode] || google.maps.TravelMode.DRIVING,
+      unitSystem: google.maps.UnitSystem.METRIC,
+    };
+    const firstActivity = origins.slice().sort((first, second) => (first.time || '').localeCompare(second.time || ''))[0];
+    const departureTime = new Date(`${firstActivity.date}T${firstActivity.time || '09:00'}:00`);
+    if (mode === 'DRIVING' && departureTime > new Date()) request.drivingOptions = { departureTime };
+    if (mode === 'TRANSIT' && departureTime > new Date()) request.transitOptions = { departureTime };
+    service.getDistanceMatrix(request, (response, status) => {
+      if (status !== 'OK' || !response?.rows) {
+        resolve([]);
+        return;
+      }
+      const legs = [];
+      response.rows.forEach((row, fromIndex) => {
+        row.elements.forEach((element, toIndex) => {
+          if (origins[fromIndex].id === destinations[toIndex].id || element.status !== 'OK' || !element.duration?.value) return;
+          legs.push({
+            fromId: origins[fromIndex].id,
+            toId: destinations[toIndex].id,
+            durationMinutes: Math.max(1, Math.round(element.duration.value / 60)),
+            distanceMeters: Number(element.distance?.value) || 0,
+            mode,
+          });
+        });
+      });
+      resolve(legs);
+    });
+  });
+}
+
+async function requestKoreaRoutes(mode, stops, pairs = [], travelMode = 'DRIVING') {
+  if (!window.itinerarySync?.isConfigured()) return null;
+  try {
+    await window.itinerarySync.authenticate();
+    const getKoreaRoutes = firebase.app().functions('asia-east2').httpsCallable('getKoreaRoutes');
+    const result = await getKoreaRoutes({
+      mode,
+      travelMode,
+      stops: stops.map((activity) => {
+        const cached = state.geocodeCache[`korea:${activity.address || activity.location}`];
+        return {
+          id: activity.id,
+          title: activity.title,
+          location: activity.location,
+          address: activity.address || activity.description || '',
+          city: getCityForDate(activity.date) || state.tripDestination,
+          latitude: Number.isFinite(activity.latitude) ? activity.latitude : cached?.lat,
+          longitude: Number.isFinite(activity.longitude) ? activity.longitude : cached?.lng,
+        };
+      }),
+      pairs,
+    });
+    const data = result.data || null;
+    (data?.stops || []).forEach((stop) => {
+      const activity = stops.find((candidate) => candidate.id === stop.id);
+      if (!activity || !Number.isFinite(stop.latitude) || !Number.isFinite(stop.longitude)) return;
+      state.geocodeCache[`korea:${activity.address || activity.location}`] = {
+        lat: stop.latitude,
+        lng: stop.longitude,
+      };
+      activity.latitude = stop.latitude;
+      activity.longitude = stop.longitude;
+      if (stop.address) {
+        activity.address = stop.address;
+        activity.description = stop.address;
+      }
+    });
+    if (data?.stops?.length) saveState();
+    return data;
+  } catch (error) {
+    console.error('Korea route lookup failed', error);
+    return null;
+  }
+}
+
+async function buildAITravelTimeMatrix(activities) {
+  const mode = routeModeSelect.value || 'DRIVING';
+  const byDate = new Map();
+  activities.forEach((activity) => {
+    if (!byDate.has(activity.date)) byDate.set(activity.date, []);
+    byDate.get(activity.date).push(activity);
+  });
+  const legs = [];
+  for (const dayActivities of byDate.values()) {
+    if (dayActivities.length < 2) continue;
+    if (getMapProviderForDate(dayActivities[0].date) === 'naver') {
+      const result = await requestKoreaRoutes('matrix', dayActivities, [], mode);
+      legs.push(...(Array.isArray(result?.legs) ? result.legs : []));
+      continue;
+    }
+    if (!mapsApiLoaded || !window.google?.maps?.DistanceMatrixService) continue;
+    const chunks = [];
+    for (let index = 0; index < dayActivities.length; index += 10) chunks.push(dayActivities.slice(index, index + 10));
+    for (const origins of chunks) {
+      for (const destinations of chunks) {
+        legs.push(...await requestTravelTimeMatrix(origins, destinations, mode));
+      }
+    }
+  }
+  return legs;
+}
+
 aiPlannerForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   const startDate = aiPlannerStartDate.value;
@@ -1474,6 +2036,7 @@ aiPlannerForm.addEventListener('submit', async (event) => {
     return;
   }
   const currentActivities = state.activities.filter((activity) => activity.id && activity.date && activity.title && activity.location);
+  const plannerMapProvider = isKoreaDestination(aiPlannerDestination.value.trim()) ? 'naver' : 'google';
   clearAIRoutePreview();
   generateAIPlanBtn.disabled = true;
   closeAIPlannerBtn.disabled = true;
@@ -1481,8 +2044,26 @@ aiPlannerForm.addEventListener('submit', async (event) => {
   setAitineraryAskButton(true);
   aiPlannerStatus.textContent = state.language === 'zh' ? 'Aitinerary 正在理解你的要求並選擇合適的操作。' : 'Aitinerary is interpreting your request and choosing the right action.';
   try {
+    if (isSavedPlaceListRequest(aiPlannerPreferences.value)) {
+      aiPlannerStatus.textContent = state.language === 'zh' ? '正在整理附件中的所有地點…' : 'Preparing every place from the attachment…';
+      pendingAIReferencePlaceList = await verifyAttachedReferencePlaces(aiPlannerDestination.value.trim());
+      renderAIReferencePlaceList();
+      aiPlannerStatus.textContent = state.language === 'zh'
+        ? `已列出附件中的全部 ${pendingAIReferencePlaceList.length} 個地點。`
+        : `Listed all ${pendingAIReferencePlaceList.length} places from the attachment.`;
+      return;
+    }
     if (!window.itinerarySync?.isConfigured()) throw new Error('Firebase is not configured');
     await window.itinerarySync.authenticate();
+    const travelTimeLegs = isRouteOptimizationRequest(aiPlannerPreferences.value) && currentActivities.length >= 2
+      ? await buildAITravelTimeMatrix(currentActivities)
+      : [];
+    if (travelTimeLegs.length) {
+      const mapServiceName = plannerMapProvider === 'naver' ? 'Naver-compatible Korea route' : 'Google Maps';
+      aiPlannerStatus.textContent = state.language === 'zh'
+        ? `已比較 ${travelTimeLegs.length} 條${plannerMapProvider === 'naver' ? '韓國地圖' : ' Google Maps'}移動時間，正在優化旅遊體驗…`
+        : `Compared ${travelTimeLegs.length} ${mapServiceName} travel times. Optimizing the travel experience…`;
+    }
     const generateItinerary = firebase.app().functions('asia-east2').httpsCallable('generateItinerary');
     const result = await generateItinerary({
       mode: 'assistant',
@@ -1491,20 +2072,27 @@ aiPlannerForm.addEventListener('submit', async (event) => {
       endDate,
       preferences: aiPlannerPreferences.value.trim(),
       language: state.language || 'en',
+      mapProvider: plannerMapProvider,
       activities: currentActivities,
+      referencePlaces: aiReferencePlaces,
+      travelTimeLegs,
     });
     setAIUsage(result.data?.usage || {});
     const action = result.data?.action || 'create-plan';
     if (action === 'optimize-route') {
       const optimizedActivities = Array.isArray(result.data?.optimizedActivities) ? result.data.optimizedActivities : [];
       if (optimizedActivities.length < 2) throw new Error('No optimized route returned');
-      aiPlannerStatus.textContent = state.language === 'zh' ? '正在用 Google Maps 驗證距離與交通時間。' : 'Verifying distances and travel times with Google Maps.';
+      aiPlannerStatus.textContent = plannerMapProvider === 'naver'
+        ? (state.language === 'zh' ? '正在用韓國地圖驗證距離與交通時間。' : 'Verifying distances and travel times with Korea map data.')
+        : (state.language === 'zh' ? '正在用 Google Maps 驗證距離與交通時間。' : 'Verifying distances and travel times with Google Maps.');
       pendingAIRoutePreview = await buildAIRoutePreview(optimizedActivities);
       renderAIRoutePreview();
       saveAISearchHistory(action);
     } else if (action === 'recommend-activities') {
       const suggestions = Array.isArray(result.data?.recommendedActivities) ? result.data.recommendedActivities : [];
-      aiPlannerStatus.textContent = state.language === 'zh' ? '正在用 Google Maps 驗證推薦地點。' : 'Verifying recommendations with Google Maps.';
+      aiPlannerStatus.textContent = plannerMapProvider === 'naver'
+        ? (state.language === 'zh' ? '正在用韓國地圖驗證推薦地點。' : 'Verifying recommendations with Korea map data.')
+        : (state.language === 'zh' ? '正在用 Google Maps 驗證推薦地點。' : 'Verifying recommendations with Google Maps.');
       const verifiedSuggestions = await verifyAIActivityPlaces(suggestions, aiPlannerDestination.value.trim());
       const existingActivities = currentActivities.map((activity) => ({ ...activity }));
       const taggedSuggestions = verifiedSuggestions.map((activity) => ({ ...activity, _aiSuggestion: true }));
@@ -1521,11 +2109,13 @@ aiPlannerForm.addEventListener('submit', async (event) => {
       saveAISearchHistory(action);
     } else {
       const generatedActivities = Array.isArray(result.data?.activities) ? result.data.activities : [];
-      aiPlannerStatus.textContent = state.language === 'zh' ? '正在用 Google Maps 驗證每個地點。' : 'Verifying every place with Google Maps.';
+      aiPlannerStatus.textContent = plannerMapProvider === 'naver'
+        ? (state.language === 'zh' ? '正在用韓國地圖驗證每個地點。' : 'Verifying every place with Korea map data.')
+        : (state.language === 'zh' ? '正在用 Google Maps 驗證每個地點。' : 'Verifying every place with Google Maps.');
       const verifiedActivities = await verifyAIActivityPlaces(generatedActivities, aiPlannerDestination.value.trim());
       verifyAIDailyMeals(verifiedActivities, startDate, endDate);
       aiPlannerStatus.textContent = state.language === 'zh' ? '正在比較每日移動時間並標示較長路段。' : 'Comparing daily travel times and flagging longer transfers.';
-      const activities = await verifyAIDailyReachability(verifiedActivities, aiPlannerDestination.value.trim());
+      const activities = await verifyAIDailyReachability(verifiedActivities, aiPlannerDestination.value.trim(), false, plannerMapProvider);
       if (!activities.length) throw new Error('No activities returned');
       pendingAICreatePreview = {
         destination: aiPlannerDestination.value.trim(),
@@ -1569,6 +2159,12 @@ activityModalOverlay.addEventListener('click', (e) => {
 function openActivityModal(activity = null) {
   editingActivityId = activity?.id || null;
   currentPlaceAddress = activity?.address || '';
+  currentPlaceId = activity?.placeId || '';
+  currentPlaceCoordinates = Number.isFinite(activity?.latitude) && Number.isFinite(activity?.longitude)
+    ? { lat: activity.latitude, lng: activity.longitude }
+    : null;
+  currentNaverPlaceName = activity?.naverPlaceName || getLegacyNaverSearchName(activity?.naverUrl) || '';
+  currentGoogleReviewCount = Number(activity?.googleReviewCount) || 0;
   shoppingItemsDraft = activity?.shoppingItems ? activity.shoppingItems.map((item) => ({ ...item })) : [];
   activityForm.reset();
   populateExpenseCurrencyOptions(activityExpenseCurrencyInput, getExpenseCurrency(activity?.expense) || getCurrencyForDestination(getCityForDate(activity?.date || getTripDays()[selectedDayIndex])));
@@ -1591,7 +2187,7 @@ function openActivityModal(activity = null) {
     document.getElementById('activityLocation').value = activity.location || '';
     document.getElementById('activityRating').value = activity.rating || '';
     document.getElementById('activityDescription').value = activity.address || activity.description || '';
-    activityMapProviderInput.value = activity.mapProvider || 'google';
+    activityMapProviderInput.value = getMapProviderForDate(activity.date) === 'naver' ? 'naver' : (activity.mapProvider || 'google');
     activityNaverUrlInput.value = activity.naverUrl || '';
     document.getElementById('activityUpfrontPaymentTitle').value = activity.upfrontPaymentTitle || '';
     document.getElementById('activityBookingDetails').value = activity.bookingDetails || '';
@@ -1618,6 +2214,7 @@ function openActivityModal(activity = null) {
     document.getElementById('arrivalGate').value = activity.arrivalGate || '';
   } else if (selectedDate) {
     document.getElementById('activityDate').value = selectedDate;
+    activityMapProviderInput.value = getMapProviderForDate(selectedDate);
   }
   if (!activity) toggleCardFields(activityPaymentMethodInput, activityCardNetworkField, activityCardMarkupField, activityCardRateHint);
   activityModalOverlay.classList.remove('hidden');
@@ -1892,6 +2489,24 @@ function getCityForDate(date) {
     && date >= period.startDate && date <= period.endDate
   ));
   return matchingPeriod?.destination || state.tripDestination || '';
+}
+
+function isKoreaDestination(destination) {
+  const normalized = String(destination || '').toLocaleLowerCase().replace(/[.,]/g, ' ');
+  return /(^|\s)(south korea|republic of korea|korea|kr)(\s|$)/.test(normalized)
+    || /(대한민국|한국|서울|부산|제주|인천|대구|대전|광주|수원|경주|강릉)/.test(normalized)
+    || /(^|\s)(seoul|busan|jeju|incheon|daegu|daejeon|gwangju|suwon|gyeongju|gangneung)(\s|$)/.test(normalized);
+}
+
+function getMapProviderForDate(date) {
+  return isKoreaDestination(getCityForDate(date)) ? 'naver' : 'google';
+}
+
+function getTripMapProvider() {
+  const destinations = state.multipleCities
+    ? state.cities.map((city) => city.destination).filter(Boolean)
+    : [state.tripDestination].filter(Boolean);
+  return destinations.length && destinations.every(isKoreaDestination) ? 'naver' : 'google';
 }
 
 function toISODate(date) {
@@ -2225,6 +2840,87 @@ let activeActivityInfoMarker = null;
 let mapsApiLoaded = false;
 let mapsApiLoading = false;
 let placeAutocomplete = null;
+let activeMapProvider = '';
+let koreaMapResizeObserver = null;
+
+function loadTripMapProvider() {
+  const provider = getTripMapProvider();
+  if (provider === activeMapProvider && (mapsApiLoaded || mapsApiLoading)) return;
+  mapMarkerRenderToken += 1;
+  if (activeMapProvider === 'naver' && typeof map?.remove === 'function') map.remove();
+  koreaMapResizeObserver?.disconnect();
+  koreaMapResizeObserver = null;
+  activeMapProvider = provider;
+  mapsApiLoaded = false;
+  mapsApiLoading = false;
+  map = null;
+  geocoder = null;
+  placesService = null;
+  directionsService = null;
+  tripMapEl.replaceChildren();
+  if (provider === 'naver') {
+    loadKoreaMap();
+  } else {
+    loadGoogleMaps(GOOGLE_MAPS_API_KEY);
+  }
+}
+
+function loadKoreaMap() {
+  if (!window.L) {
+    mapStatus.textContent = state.language === 'zh' ? '無法載入韓國地圖。' : 'The Korea map could not load.';
+    mapStatus.style.display = 'block';
+    return;
+  }
+  mapsApiLoaded = true;
+  mapsApiLoading = false;
+  map = L.map(tripMapEl, { zoomControl: true }).setView([36.5, 127.8], 7);
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap contributors',
+  }).addTo(map);
+  koreaMapResizeObserver = new ResizeObserver((entries) => {
+    const bounds = entries[0]?.contentRect;
+    if (!bounds || bounds.width < 1 || bounds.height < 1 || activeMapProvider !== 'naver') return;
+    map.invalidateSize({ animate: false, pan: false });
+  });
+  koreaMapResizeObserver.observe(tripMapEl);
+  setTimeout(() => {
+    if (activeMapProvider === 'naver' && map) map.invalidateSize({ animate: false, pan: false });
+  }, 250);
+  loadKoreaRatingService();
+  tripMapEl.style.display = 'block';
+  mapStatus.style.display = 'none';
+  updateMapMarkers();
+  renderSpotRouteSelectors(getTripDays());
+  renderDayStrip(getTripDays());
+}
+
+function loadKoreaRatingService() {
+  if (!GOOGLE_MAPS_API_KEY || GOOGLE_MAPS_API_KEY === 'YOUR_GOOGLE_MAPS_API_KEY' || GOOGLE_MAPS_API_KEY.length < 20) return;
+  const initializePlaces = () => {
+    if (!window.google?.maps?.places || activeMapProvider !== 'naver') return;
+    placesService = new google.maps.places.PlacesService(document.createElement('div'));
+    geocoder = new google.maps.Geocoder();
+    directionsService = new google.maps.DirectionsService();
+    if (mapViewMode === 'day') updateKoreaMapMarkers();
+    else if (routeModeSelect.value === 'TRANSIT') requestSuggestedRoute();
+  };
+  if (window.google?.maps?.places) {
+    initializePlaces();
+    return;
+  }
+  const existingScript = document.getElementById('googleMapsApiScript');
+  if (existingScript) {
+    existingScript.addEventListener('load', initializePlaces, { once: true });
+    return;
+  }
+  const script = document.createElement('script');
+  script.id = 'googleMapsApiScript';
+  script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(GOOGLE_MAPS_API_KEY)}&libraries=places,geometry&language=en&region=KR`;
+  script.async = true;
+  script.addEventListener('load', initializePlaces, { once: true });
+  document.head.appendChild(script);
+}
 
 const TRAVEL_MAP_PALETTES = {
   joy: {
@@ -2275,10 +2971,11 @@ function loadGoogleMaps(apiKey) {
     mapsApiLoading = false;
     mapStatus.textContent = 'Google Maps rejected this API key. Check billing, HTTP referrer restrictions, Maps JavaScript API, and Places API.';
     mapStatus.style.display = 'block';
-    placeLookupStatus.textContent = 'Google Places is unavailable because the API key was rejected.';
+    placeLookupStatus.textContent = 'Google Places is unavailable because the API key was rejected. You can still edit the location and address manually.';
   };
 
   window.__initTripMap = () => {
+    if (activeMapProvider !== 'google') return;
     mapsApiLoaded = true;
     mapsApiLoading = false;
     map = new google.maps.Map(tripMapEl, {
@@ -2304,7 +3001,19 @@ function loadGoogleMaps(apiKey) {
     if (activityLocationInput.value.trim()) lookupPlaceDetails();
   };
 
+  if (window.google?.maps) {
+    window.__initTripMap();
+    return;
+  }
+
+  const existingScript = document.getElementById('googleMapsApiScript');
+  if (existingScript) {
+    existingScript.addEventListener('load', window.__initTripMap, { once: true });
+    return;
+  }
+
   const script = document.createElement('script');
+  script.id = 'googleMapsApiScript';
   script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&libraries=places,geometry&callback=__initTripMap`;
   script.async = true;
   script.onerror = () => {
@@ -2319,16 +3028,27 @@ function loadGoogleMaps(apiKey) {
 function setupPlaceAutocomplete() {
   if (placeAutocomplete || !window.google?.maps?.places?.Autocomplete) return;
   placeAutocomplete = new google.maps.places.Autocomplete(activityLocationInput, {
-    fields: ['name', 'formatted_address', 'rating', 'editorial_summary', 'place_id', 'formatted_phone_number', 'international_phone_number'],
+    fields: ['name', 'formatted_address', 'rating', 'user_ratings_total', 'editorial_summary', 'place_id', 'types', 'geometry', 'formatted_phone_number', 'international_phone_number'],
     types: ['establishment', 'geocode'],
   });
   placeAutocomplete.addListener('place_changed', () => {
     const place = placeAutocomplete.getPlace();
     if (!place || !place.name) return;
+    clearTimeout(placeLookupTimer);
+    placeLookupRequestId += 1;
     activityLocationInput.value = place.name;
     currentPlaceAddress = place.formatted_address || '';
+    currentPlaceId = place.place_id || '';
+    currentPlaceCoordinates = place.geometry?.location
+      ? { lat: place.geometry.location.lat(), lng: place.geometry.location.lng() }
+      : null;
+    currentGoogleReviewCount = Number(place.user_ratings_total) || 0;
     activityRatingInput.value = place.rating || '';
     activityDescriptionInput.value = place.formatted_address || '';
+    activityCategoryInput.value = inferActivityCategory(place.types, activityCategoryInput.value || 'other');
+    toggleFlightDetails(activityCategoryInput.value);
+    toggleShoppingDetails(activityCategoryInput.value);
+    toggleBookingDetails(activityCategoryInput.value);
     document.getElementById('activityContactDetails').value = place.international_phone_number || place.formatted_phone_number || '';
     placeLookupStatus.textContent = '';
   });
@@ -2336,33 +3056,42 @@ function setupPlaceAutocomplete() {
 
 // Looks up rating and a short description for the entered location via Google Places and fills the read-only fields.
 let placeLookupTimer = null;
+let placeLookupRequestId = 0;
 function lookupPlaceDetails() {
   const location = activityLocationInput.value.trim();
-  activityRatingInput.value = '';
-  activityDescriptionInput.value = '';
-  currentPlaceAddress = '';
+  const requestId = ++placeLookupRequestId;
 
   if (!location) {
+    activityRatingInput.value = '';
+    activityDescriptionInput.value = '';
+    currentPlaceAddress = '';
     placeLookupStatus.textContent = 'Rating and description auto-fill from Google Places once you enter a location (requires a Maps API key with Places enabled).';
+    return;
+  }
+
+  const activityDate = document.getElementById('activityDate').value;
+  if (getMapProviderForDate(activityDate) === 'naver') {
+    lookupKoreaPlaceDetails(location, requestId, activityDate);
     return;
   }
 
   if (!mapsApiLoaded || !placesService) {
     placeLookupStatus.textContent = GOOGLE_MAPS_API_KEY && GOOGLE_MAPS_API_KEY !== 'YOUR_GOOGLE_MAPS_API_KEY'
-      ? 'Google Places is still loading. Check that Maps JavaScript API and Places API are enabled for this key.'
-      : 'Set GOOGLE_MAPS_API_KEY in js/app.js to auto-fill rating and description from Google Places.';
+      ? 'Google Places is unavailable. Your manual location, rating, and address will still be saved.'
+      : 'Google Places is not configured. Your manual location, rating, and address will still be saved.';
     return;
   }
 
-  const queryCity = getCityForDate(document.getElementById('activityDate').value);
+  const queryCity = getCityForDate(activityDate);
   const query = queryCity ? `${location}, ${queryCity}` : location;
   placeLookupStatus.textContent = 'Looking up place details…';
 
   placesService.findPlaceFromQuery(
     { query, fields: ['place_id', 'name', 'formatted_address'] },
     (results, status) => {
+      if (requestId !== placeLookupRequestId || activityLocationInput.value.trim() !== location) return;
       if (status === 'REQUEST_DENIED') {
-        placeLookupStatus.textContent = 'Google Places access was denied. Enable Places API (legacy) or Places API (New), enable billing, and allow this site in the key HTTP referrers.';
+        placeLookupStatus.textContent = 'Google Places access was denied. Your manual location, rating, and address will still be saved.';
         return;
       }
       if (status === 'OVER_QUERY_LIMIT') {
@@ -2383,8 +3112,9 @@ function lookupPlaceDetails() {
       });
 
       placesService.getDetails(
-        { placeId: results[0].place_id, fields: ['name', 'rating', 'editorial_summary', 'types', 'formatted_address', 'formatted_phone_number', 'international_phone_number'] },
+        { placeId: results[0].place_id, fields: ['name', 'rating', 'user_ratings_total', 'editorial_summary', 'types', 'geometry', 'formatted_address', 'formatted_phone_number', 'international_phone_number'] },
         (place, detailsStatus) => {
+          if (requestId !== placeLookupRequestId || activityLocationInput.value.trim() !== location) return;
           if (detailsStatus === 'REQUEST_DENIED') {
             placeLookupStatus.textContent = 'Google Places details were denied. Enable Places API and check this key\'s restrictions.';
             return;
@@ -2396,7 +3126,16 @@ function lookupPlaceDetails() {
 
           activityRatingInput.value = place.rating || '';
           currentPlaceAddress = place.formatted_address || results[0].formatted_address || '';
+          currentPlaceId = results[0].place_id || '';
+          currentPlaceCoordinates = place.geometry?.location
+            ? { lat: place.geometry.location.lat(), lng: place.geometry.location.lng() }
+            : null;
+          currentGoogleReviewCount = Number(place.user_ratings_total) || 0;
           activityDescriptionInput.value = place.formatted_address || results[0].formatted_address || '';
+          activityCategoryInput.value = inferActivityCategory(place.types, activityCategoryInput.value || 'other');
+          toggleFlightDetails(activityCategoryInput.value);
+          toggleShoppingDetails(activityCategoryInput.value);
+          toggleBookingDetails(activityCategoryInput.value);
           document.getElementById('activityContactDetails').value = place.international_phone_number || place.formatted_phone_number || '';
           placeLookupStatus.textContent = '';
         }
@@ -2405,8 +3144,100 @@ function lookupPlaceDetails() {
   );
 }
 
+async function lookupKoreaPlaceDetails(location, requestId, activityDate) {
+  if (!window.itinerarySync?.isConfigured()) {
+    placeLookupStatus.textContent = state.language === 'zh' ? '韓國地點搜尋需要 Firebase 設定；仍可手動輸入地址。' : 'Korea place search requires Firebase setup. You can still enter the address manually.';
+    return;
+  }
+  const city = getCityForDate(activityDate);
+  placeLookupStatus.textContent = state.language === 'zh' ? '正在 OpenStreetMap 搜尋韓國地點…' : 'Searching Korea places with OpenStreetMap…';
+  try {
+    await window.itinerarySync.authenticate();
+    const searchKoreaPlaces = firebase.app().functions('asia-east2').httpsCallable('searchKoreaPlaces');
+    const result = await searchKoreaPlaces({ query: [location, city].filter(Boolean).join(' ') });
+    if (requestId !== placeLookupRequestId || activityLocationInput.value.trim() !== location) return;
+    const places = Array.isArray(result.data?.places) ? result.data.places : [];
+    locationSuggestions.innerHTML = '';
+    places.forEach((place) => {
+      const option = document.createElement('option');
+      option.value = place.name;
+      option.label = place.address;
+      locationSuggestions.appendChild(option);
+    });
+    const place = places[0];
+    if (!place) {
+      placeLookupStatus.textContent = state.language === 'zh' ? 'OpenStreetMap 找不到相符地點，請嘗試韓文名稱或道路地址。' : 'No OpenStreetMap match found. Try the Korean name or road address.';
+      return;
+    }
+    currentPlaceAddress = place.address || '';
+    currentPlaceId = '';
+    currentNaverPlaceName = place.naverPlaceName || place.name || '';
+    currentPlaceCoordinates = Number.isFinite(place.latitude) && Number.isFinite(place.longitude)
+      ? { lat: place.latitude, lng: place.longitude }
+      : null;
+    currentGoogleReviewCount = 0;
+    activityDescriptionInput.value = place.address || '';
+    activityNaverUrlInput.value = place.naverUrl || '';
+    if (Number.isFinite(place.latitude) && Number.isFinite(place.longitude)) {
+      state.geocodeCache[`korea:${place.address || location}`] = { lat: place.latitude, lng: place.longitude };
+      saveState();
+    }
+    activityCategoryInput.value = inferActivityCategory(place.category, activityCategoryInput.value || 'other');
+    toggleFlightDetails(activityCategoryInput.value);
+    toggleShoppingDetails(activityCategoryInput.value);
+    toggleBookingDetails(activityCategoryInput.value);
+    const ratingAdded = await enrichKoreaPlaceRating(place, location, requestId);
+    if (requestId !== placeLookupRequestId || activityLocationInput.value.trim() !== location) return;
+    placeLookupStatus.textContent = state.language === 'zh'
+      ? ratingAdded
+        ? '已使用韓文正式地址定位，並從 Google Places 補上評分。'
+        : '已使用 OpenStreetMap 的韓文正式地址；目前沒有可用評分。'
+      : ratingAdded
+        ? 'Matched with the official Korean address and added the Google Places rating.'
+        : 'Matched with the official Korean address. No rating is currently available.';
+  } catch (error) {
+    if (requestId !== placeLookupRequestId) return;
+    placeLookupStatus.textContent = state.language === 'zh' ? '韓國地點搜尋暫時無法使用，仍可手動輸入地址。' : 'Korea place search is temporarily unavailable. You can still enter the address manually.';
+  }
+}
+
+function enrichKoreaPlaceRating(place, enteredLocation, requestId) {
+  if (!placesService || !window.google?.maps?.places) return Promise.resolve(false);
+  const query = [place.name, place.address].filter(Boolean).join(', ');
+  return new Promise((resolve) => {
+    placesService.findPlaceFromQuery({
+      query,
+      fields: ['place_id', 'name', 'rating', 'user_ratings_total', 'types'],
+    }, (results, status) => {
+      if (requestId !== placeLookupRequestId || activityLocationInput.value.trim() !== enteredLocation) {
+        resolve(false);
+        return;
+      }
+      const googlePlace = status === google.maps.places.PlacesServiceStatus.OK ? results?.[0] : null;
+      if (!googlePlace || !Number.isFinite(Number(googlePlace.rating))) {
+        resolve(false);
+        return;
+      }
+      activityRatingInput.value = Number(googlePlace.rating).toFixed(1);
+      currentPlaceId = googlePlace.place_id || '';
+      currentGoogleReviewCount = Number(googlePlace.user_ratings_total) || 0;
+      activityCategoryInput.value = inferActivityCategory(googlePlace.types, activityCategoryInput.value || 'other');
+      toggleFlightDetails(activityCategoryInput.value);
+      toggleShoppingDetails(activityCategoryInput.value);
+      toggleBookingDetails(activityCategoryInput.value);
+      resolve(true);
+    });
+  });
+}
+
 activityLocationInput.addEventListener('input', () => {
   clearTimeout(placeLookupTimer);
+  placeLookupRequestId += 1;
+  currentPlaceAddress = '';
+  currentPlaceId = '';
+  currentPlaceCoordinates = null;
+  currentNaverPlaceName = '';
+  currentGoogleReviewCount = 0;
   placeLookupTimer = setTimeout(lookupPlaceDetails, 600);
 });
 
@@ -2416,6 +3247,12 @@ document.getElementById('activityDate').addEventListener('change', (event) => {
 
 
 function clearMarkers() {
+  if (activeMapProvider === 'naver') {
+    markers.forEach((marker) => marker.remove());
+    markers = [];
+    activeActivityInfoMarker = null;
+    return;
+  }
   if (activityInfoWindow) activityInfoWindow.close();
   activeActivityInfoMarker = null;
   markers.forEach((marker) => marker.setMap(null));
@@ -2478,6 +3315,15 @@ function openMapSpotDetails(marker, activity) {
 }
 
 function placeMarker(position, color, activity, dayIndex) {
+  if (activeMapProvider === 'naver') {
+    const marker = L.circleMarker([position.lat, position.lng], {
+      radius: 9, fillColor: color, fillOpacity: 1, color: '#fff', weight: 2,
+    }).addTo(map);
+    marker.bindPopup(createMapSpotDetails(activity));
+    marker.bindTooltip(`Day ${dayIndex + 1} · ${activity.title}`);
+    markers.push(marker);
+    return;
+  }
   const marker = new google.maps.Marker({
     position,
     map,
@@ -2502,18 +3348,22 @@ function placeMarker(position, color, activity, dayIndex) {
 }
 
 function updateMapMarkers() {
+  if (activeMapProvider === 'naver') {
+    updateKoreaMapMarkers();
+    return;
+  }
   if (!map || !geocoder) return;
   clearMarkers();
-  const renderToken = ++mapRenderToken;
+  const renderToken = ++mapMarkerRenderToken;
 
   const days = getTripDays();
-  const selectedDate = days[selectedDayIndex];
-  const locatable = state.activities.filter((a) => a.location && a.date === selectedDate);
+  const validDates = new Set(days);
+  const locatable = state.activities.filter((activity) => activity.location && validDates.has(activity.date));
 
   if (!locatable.length) {
     mapStatus.textContent = state.language === 'zh'
-      ? '這一天尚未新增地點。'
-      : 'Add a location to this day to see its pin here.';
+      ? '此行程尚未新增地點。'
+      : 'Add locations to your trip to see their pins here.';
     mapStatus.style.display = 'block';
     return;
   }
@@ -2532,12 +3382,12 @@ function updateMapMarkers() {
     if (cached) {
       placeMarker(cached, color, activity, dayIndex);
       bounds.extend(cached);
-      map.fitBounds(bounds);
+      if (mapViewMode === 'day') map.fitBounds(bounds);
       return;
     }
 
     geocoder.geocode({ address: query }, (results, status) => {
-      if (mapViewMode !== 'day' || renderToken !== mapRenderToken) return;
+      if (renderToken !== mapMarkerRenderToken || activeMapProvider !== 'google') return;
       if (status === 'OK' && results[0]) {
         const loc = results[0].geometry.location;
         const coords = { lat: loc.lat(), lng: loc.lng() };
@@ -2545,12 +3395,117 @@ function updateMapMarkers() {
         saveState();
         placeMarker(coords, color, activity, dayIndex);
         bounds.extend(coords);
-        map.fitBounds(bounds);
+        if (mapViewMode === 'day') map.fitBounds(bounds);
       } else {
         failedCount += 1;
         mapStatus.textContent = `Could not locate "${query}" (${status}). Make sure the Geocoding API is enabled for your Maps key.`;
         mapStatus.style.display = 'block';
       }
+    });
+  });
+}
+
+async function updateKoreaMapMarkers() {
+  if (!map || !window.L) return;
+  clearMarkers();
+  const renderToken = ++mapRenderToken;
+  const days = getTripDays();
+  const selectedDate = days[selectedDayIndex];
+  const locatable = state.activities.filter((activity) => activity.location && activity.date === selectedDate);
+  if (!locatable.length) {
+    mapStatus.textContent = state.language === 'zh' ? '這一天尚未新增地點。' : 'Add a location to this day to see its pin here.';
+    mapStatus.style.display = 'block';
+    return;
+  }
+  mapStatus.style.display = 'none';
+  const bounds = L.latLngBounds([]);
+  let searchKoreaPlaces = null;
+  if (window.itinerarySync?.isConfigured()) {
+    try {
+      await window.itinerarySync.authenticate();
+      searchKoreaPlaces = firebase.app().functions('asia-east2').httpsCallable('searchKoreaPlaces');
+    } catch (error) {
+      console.error('Korea map authentication failed', error);
+    }
+  }
+  for (const activity of locatable) {
+    if (mapViewMode !== 'day' || renderToken !== mapRenderToken) return;
+    const dayIndex = days.indexOf(activity.date);
+    const cacheKey = `korea:${activity.address || activity.location}`;
+    const activityCoordinates = Number.isFinite(activity.latitude) && Number.isFinite(activity.longitude)
+      ? { lat: activity.latitude, lng: activity.longitude }
+      : null;
+    let cached = activityCoordinates || state.geocodeCache[cacheKey];
+    const needsGoogleVerification = placesService && activity.koreaCoordinateSource !== 'google-places';
+    if (!cached || !activity.naverPlaceName || needsGoogleVerification) {
+      try {
+        const city = getCityForDate(activity.date);
+        const googleQuery = [activity.location || activity.naverPlaceName, city].filter(Boolean).join(' ');
+        const googlePlace = needsGoogleVerification ? await findGoogleKoreaPlace(googleQuery) : null;
+        const googleLocation = googlePlace?.geometry?.location;
+        let place = null;
+        if (googleLocation) {
+          place = {
+            latitude: googleLocation.lat(),
+            longitude: googleLocation.lng(),
+            address: googlePlace.formatted_address || activity.address || '',
+            name: googlePlace.name || activity.location,
+            naverPlaceName: googlePlace.name || activity.naverPlaceName || activity.location,
+          };
+          activity.placeId = googlePlace.place_id || activity.placeId || '';
+          activity.rating = Number(googlePlace.rating) || activity.rating || '';
+          activity.googleReviewCount = Number(googlePlace.user_ratings_total) || activity.googleReviewCount || 0;
+          activity.category = inferActivityCategory(googlePlace.types, activity.category || 'other');
+          activity.koreaCoordinateSource = 'google-places';
+        } else if (searchKoreaPlaces) {
+          const query = [activity.address || activity.location, activity.title, city].filter(Boolean).join(' ');
+          const result = await searchKoreaPlaces({ query });
+          place = result.data?.places?.[0];
+          if (place) activity.koreaCoordinateSource = 'nominatim';
+        }
+        if (Number.isFinite(place?.latitude) && Number.isFinite(place?.longitude)) {
+          cached = { lat: place.latitude, lng: place.longitude };
+          state.geocodeCache[cacheKey] = cached;
+          activity.latitude = place.latitude;
+          activity.longitude = place.longitude;
+          if (place.address) {
+            activity.address = place.address;
+            activity.description = place.address;
+            state.geocodeCache[`korea:${place.address}`] = cached;
+          }
+          if (place.naverPlaceName || place.name) activity.naverPlaceName = place.naverPlaceName || place.name;
+          if (!activity.naverUrl && place.naverUrl) activity.naverUrl = place.naverUrl;
+          saveState();
+        }
+      } catch (error) {
+        console.error('Korea map geocoding failed', error);
+      }
+    }
+    if (mapViewMode !== 'day' || renderToken !== mapRenderToken) return;
+    if (cached) {
+      placeMarker(cached, getDayColor(dayIndex), activity, dayIndex);
+      bounds.extend([cached.lat, cached.lng]);
+    }
+  }
+  if (bounds.isValid()) map.fitBounds(bounds, { padding: [40, 40] });
+  else {
+    mapStatus.textContent = state.language === 'zh' ? '無法從地點名稱定位。請加入城市或更完整的地點名稱。' : 'Could not locate these place names. Add the city or a more complete place name.';
+    mapStatus.style.display = 'block';
+  }
+}
+
+function findGoogleKoreaPlace(query) {
+  if (!placesService || !window.google?.maps?.places) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    placesService.textSearch({ query }, (results, status) => {
+      if (status !== google.maps.places.PlacesServiceStatus.OK || !results?.length) {
+        resolve(null);
+        return;
+      }
+      const nonAdministrative = results.find((place) => !(place.types || []).every((type) => [
+        'locality', 'political', 'administrative_area_level_1', 'administrative_area_level_2', 'country',
+      ].includes(type)));
+      resolve(nonAdministrative || results[0]);
     });
   });
 }
@@ -2561,6 +3516,90 @@ let suggestedPolyline = null;
 let currentSuggestedRoute = null;
 let mapViewMode = 'day';
 let mapRenderToken = 0;
+let mapMarkerRenderToken = 0;
+
+function getRouteModeStyle(mode) {
+  const themeStyles = getComputedStyle(document.documentElement);
+  const themeAccent = themeStyles.getPropertyValue('--theme-accent').trim() || '#2f69c7';
+  const themeAccentSoft = themeStyles.getPropertyValue('--theme-accent-soft').trim() || '#cce9ff';
+  return {
+    DRIVING: { color: themeAccent, casingColor: themeAccentSoft, opacity: 0.96, weight: 6 },
+    WALKING: { color: '#23875a', casingColor: '#d8f3e5', opacity: 0.95, weight: 5, dashArray: '4 8' },
+    BICYCLING: { color: '#d17818', casingColor: '#ffedcf', opacity: 0.95, weight: 5, dashArray: '12 7' },
+    TRANSIT: { color: '#2867d8', casingColor: '#dce8ff', opacity: 0.95, weight: 6 },
+  }[mode] || { color: themeAccent, casingColor: themeAccentSoft, opacity: 0.96, weight: 6 };
+}
+
+function addStyledRouteLine(layer, path, mode, color = '') {
+  const style = getRouteModeStyle(mode);
+  const lineColor = color || style.color;
+  L.polyline(path, {
+    color: style.casingColor,
+    opacity: 0.9,
+    weight: style.weight + 5,
+    lineCap: 'round',
+    lineJoin: 'round',
+    dashArray: style.dashArray,
+  }).addTo(layer);
+  return L.polyline(path, {
+    color: lineColor,
+    opacity: style.opacity,
+    weight: style.weight,
+    lineCap: 'round',
+    lineJoin: 'round',
+    dashArray: style.dashArray,
+  }).addTo(layer);
+}
+
+function addRouteSummaryLabel(layer, path, mode, distance, duration) {
+  if (!layer || !Array.isArray(path) || path.length < 2) return;
+  const modeLabels = state.language === 'zh'
+    ? { DRIVING: '駕車', WALKING: '步行', BICYCLING: '自行車' }
+    : { DRIVING: 'Car', WALKING: 'Walk', BICYCLING: 'Bicycle' };
+  const content = document.createElement('div');
+  content.className = 'route-map-summary';
+  const heading = document.createElement('div');
+  heading.className = 'route-map-summary-heading';
+  const modeDot = document.createElement('span');
+  modeDot.className = 'route-map-summary-dot';
+  const modeLabel = document.createElement('strong');
+  modeLabel.textContent = modeLabels[mode] || mode;
+  heading.append(modeDot, modeLabel);
+  const metrics = document.createElement('div');
+  metrics.className = 'route-map-summary-metrics';
+  [[state.language === 'zh' ? '距離' : 'Distance', distance], [state.language === 'zh' ? '時間' : 'ETA', duration]].forEach(([label, value]) => {
+    const metric = document.createElement('span');
+    const metricLabel = document.createElement('small');
+    metricLabel.textContent = label;
+    const metricValue = document.createElement('b');
+    metricValue.textContent = value;
+    metric.append(metricLabel, metricValue);
+    metrics.appendChild(metric);
+  });
+  content.append(heading, metrics);
+  L.tooltip({
+    permanent: true,
+    direction: 'top',
+    offset: [0, -8],
+    className: `route-map-summary-label is-${mode.toLowerCase()}`,
+  })
+    .setLatLng(path[Math.floor(path.length / 2)])
+    .setContent(content)
+    .addTo(layer);
+}
+
+function addRouteEndpointMarkers(layer, start, end) {
+  if (!window.L || !layer || !start || !end) return;
+  const createIcon = (label, className) => L.divIcon({
+    className: `route-endpoint-marker ${className}`,
+    html: `<span><b>${label}</b></span>`,
+    iconSize: [36, 36],
+    iconAnchor: [18, 18],
+    tooltipAnchor: [0, -22],
+  });
+  L.marker([start.lat, start.lng], { icon: createIcon('A', 'is-start'), zIndexOffset: 1200 }).addTo(layer);
+  L.marker([end.lat, end.lng], { icon: createIcon('B', 'is-end'), zIndexOffset: 1200 }).addTo(layer);
+}
 
 function clearSuggestedRouteDisplay() {
   if (suggestedRouteRenderer) suggestedRouteRenderer.setMap(null);
@@ -2603,17 +3642,21 @@ function renderSpotRouteSelectors(days) {
 }
 
 function requestSuggestedRoute() {
-  if (!directionsService || !spotASelect.value || !spotBSelect.value || spotASelect.value === spotBSelect.value) return;
+  if (!spotASelect.value || !spotBSelect.value || spotASelect.value === spotBSelect.value) return;
   const from = state.activities.find((activity) => activity.id === spotASelect.value);
   const to = state.activities.find((activity) => activity.id === spotBSelect.value);
   if (!from || !to) return;
+  if (getMapProviderForDate(from.date) === 'naver') {
+    requestKoreaSuggestedRoute(from, to);
+    return;
+  }
+  if (!directionsService) return;
   const city = getCityForDate(from.date);
   const origin = city ? `${from.location}, ${city}` : from.location;
   const destination = city ? `${to.location}, ${city}` : to.location;
   const mode = routeModeSelect.value;
   mapViewMode = 'route';
   const routeToken = ++mapRenderToken;
-  clearMarkers();
   clearSuggestedRouteDisplay();
   spotRouteStatus.textContent = state.language === 'zh' ? '規劃中…' : 'Planning…';
   spotRouteResult.textContent = '';
@@ -2632,12 +3675,12 @@ function requestSuggestedRoute() {
       return;
     }
     if (!suggestedRouteRenderer) {
-      suggestedRouteRenderer = new google.maps.DirectionsRenderer({ suppressMarkers: false, preserveViewport: false });
+      suggestedRouteRenderer = new google.maps.DirectionsRenderer({ suppressMarkers: true, preserveViewport: true });
     }
     suggestedRouteRenderer.setMap(map);
     clearSuggestedGeometry();
     suggestedRouteRenderer.setDirections(result);
-    map.fitBounds(result.routes[0].bounds);
+    focusGoogleRoute(result.routes[0].bounds);
     const leg = result.routes[0].legs[0];
     const transitDetails = getTransitRouteDetails(leg, result.routes[0]);
     spotRouteStatus.textContent = state.language === 'zh' ? '建議路線' : 'Suggested route';
@@ -2646,6 +3689,190 @@ function requestSuggestedRoute() {
     currentSuggestedRoute = buildSuggestedRoute(from, to, mode, leg.distance.text, leg.duration.text, false, leg.start_location, leg.end_location, transitDetails);
     saveSuggestedRouteBtn.disabled = false;
   });
+}
+
+async function requestKoreaSuggestedRoute(from, to) {
+  const travelMode = routeModeSelect.value || 'DRIVING';
+  const modeLabels = state.language === 'zh'
+    ? { DRIVING: '駕車', WALKING: '步行', BICYCLING: '自行車', TRANSIT: '大眾運輸' }
+    : { DRIVING: 'driving', WALKING: 'walking', BICYCLING: 'cycling', TRANSIT: 'transit' };
+  const modeLabel = modeLabels[travelMode] || modeLabels.DRIVING;
+  mapViewMode = 'route';
+  const routeToken = ++mapRenderToken;
+  clearSuggestedRouteDisplay();
+  spotRouteStatus.textContent = state.language === 'zh'
+    ? `正在規劃${modeLabel}路線…`
+    : `Planning a ${modeLabel} route…`;
+  spotRouteResult.textContent = '';
+  spotFareGrid.innerHTML = '';
+  currentSuggestedRoute = null;
+  saveSuggestedRouteBtn.disabled = true;
+  const fallbackRoutePromise = requestKoreaRoutes(
+    'legs', [from, to], [{ fromId: from.id, toId: to.id }], travelMode,
+  );
+  if (travelMode === 'TRANSIT' && directionsService) {
+    const city = getCityForDate(from.date);
+    const origin = from.address || (city ? `${from.location}, ${city}` : from.location);
+    const destination = to.address || (city ? `${to.location}, ${city}` : to.location);
+    const departureTime = new Date(`${from.date}T${from.time || '09:00'}:00`);
+    const transitResult = await new Promise((resolve) => {
+      let settled = false;
+      const timeout = setTimeout(() => {
+        settled = true;
+        resolve(null);
+      }, 6000);
+      directionsService.route({
+        origin,
+        destination,
+        travelMode: google.maps.TravelMode.TRANSIT,
+        transitOptions: { departureTime: departureTime > new Date() ? departureTime : new Date() },
+      }, (result, status) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        resolve(status === 'OK' && result?.routes?.length ? result : null);
+      });
+    });
+    if (mapViewMode !== 'route' || routeToken !== mapRenderToken) return;
+    if (transitResult) {
+      const route = transitResult.routes[0];
+      const routeLeg = route.legs[0];
+      const transitDetails = getTransitRouteDetails(routeLeg, route);
+      suggestedPolyline = L.featureGroup().addTo(map);
+      const transitBounds = L.latLngBounds([]);
+      const routeStart = { lat: routeLeg.start_location.lat(), lng: routeLeg.start_location.lng() };
+      const routeEnd = { lat: routeLeg.end_location.lat(), lng: routeLeg.end_location.lng() };
+      addRouteEndpointMarkers(suggestedPolyline, routeStart, routeEnd);
+      routeLeg.steps.forEach((step) => {
+        const path = (step.path || []).map((position) => [position.lat(), position.lng()]);
+        if (path.length < 2) return;
+        const transitColor = step.transit?.line?.color || getRouteModeStyle('TRANSIT').color;
+        const segmentLine = addStyledRouteLine(
+          suggestedPolyline,
+          path,
+          step.transit ? 'TRANSIT' : 'WALKING',
+          step.transit ? transitColor : '',
+        );
+        const line = step.transit?.line || {};
+        const service = step.transit
+          ? (line.short_name || line.name || line.vehicle?.name || 'Transit')
+          : (state.language === 'zh' ? '步行' : 'Walk');
+        const segmentDetails = [service, step.distance?.text, step.duration?.text].filter(Boolean).join(' · ');
+        segmentLine.bindTooltip(segmentDetails, {
+          permanent: true,
+          direction: 'center',
+          className: step.transit ? 'transit-map-line-label' : 'walking-map-line-label',
+        });
+        path.forEach((position) => transitBounds.extend(position));
+        if (!step.transit) return;
+        const departure = step.transit.departure_stop?.location;
+        const arrival = step.transit.arrival_stop?.location;
+        if (departure) {
+          L.circleMarker([departure.lat(), departure.lng()], {
+            radius: 6, color: '#fff', weight: 2, fillColor: transitColor, fillOpacity: 1,
+          }).bindTooltip(step.transit.departure_stop.name || 'Board').addTo(suggestedPolyline);
+        }
+        if (arrival) {
+          L.circleMarker([arrival.lat(), arrival.lng()], {
+            radius: 6, color: transitColor, weight: 3, fillColor: '#fff', fillOpacity: 1,
+          }).bindTooltip(step.transit.arrival_stop.name || 'Exit').addTo(suggestedPolyline);
+        }
+      });
+      if (transitBounds.isValid()) map.fitBounds(transitBounds, { padding: [40, 40] });
+      spotRouteStatus.textContent = state.language === 'zh' ? '建議大眾運輸路線' : 'Suggested public transport route';
+      spotRouteResult.textContent = `${routeLeg.distance.text} · ${routeLeg.duration.text}`;
+      renderFareEstimates(Number(routeLeg.distance.value) || 0, routeLeg.duration.text, false, transitDetails);
+      currentSuggestedRoute = buildSuggestedRoute(
+        from, to, travelMode, routeLeg.distance.text, routeLeg.duration.text, false,
+        routeLeg.start_location, routeLeg.end_location, transitDetails,
+      );
+      currentSuggestedRoute.routeProvider = 'google';
+      saveSuggestedRouteBtn.disabled = false;
+      return;
+    }
+    spotRouteStatus.textContent = state.language === 'zh'
+      ? '找不到即時大眾運輸資料，改用估算時間。'
+      : 'Live transit details unavailable; showing an estimate.';
+  }
+  const result = await Promise.race([
+    fallbackRoutePromise,
+    new Promise((resolve) => setTimeout(() => resolve(null), travelMode === 'TRANSIT' && directionsService ? 2000 : 6000)),
+  ]);
+  if (mapViewMode !== 'route' || routeToken !== mapRenderToken) return;
+  const leg = result?.legs?.[0];
+  if (!leg) {
+    const unresolved = new Set(result?.unresolvedStopIds || []);
+    if (unresolved.size) {
+      const names = [from, to].filter((activity) => unresolved.has(activity.id)).map((activity) => activity.location).join(', ');
+      spotRouteStatus.textContent = state.language === 'zh'
+        ? `無法定位：${names}。請加入城市或更完整的地點名稱。`
+        : `Could not locate: ${names}. Add the city or a more complete place name.`;
+    } else {
+      spotRouteStatus.textContent = state.language === 'zh'
+        ? `兩個地點之間沒有可用的${modeLabel}路線。`
+        : `No ${modeLabel} route is available between these places.`;
+    }
+    mapViewMode = 'day';
+    updateKoreaMapMarkers();
+    return;
+  }
+  const distance = `${(leg.distanceMeters / 1000).toFixed(1)} km`;
+  const estimatedDurationMinutes = {
+    WALKING: Math.max(1, Math.round(leg.distanceMeters / 80)),
+    BICYCLING: Math.max(1, Math.round(leg.distanceMeters / 250)),
+    TRANSIT: Math.max(1, Math.round(leg.distanceMeters / 420) + 8),
+  }[travelMode];
+  const duration = `${estimatedDurationMinutes || leg.durationMinutes} min`;
+  const isEstimated = travelMode !== 'DRIVING';
+  const stopById = new Map((result.stops || []).map((stop) => [stop.id, stop]));
+  const fromStop = stopById.get(from.id);
+  const toStop = stopById.get(to.id);
+  const fallbackTransitDetails = travelMode === 'TRANSIT'
+    ? {
+        unavailable: true,
+        externalUrl: fromStop && toStop
+          ? `https://map.naver.com/p/directions/${fromStop.longitude},${fromStop.latitude},${encodeURIComponent(fromStop.address || from.address || from.location)}/${toStop.longitude},${toStop.latitude},${encodeURIComponent(toStop.address || to.address || to.location)}/-/publictransit`
+          : `https://map.naver.com/p/search/${encodeURIComponent(to.address || to.location)}`,
+      }
+    : null;
+  spotRouteStatus.textContent = isEstimated
+    ? (travelMode === 'TRANSIT'
+        ? (state.language === 'zh' ? '沒有可驗證的大眾運輸班次' : 'No verified public transport service')
+        : (state.language === 'zh' ? `${modeLabel}路徑與時間為估算值` : `Estimated ${modeLabel} path and time`))
+    : (state.language === 'zh' ? `建議${modeLabel}路線` : `Suggested ${modeLabel} route`);
+  spotRouteResult.textContent = fallbackTransitDetails
+    ? (state.language === 'zh' ? '請在 Naver Maps 查看即時班次' : 'Check live service in Naver Maps')
+    : `${modeLabel} · ${distance} · ${duration}`;
+  renderFareEstimates(leg.distanceMeters, duration, false, fallbackTransitDetails);
+  currentSuggestedRoute = buildSuggestedRoute(from, to, travelMode, distance, duration, isEstimated, null, null, fallbackTransitDetails);
+  currentSuggestedRoute.routeProvider = 'osrm';
+  if (fromStop && toStop) {
+    currentSuggestedRoute.fromCoordinates = { lat: fromStop.latitude, lng: fromStop.longitude };
+    currentSuggestedRoute.toCoordinates = { lat: toStop.latitude, lng: toStop.longitude };
+  }
+  if (activeMapProvider === 'naver' && map && Array.isArray(leg.path) && leg.path.length > 1) {
+    suggestedPolyline = L.featureGroup().addTo(map);
+    if (fromStop && toStop) {
+      addRouteEndpointMarkers(
+        suggestedPolyline,
+        { lat: fromStop.latitude, lng: fromStop.longitude },
+        { lat: toStop.latitude, lng: toStop.longitude },
+      );
+    }
+    if (travelMode !== 'TRANSIT') {
+      const path = leg.path.map(([longitude, latitude]) => [latitude, longitude]);
+      addStyledRouteLine(suggestedPolyline, path, travelMode);
+      addRouteSummaryLabel(suggestedPolyline, path, travelMode, distance, duration);
+      map.fitBounds(suggestedPolyline.getBounds(), { padding: [40, 40] });
+    } else if (fromStop && toStop) {
+      const bounds = L.latLngBounds([
+        [fromStop.latitude, fromStop.longitude],
+        [toStop.latitude, toStop.longitude],
+      ]);
+      map.fitBounds(bounds, { padding: [60, 60] });
+    }
+  }
+  saveSuggestedRouteBtn.disabled = Boolean(fallbackTransitDetails);
 }
 
 function buildSuggestedRoute(from, to, mode, distance, duration, estimated, fromPosition = null, toPosition = null, transitDetails = null) {
@@ -2659,6 +3886,10 @@ function buildSuggestedRoute(from, to, mode, distance, duration, estimated, from
     toTitle: to.location || to.title,
     fromLocation: from.location,
     toLocation: to.location,
+    fromAddress: from.address || from.description || '',
+    toAddress: to.address || to.description || '',
+    fromNaverPlaceName: from.naverPlaceName || '',
+    toNaverPlaceName: to.naverPlaceName || '',
     fromCity,
     toCity,
     fromCoordinates: fromPosition ? { lat: fromPosition.lat(), lng: fromPosition.lng() } : null,
@@ -2675,26 +3906,37 @@ function buildSuggestedRoute(from, to, mode, distance, duration, estimated, from
 }
 
 function getTransitRouteDetails(leg, route) {
-  const legs = (leg.steps || [])
-    .filter((step) => step.transit)
-    .map((step) => {
+  const segments = (leg.steps || []).map((step) => {
+    if (!step.transit) {
+      return {
+        type: step.travel_mode || 'WALKING',
+        distance: step.distance?.text || '',
+        duration: step.duration?.text || '',
+      };
+    }
       const transit = step.transit;
       const line = transit.line || {};
       const vehicle = line.vehicle?.name || line.vehicle?.type || 'Transit';
       const service = line.short_name || line.name || vehicle;
       return {
+        type: 'TRANSIT',
         service: service === vehicle ? vehicle : `${vehicle} ${service}`,
+        vehicle,
+        color: line.color || '#24a148',
         headsign: transit.headsign || '',
         stops: transit.num_stops || 0,
         departureStop: transit.departure_stop?.name || '',
         arrivalStop: transit.arrival_stop?.name || '',
         departureTime: transit.departure_time?.text || '',
         arrivalTime: transit.arrival_time?.text || '',
+        distance: step.distance?.text || '',
+        duration: step.duration?.text || '',
       };
     });
 
+  const legs = segments.filter((segment) => segment.type === 'TRANSIT');
   if (!legs.length) return null;
-  return { legs, fare: route.fare?.text || leg.fare?.text || '' };
+  return { legs, segments, fare: route.fare?.text || leg.fare?.text || '' };
 }
 
 function createTransitDetailsElement(transitDetails) {
@@ -2702,24 +3944,48 @@ function createTransitDetailsElement(transitDetails) {
   details.className = 'transit-route-details';
   const heading = document.createElement('strong');
   heading.className = 'transit-route-heading';
-  heading.textContent = 'Public transport';
+  heading.textContent = state.language === 'zh' ? '大眾運輸路線' : 'Public transport route';
+  if (transitDetails.unavailable) {
+    const message = document.createElement('p');
+    message.className = 'transit-route-unavailable';
+    message.textContent = state.language === 'zh'
+      ? '目前的地圖供應商沒有回傳可驗證的班次，請在 Naver Maps 查看即時公車或地鐵路線。'
+      : 'The map provider did not return a verified service. Check live bus or subway directions in Naver Maps.';
+    const link = document.createElement('a');
+    link.className = 'transit-route-external';
+    link.href = transitDetails.externalUrl;
+    link.target = '_blank';
+    link.rel = 'noopener';
+    link.textContent = state.language === 'zh' ? '在 Naver Maps 查看' : 'View in Naver Maps';
+    details.append(heading, message, link);
+    return details;
+  }
   const list = document.createElement('ol');
   list.className = 'transit-route-list';
-  transitDetails.legs.forEach((transitLeg) => {
+  (transitDetails.segments || transitDetails.legs).forEach((transitLeg) => {
     const item = document.createElement('li');
+    item.className = transitLeg.type === 'TRANSIT' ? 'is-transit' : 'is-walking';
+    item.style.setProperty('--transit-color', transitLeg.color || '#2867d8');
+    const mode = document.createElement('span');
+    mode.className = 'transit-route-mode';
+    mode.textContent = transitLeg.type === 'TRANSIT'
+      ? (transitLeg.vehicle || 'Transit')
+      : (state.language === 'zh' ? '步行' : 'Walk');
     const service = document.createElement('strong');
     service.className = 'transit-route-service';
-    service.textContent = `${transitLeg.service}${transitLeg.headsign ? ` to ${transitLeg.headsign}` : ''}`;
+    service.textContent = transitLeg.type === 'TRANSIT'
+      ? `${transitLeg.service}${transitLeg.headsign ? ` to ${transitLeg.headsign}` : ''}`
+      : [transitLeg.distance, transitLeg.duration].filter(Boolean).join(' · ');
     const stops = document.createElement('span');
     stops.className = 'transit-route-stops';
-    stops.textContent = `${transitLeg.stops} stops`;
+    stops.textContent = transitLeg.type === 'TRANSIT' ? `${transitLeg.stops} stops` : '';
     const timing = document.createElement('span');
     timing.className = 'transit-route-timing';
     timing.textContent = [
       [transitLeg.departureStop, transitLeg.departureTime].filter(Boolean).join(' '),
       [transitLeg.arrivalStop, transitLeg.arrivalTime].filter(Boolean).join(' '),
     ].filter(Boolean).join(' to ');
-    item.append(service, stops);
+    item.append(mode, service, stops);
     if (timing.textContent) item.appendChild(timing);
     list.appendChild(item);
   });
@@ -2741,14 +4007,22 @@ function estimateTaxiFare(distance, currency) {
 
 function renderFareEstimates(distanceMeters, durationText, isEstimate, transitDetails = null) {
   const km = distanceMeters / 1000;
-  const metrics = [
-    ['Distance', `${km.toFixed(1)} km`],
-    ['ETA', durationText],
-  ];
+  const metrics = transitDetails?.unavailable ? [] : [
+      ['Distance', `${km.toFixed(1)} km`],
+      ['ETA', durationText],
+    ];
   if (transitDetails) {
     if (transitDetails.fare) metrics.push(['Fare', transitDetails.fare]);
+  } else if (routeModeSelect.value === 'DRIVING') {
+    const selectedDate = getTripDays()[selectedDayIndex] || '';
+    const currency = getCurrencyForDestination(getCityForDate(selectedDate));
+    metrics.push([
+      state.language === 'zh' ? '計程車費（估算）' : 'Taxi fare (est.)',
+      estimateTaxiFare(`${km.toFixed(1)} km`, currency),
+    ]);
   }
   spotFareGrid.innerHTML = '';
+  spotFareGrid.dataset.metricCount = String(metrics.length);
   metrics.forEach(([label, value]) => {
     const card = document.createElement('div');
     card.className = 'spot-fare-card';
@@ -2766,15 +4040,23 @@ function clearSuggestedGeometry() {
   suggestedMarkers.forEach((marker) => marker.setMap(null));
   suggestedMarkers = [];
   if (suggestedPolyline) {
-    suggestedPolyline.setMap(null);
+    if (typeof suggestedPolyline.remove === 'function') suggestedPolyline.remove();
+    else suggestedPolyline.setMap(null);
     suggestedPolyline = null;
   }
+}
+
+function focusGoogleRoute(bounds) {
+  if (!map || activeMapProvider !== 'google' || mapViewMode !== 'route' || !bounds) return;
+  map.fitBounds(bounds, { top: 56, right: 48, bottom: 72, left: 48 });
+  google.maps.event.addListenerOnce(map, 'idle', () => {
+    if (mapViewMode === 'route' && map.getZoom() > 17) map.setZoom(17);
+  });
 }
 
 function geocodeSuggestedSpots(from, to, mode, routeToken) {
   if (!geocoder || !map) return;
   const city = getCityForDate(from.date);
-  const bounds = new google.maps.LatLngBounds();
   const positions = [];
   clearSuggestedGeometry();
   [from, to].forEach((spot, index) => {
@@ -2783,20 +4065,7 @@ function geocodeSuggestedSpots(from, to, mode, routeToken) {
       if (mapViewMode !== 'route' || routeToken !== mapRenderToken) return;
       if (status !== 'OK' || !results[0]) return;
       const position = results[0].geometry.location;
-      const marker = new google.maps.Marker({
-        position,
-        map,
-        title: `${index === 0 ? 'Spot A' : 'Spot B'} · ${spot.title}`,
-        label: {
-          text: index === 0 ? 'A' : 'B',
-          color: '#fff',
-          fontWeight: '700',
-        },
-      });
-      suggestedMarkers.push(marker);
       positions[index] = position;
-      bounds.extend(position);
-      map.fitBounds(bounds);
       if (positions.filter(Boolean).length === 2) {
         requestCoordinateRoute(positions, from, to, mode, routeToken);
       }
@@ -2814,11 +4083,11 @@ function requestCoordinateRoute(positions, from, to, mode, routeToken) {
   directionsService.route(request, (result, status) => {
     if (mapViewMode !== 'route' || routeToken !== mapRenderToken) return;
     if (status === 'OK' && result.routes.length) {
-      if (!suggestedRouteRenderer) suggestedRouteRenderer = new google.maps.DirectionsRenderer({ suppressMarkers: false, preserveViewport: false });
+      if (!suggestedRouteRenderer) suggestedRouteRenderer = new google.maps.DirectionsRenderer({ suppressMarkers: true, preserveViewport: true });
       clearSuggestedGeometry();
       suggestedRouteRenderer.setMap(map);
       suggestedRouteRenderer.setDirections(result);
-      map.fitBounds(result.routes[0].bounds);
+      focusGoogleRoute(result.routes[0].bounds);
       const leg = result.routes[0].legs[0];
       const transitDetails = getTransitRouteDetails(leg, result.routes[0]);
       spotRouteStatus.textContent = state.language === 'zh' ? '建議路線' : 'Suggested route';
@@ -2835,6 +4104,9 @@ function requestCoordinateRoute(positions, from, to, mode, routeToken) {
     const minutes = Math.max(1, Math.round((distance / 1000 / speed) * 60));
     const duration = minutes >= 60 ? `${Math.floor(minutes / 60)}h ${minutes % 60}m` : `${minutes} min`;
     suggestedPolyline = new google.maps.Polyline({ path: positions, geodesic: true, strokeColor: '#d94b73', strokeOpacity: 0.85, strokeWeight: 5, map });
+    const routeBounds = new google.maps.LatLngBounds();
+    positions.forEach((position) => routeBounds.extend(position));
+    focusGoogleRoute(routeBounds);
     spotRouteStatus.textContent = state.language === 'zh' ? '估算路線' : 'Estimated route';
     spotRouteResult.textContent = `${(distance / 1000).toFixed(1)} km · ${duration}`;
     renderFareEstimates(distance, duration, true);
@@ -2932,6 +4204,10 @@ function syncRouteBills() {
 // Fetches distance/duration between two locations via Google Directions, caching results per origin/destination/mode.
 const routeDistanceCache = {};
 function fetchRouteDistance(from, to, mode, infoEl) {
+  if (getMapProviderForDate(from.date) === 'naver') {
+    fetchKoreaRouteDistance(from, to, infoEl);
+    return;
+  }
   const origin = state.tripDestination ? `${from.location}, ${state.tripDestination}` : from.location;
   const destination = state.tripDestination ? `${to.location}, ${state.tripDestination}` : to.location;
   const cacheKey = `${origin}|${destination}|${mode}`;
@@ -2954,6 +4230,23 @@ function fetchRouteDistance(from, to, mode, infoEl) {
       infoEl.textContent = text;
     }
   );
+}
+
+async function fetchKoreaRouteDistance(from, to, infoEl) {
+  const cacheKey = `naver|${from.id}|${to.id}|DRIVING`;
+  if (routeDistanceCache[cacheKey]) {
+    infoEl.textContent = routeDistanceCache[cacheKey];
+    return;
+  }
+  const result = await requestKoreaRoutes('legs', [from, to], [{ fromId: from.id, toId: to.id }]);
+  const leg = result?.legs?.[0];
+  if (!leg) {
+    infoEl.textContent = state.language === 'zh' ? 'Naver 路線不可用' : 'Naver route unavailable';
+    return;
+  }
+  const text = `${(leg.distanceMeters / 1000).toFixed(1)} km · ${leg.durationMinutes} min · Naver`;
+  routeDistanceCache[cacheKey] = text;
+  infoEl.textContent = text;
 }
 
 // Renders the travel legs between the selected day's located items with distance/time and an editable transport fee.
@@ -2990,7 +4283,10 @@ function renderRoutePanel(days) {
 
     const info = document.createElement('div');
     info.className = 'route-info';
-    info.textContent = mapsApiLoaded ? 'Calculating…' : 'Set GOOGLE_MAPS_API_KEY in js/app.js to calculate distance & time.';
+    const routeProvider = getMapProviderForDate(from.date);
+    info.textContent = routeProvider === 'naver'
+      ? (state.language === 'zh' ? '正在使用 Naver 計算…' : 'Calculating with Naver…')
+      : mapsApiLoaded ? 'Calculating…' : 'Set GOOGLE_MAPS_API_KEY in js/app.js to calculate distance & time.';
     row.appendChild(info);
 
     const feeLabel = document.createElement('label');
@@ -3015,7 +4311,7 @@ function renderRoutePanel(days) {
 
     routeList.appendChild(row);
 
-    if (mapsApiLoaded && directionsService) {
+    if (routeProvider === 'naver' || (mapsApiLoaded && directionsService)) {
       fetchRouteDistance(from, to, mode, info);
     }
   }
@@ -3334,8 +4630,18 @@ function getSavedRouteDate(route) {
 function getSavedRouteUrl(route, provider) {
   const originName = route.fromCity ? `${route.fromLocation}, ${route.fromCity}` : route.fromLocation;
   const destinationName = route.toCity ? `${route.toLocation}, ${route.toCity}` : route.toLocation;
-  const fromCoordinates = route.fromCoordinates || state.geocodeCache?.[originName];
-  const toCoordinates = route.toCoordinates || state.geocodeCache?.[destinationName];
+  const fromActivity = state.activities.find((activity) => activity.location === route.fromLocation);
+  const toActivity = state.activities.find((activity) => activity.location === route.toLocation);
+  const getActivityCoordinates = (activity, fallbackName) => {
+    if (Number.isFinite(activity?.latitude) && Number.isFinite(activity?.longitude)) {
+      return { lat: activity.latitude, lng: activity.longitude };
+    }
+    return state.geocodeCache?.[`korea:${activity?.address || activity?.location}`]
+      || state.geocodeCache?.[fallbackName]
+      || null;
+  };
+  const fromCoordinates = route.fromCoordinates || getActivityCoordinates(fromActivity, originName);
+  const toCoordinates = route.toCoordinates || getActivityCoordinates(toActivity, destinationName);
   const origin = encodeURIComponent(originName);
   const destination = encodeURIComponent(destinationName);
   const mode = String(route.mode || 'DRIVING').toLowerCase();
@@ -3344,10 +4650,12 @@ function getSavedRouteUrl(route, provider) {
     const from = fromCoordinates;
     const to = toCoordinates;
     const naverMode = mode === 'transit' ? 'publictransit' : mode === 'walking' ? 'walk' : 'car';
+    const fromLabel = route.fromAddress || fromActivity?.address || route.fromNaverPlaceName || fromActivity?.naverPlaceName || route.fromLocation;
+    const toLabel = route.toAddress || toActivity?.address || route.toNaverPlaceName || toActivity?.naverPlaceName || route.toLocation;
     if (from && to) {
-      return `https://map.naver.com/p/directions/${from.lng},${from.lat},${encodeURIComponent(route.fromLocation)}/${to.lng},${to.lat},${encodeURIComponent(route.toLocation)}/-/${naverMode}`;
+      return `https://map.naver.com/p/directions/${from.lng},${from.lat},${encodeURIComponent(fromLabel)}/${to.lng},${to.lat},${encodeURIComponent(toLabel)}/-/${naverMode}`;
     }
-    return `https://map.naver.com/p/search/${origin}`;
+    return `https://map.naver.com/p/search/${encodeURIComponent(toLabel || destinationName)}`;
   }
   if (provider === 'kakao') {
     const from = fromCoordinates;
@@ -3443,8 +4751,9 @@ function renderSavedRoutePanel() {
     if (route.mode === 'TRANSIT' && route.transitDetails) {
       if (route.transitDetails.fare) metrics.push(['Fare', route.transitDetails.fare]);
     } else {
-      metrics.push(['Taxi', taxiFare]);
+      metrics.push([state.language === 'zh' ? '計程車費（估算）' : 'Taxi fare (est.)', taxiFare]);
     }
+    routeMetrics.dataset.metricCount = String(metrics.length);
     metrics.forEach(([label, value]) => {
       const metric = document.createElement('span');
       metric.className = 'saved-route-metric';
@@ -4263,10 +5572,17 @@ function renderItineraryForSelectedDay(days) {
     const titleEl = document.createElement('button');
     titleEl.type = 'button';
     titleEl.className = 'item-title item-title-button';
-    titleEl.textContent = activity.location ? `${activity.title} · ${activity.location}` : activity.title;
+    titleEl.textContent = activity.title;
     titleEl.title = state.language === 'zh' ? '編輯項目' : 'Edit item';
     titleEl.addEventListener('click', () => openActivityModal(activity));
     itemCard.appendChild(titleEl);
+
+    if (activity.location) {
+      const locationEl = document.createElement('p');
+      locationEl.className = 'item-location';
+      locationEl.textContent = activity.location;
+      itemCard.appendChild(locationEl);
+    }
 
     if (activity.category === 'flight') {
       const flightEl = document.createElement('div');
@@ -4434,15 +5750,37 @@ function renderItineraryForSelectedDay(days) {
 
       if (activity.location) {
         const activityCity = getCityForDate(selectedDate);
-        const mapQuery = activityCity ? `${activity.location}, ${activityCity}` : activity.location;
+        const mapQuery = activity.address || (activityCity ? `${activity.location}, ${activityCity}` : activity.location);
+        const activityCoordinates = Number.isFinite(activity.latitude) && Number.isFinite(activity.longitude)
+          ? { lat: activity.latitude, lng: activity.longitude }
+          : state.geocodeCache?.[`korea:${activity.address || activity.location}`]
+            || state.geocodeCache?.[activityCity ? `${activity.location}, ${activityCity}` : activity.location];
         const mapLink = document.createElement('a');
-        const mapProvider = activity.mapProvider || 'google';
+        const preferredMapProvider = getMapProviderForDate(activity.date) === 'naver' ? 'naver' : (activity.mapProvider || 'google');
+        const getLinkProvider = () => preferredMapProvider === 'naver' && !getNaverPlaceUrl(activity.naverUrl)
+          ? 'google'
+          : preferredMapProvider;
+        let mapProvider = getLinkProvider();
         mapLink.className = `item-map-link map-${mapProvider}`;
-        mapLink.href = getMapUrl(mapProvider, mapQuery, activityCity, activity.location, state.geocodeCache?.[activityCity ? `${activity.location}, ${activityCity}` : activity.location], activity.naverUrl);
+        mapLink.href = getMapUrl(mapProvider, mapQuery, activityCity, activity.location, activityCoordinates, activity.naverUrl, activity.placeId, activity.naverPlaceName);
         mapLink.target = '_blank';
         mapLink.rel = 'noopener noreferrer';
         const mapLabels = { google: 'Google Maps', naver: 'Naver Maps', kakao: 'Kakao Map' };
         mapLink.textContent = mapLabels[mapProvider];
+        mapLink.addEventListener('click', () => {
+          const latestCoordinates = Number.isFinite(activity.latitude) && Number.isFinite(activity.longitude)
+            ? { lat: activity.latitude, lng: activity.longitude }
+            : state.geocodeCache?.[`korea:${activity.address || activity.location}`]
+              || state.geocodeCache?.[activityCity ? `${activity.location}, ${activityCity}` : activity.location];
+          const latestQuery = activity.address || (activityCity ? `${activity.location}, ${activityCity}` : activity.location);
+          mapProvider = getLinkProvider();
+          mapLink.className = `item-map-link map-${mapProvider}`;
+          mapLink.textContent = mapLabels[mapProvider];
+          mapLink.href = getMapUrl(mapProvider, latestQuery, activityCity, activity.location, latestCoordinates, activity.naverUrl, activity.placeId, activity.naverPlaceName);
+        });
+        if (mapProvider === 'naver' && activityCoordinates) {
+          mapLink.title = state.language === 'zh' ? '在 Naver Maps 開啟精確座標' : 'Open exact coordinates in Naver Maps';
+        }
         footerRow.appendChild(mapLink);
       }
 
@@ -4580,17 +5918,66 @@ function formatFlightMeta(terminal, gate, label) {
   return details || label;
 }
 
-function getMapUrl(provider, query, city = '', location = '', coordinates = null, naverUrl = '') {
+function getLegacyNaverSearchName(naverUrl) {
+  if (!naverUrl) return '';
+  try {
+    const url = new URL(naverUrl);
+    const match = url.pathname.match(/\/search\/([^/]+)/);
+    return match ? decodeURIComponent(match[1]) : '';
+  } catch (error) {
+    return '';
+  }
+}
+
+function getNaverPlaceUrl(naverUrl) {
+  if (!naverUrl) return '';
+  try {
+    const url = new URL(naverUrl);
+    const isNaverHost = url.hostname === 'naver.com' || url.hostname.endsWith('.naver.com');
+    return isNaverHost && /\/(?:entry\/)?place\/\d+/.test(url.pathname) ? url.href : '';
+  } catch (error) {
+    return '';
+  }
+}
+
+function getNaverSearchQuery(location, address, naverPlaceName = '') {
+  const officialName = [naverPlaceName, location].find((value) => /[가-힣]/.test(value || '')) || '';
+  const addressParts = String(address || '')
+    .split(',')
+    .map((part) => part.trim())
+    .filter((part) => /[가-힣]/.test(part) || /^\d+(?:-\d+)?$/.test(part))
+    .filter((part) => !/^(대한민국|한국|남한|남조선|특별자치도)$/.test(part));
+  const compactAddress = [...new Set(addressParts)].join(' ');
+  return [officialName, compactAddress]
+    .filter((value, index, values) => value && values.indexOf(value) === index)
+    .join(' ')
+    || location
+    || address;
+}
+
+function getMapUrl(provider, query, city = '', location = '', coordinates = null, naverUrl = '', placeId = '', naverPlaceName = '') {
   const encodedQuery = encodeURIComponent(query);
   if (provider === 'naver') {
-    if (naverUrl) return naverUrl;
-    const naverQuery = location && city ? `${location}, ${city}` : location || query;
+    const exactPlaceUrl = getNaverPlaceUrl(naverUrl);
+    if (exactPlaceUrl) return exactPlaceUrl;
+    if (Number.isFinite(coordinates?.lat) && Number.isFinite(coordinates?.lng)) {
+      const destinationLabel = naverPlaceName || location || query || city;
+      return `https://map.naver.com/p/directions/-/${coordinates.lng},${coordinates.lat},${encodeURIComponent(destinationLabel)}/-/walk?c=${coordinates.lng},${coordinates.lat},18,0,0,0,dh`;
+    }
+    const legacySearchName = getLegacyNaverSearchName(naverUrl);
+    const legacyPlaceName = legacySearchName && !legacySearchName.includes(',') ? legacySearchName : '';
+    const officialPlaceName = naverPlaceName || (/[가-힣]/.test(location) ? location : '') || legacyPlaceName;
+    const naverQuery = getNaverSearchQuery(location, query, officialPlaceName)
+      || (location && city ? `${location}, ${city}` : location);
     const encodedNaverQuery = encodeURIComponent(naverQuery);
-    const center = coordinates ? `?c=${coordinates.lng},${coordinates.lat},16,0,0,0,dh` : '';
+    const center = Number.isFinite(coordinates?.lat) && Number.isFinite(coordinates?.lng)
+      ? `?c=${coordinates.lng},${coordinates.lat},17,0,0,0,dh`
+      : '';
     return `https://map.naver.com/p/search/${encodedNaverQuery}${center}`;
   }
   if (provider === 'kakao') return `https://map.kakao.com/?q=${encodedQuery}`;
-  return `https://www.google.com/maps/search/?api=1&query=${encodedQuery}`;
+  const placeIdQuery = placeId ? `&query_place_id=${encodeURIComponent(placeId)}` : '';
+  return `https://www.google.com/maps/search/?api=1&query=${encodedQuery}${placeIdQuery}`;
 }
 
 function getCategoryMeta(category) {
