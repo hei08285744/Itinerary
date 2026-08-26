@@ -1176,7 +1176,7 @@ function requestRouteLeg(origin, destination, mode, departureTime = null) {
   });
 }
 
-function verifyAIActivityPlace(activity, destination, preserveDisplayText = false) {
+function verifyAIActivityPlace(activity, destination) {
   return new Promise((resolve) => {
     if (!placesService || !window.google?.maps?.places) {
       resolve(null);
@@ -1207,10 +1207,17 @@ function verifyAIActivityPlace(activity, destination, preserveDisplayText = fals
       const reviewCount = Number(place.user_ratings_total) || 0;
       const latitude = place.geometry?.location?.lat();
       const longitude = place.geometry?.location?.lng();
+      const keepNormalLocale = !isKoreaDestination(destination) && activeMapProvider === 'naver';
+      const location = keepNormalLocale
+        ? (activity.location || activity.title || place.name)
+        : (place.name || activity.location);
+      const address = keepNormalLocale
+        ? (activity.address || activity.description || place.formatted_address || '')
+        : (place.formatted_address || activity.address || '');
       finish({
         ...activity,
-        location: preserveDisplayText ? (activity.location || place.name) : (place.name || activity.location),
-        address: preserveDisplayText ? (activity.address || place.formatted_address || '') : (place.formatted_address || activity.address || ''),
+        location,
+        address,
         rating: rating || '',
         placeId: place.place_id || '',
         placeTypes: place.types || [],
@@ -1218,7 +1225,7 @@ function verifyAIActivityPlace(activity, destination, preserveDisplayText = fals
         longitude: Number.isFinite(longitude) ? longitude : activity.longitude,
         category: inferActivityCategory(place.types, inferActivityCategory(activity.category)),
         googleReviewCount: reviewCount,
-        googleMapsUrl: place.place_id ? `https://www.google.com/maps/search/?api=1&query_place_id=${encodeURIComponent(place.place_id)}&query=${encodeURIComponent(place.name || activity.location)}` : '',
+        googleMapsUrl: place.place_id ? `https://www.google.com/maps/search/?api=1&query_place_id=${encodeURIComponent(place.place_id)}&query=${encodeURIComponent(location)}` : '',
         googlePlaceReason: rating
           ? `Google rating ${rating.toFixed(1)}${reviewCount ? ` from ${reviewCount.toLocaleString()} reviews` : ''}`
           : 'Place verified on Google Maps',
@@ -1235,7 +1242,8 @@ async function verifyAIKoreaActivityPlace(activity, destination) {
     naverUrl: `https://map.naver.com/p/search/${encodeURIComponent(activity.address || activity.location || activity.title || query)}`,
   };
   const googleVerifiedPlace = await verifyAIActivityPlace(activity, destination);
-  if (Number.isFinite(googleVerifiedPlace?.latitude) && Number.isFinite(googleVerifiedPlace?.longitude)) {
+  const hasKoreanGoogleDetails = /[가-힣]/.test(`${googleVerifiedPlace?.location || ''} ${googleVerifiedPlace?.address || ''}`);
+  if (hasKoreanGoogleDetails && Number.isFinite(googleVerifiedPlace?.latitude) && Number.isFinite(googleVerifiedPlace?.longitude)) {
     return {
       ...googleVerifiedPlace,
       mapProvider: 'naver',
@@ -1252,13 +1260,26 @@ async function verifyAIKoreaActivityPlace(activity, destination) {
     const searchKoreaPlaces = firebase.app().functions('asia-east2').httpsCallable('searchKoreaPlaces');
     const result = await searchKoreaPlaces({
       query,
-      latitude: activity.latitude,
-      longitude: activity.longitude,
+      latitude: googleVerifiedPlace?.latitude ?? activity.latitude,
+      longitude: googleVerifiedPlace?.longitude ?? activity.longitude,
     });
     const place = result.data?.places?.[0];
-    if (!place) return fallback;
+    if (!place) return googleVerifiedPlace ? {
+      ...activity,
+      latitude: googleVerifiedPlace.latitude,
+      longitude: googleVerifiedPlace.longitude,
+      googlePlaceId: googleVerifiedPlace.googlePlaceId || '',
+      googlePlaceRating: googleVerifiedPlace.googlePlaceRating ?? null,
+      googlePlaceReviewCount: googleVerifiedPlace.googlePlaceReviewCount || 0,
+      mapProvider: 'naver',
+      naverPlaceName: activity.location || '',
+      naverUrl: '',
+      googleMapsUrl: '',
+      koreaCoordinateSource: 'google-places',
+    } : fallback;
     return {
       ...activity,
+      ...googleVerifiedPlace,
       location: place.naverPlaceName || place.name || activity.location,
       address: place.address || activity.address || '',
       description: activity.description || place.description || place.address || '',
@@ -1269,7 +1290,10 @@ async function verifyAIKoreaActivityPlace(activity, destination) {
       naverPlaceName: place.naverPlaceName || place.name || '',
       naverUrl: place.naverUrl || fallback.naverUrl,
       googleMapsUrl: '',
-      googlePlaceReason: state.language === 'zh' ? '已使用韓國地圖資料驗證' : 'Verified with Korea map data',
+      koreaCoordinateSource: googleVerifiedPlace ? 'google-places' : 'nominatim',
+      googlePlaceReason: googleVerifiedPlace
+        ? (state.language === 'zh' ? '已使用 Google Places 驗證並轉換為韓文地點資料' : 'Verified with Google Places and localized to Korean')
+        : (state.language === 'zh' ? '已使用韓國地圖資料驗證' : 'Verified with Korea map data'),
     };
   } catch (error) {
     console.error('Korea AI place verification failed', error);
@@ -1301,7 +1325,7 @@ async function verifyAIActivityPlaces(activities, destination) {
         latitude: attachedPlace.latitude,
         longitude: attachedPlace.longitude,
       } : activity, destination);
-      if (!attachedPlace) return verifyAIActivityPlace(activity, destination, true);
+      if (!attachedPlace) return verifyAIActivityPlace(activity, destination);
       return Promise.resolve({
         ...activity,
         location: attachedPlace.name,
@@ -1332,7 +1356,7 @@ async function verifyAttachedReferencePlaces(destination) {
     };
     const verifiedPlace = isKoreaDestination(destination)
       ? await verifyAIKoreaActivityPlace(referenceActivity, destination)
-      : await verifyAIActivityPlace(referenceActivity, destination, true);
+      : await verifyAIActivityPlace(referenceActivity, destination);
     return {
       ...verifiedPlace,
       title: verifiedPlace?.title || place.name,
@@ -1604,9 +1628,6 @@ function renderAICreatePreview() {
     const location = document.createElement('p');
     location.className = 'ai-create-preview-location';
     location.textContent = activity.location || activity.description || '';
-    const address = document.createElement('p');
-    address.className = 'ai-create-preview-address';
-    address.textContent = activity.address && activity.address !== activity.location ? activity.address : '';
     const reason = document.createElement('p');
     reason.textContent = activity.remarks || activity.description || (state.language === 'zh' ? 'Aitinerary 建議的行程停靠點。' : 'Aitinerary-selected stop for this itinerary.');
     const metrics = document.createElement('div');
@@ -1623,13 +1644,9 @@ function renderAICreatePreview() {
       const warning = document.createElement('p');
       warning.className = 'ai-reachability-warning';
       warning.textContent = activity.reachabilityWarning;
-      content.append(heading, location);
-      if (address.textContent) content.appendChild(address);
-      content.append(reason, warning, metrics);
+      content.append(heading, location, reason, warning, metrics);
     } else {
-      content.append(heading, location);
-      if (address.textContent) content.appendChild(address);
-      content.append(reason, metrics);
+      content.append(heading, location, reason, metrics);
     }
     if (activity.planningWarning) {
       const warning = document.createElement('p');

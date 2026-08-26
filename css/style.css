@@ -3867,13 +3867,6 @@ select:focus {
   font-weight: 650;
 }
 
-.ai-create-preview-address {
-  margin-top: 0.1rem !important;
-  color: var(--theme-muted) !important;
-  font-size: 0.68rem !important;
-  line-height: 1.35;
-}
-
 .ai-suggestion-meta {
   display: flex;
   flex-wrap: wrap;
