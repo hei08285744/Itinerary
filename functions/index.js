@@ -364,6 +364,7 @@ exports.searchKoreaPlaces = onCall({
 }, async (request) => {
   if (!request.auth) throw new HttpsError('unauthenticated', 'Sign in before searching Korea places.');
   const query = cleanText(request.data?.query, 180);
+  const preferredName = cleanText(request.data?.preferredName, 160);
   const latitude = Number(request.data?.latitude);
   const longitude = Number(request.data?.longitude);
   const hasKoreaCoordinates = Number.isFinite(latitude) && latitude >= 33 && latitude <= 39
@@ -393,13 +394,17 @@ exports.searchKoreaPlaces = onCall({
       && !administrativeTypes.has(item.type)
       && !administrativeTypes.has(item.addresstype);
     let results = (await searchNominatim(query, 5)).filter(isVenue);
-    if (!results.length && hasKoreaCoordinates) {
-      const reverseResult = await reverseNominatim(latitude, longitude);
-      if (reverseResult && isVenue(reverseResult)) results = [reverseResult];
-    }
+    const reverseResult = hasKoreaCoordinates ? await reverseNominatim(latitude, longitude) : null;
+    if (!results.length && reverseResult && isVenue(reverseResult)) results = [reverseResult];
     const places = results.map(toPlace)
       .filter((place) => place.name && place.address && Number.isFinite(place.latitude) && Number.isFinite(place.longitude));
-    return { provider: 'nominatim', places };
+    const localizedAddress = reverseResult ? formatKoreaAddress(reverseResult) : '';
+    return {
+      provider: 'nominatim',
+      places,
+      preferredName: /[가-힣]/.test(preferredName) ? preferredName : '',
+      localizedAddress: /[가-힣]/.test(localizedAddress) ? localizedAddress : '',
+    };
   } catch (error) {
     console.error('Korea place search failed', error);
     throw new HttpsError('unavailable', 'Korea place search is temporarily unavailable.');

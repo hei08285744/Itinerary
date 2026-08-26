@@ -1242,7 +1242,8 @@ async function verifyAIKoreaActivityPlace(activity, destination) {
     naverUrl: `https://map.naver.com/p/search/${encodeURIComponent(activity.address || activity.location || activity.title || query)}`,
   };
   const googleVerifiedPlace = await verifyAIActivityPlace(activity, destination);
-  const hasKoreanGoogleDetails = /[가-힣]/.test(`${googleVerifiedPlace?.location || ''} ${googleVerifiedPlace?.address || ''}`);
+  const hasKoreanGoogleDetails = /[가-힣]/.test(googleVerifiedPlace?.location || '')
+    && /[가-힣]/.test(googleVerifiedPlace?.address || '');
   if (hasKoreanGoogleDetails && Number.isFinite(googleVerifiedPlace?.latitude) && Number.isFinite(googleVerifiedPlace?.longitude)) {
     return {
       ...googleVerifiedPlace,
@@ -1260,11 +1261,14 @@ async function verifyAIKoreaActivityPlace(activity, destination) {
     const searchKoreaPlaces = firebase.app().functions('asia-east2').httpsCallable('searchKoreaPlaces');
     const result = await searchKoreaPlaces({
       query,
+      preferredName: googleVerifiedPlace?.location || '',
       latitude: googleVerifiedPlace?.latitude ?? activity.latitude,
       longitude: googleVerifiedPlace?.longitude ?? activity.longitude,
     });
     const place = result.data?.places?.[0];
-    if (!place) return googleVerifiedPlace ? {
+    const localizedName = result.data?.preferredName || place?.naverPlaceName || place?.name || '';
+    const localizedAddress = result.data?.localizedAddress || place?.address || '';
+    if (!localizedName || !localizedAddress) return googleVerifiedPlace ? {
       ...activity,
       latitude: googleVerifiedPlace.latitude,
       longitude: googleVerifiedPlace.longitude,
@@ -1280,15 +1284,15 @@ async function verifyAIKoreaActivityPlace(activity, destination) {
     return {
       ...activity,
       ...googleVerifiedPlace,
-      location: place.naverPlaceName || place.name || activity.location,
-      address: place.address || activity.address || '',
-      description: activity.description || place.description || place.address || '',
-      category: inferActivityCategory(place.category, inferActivityCategory(activity.category)),
-      latitude: Number.isFinite(place.latitude) ? place.latitude : activity.latitude,
-      longitude: Number.isFinite(place.longitude) ? place.longitude : activity.longitude,
+      location: localizedName || activity.location,
+      address: localizedAddress || activity.address || '',
+      description: activity.description || localizedAddress || place.description || '',
+      category: inferActivityCategory(place?.category, inferActivityCategory(activity.category)),
+      latitude: Number.isFinite(googleVerifiedPlace?.latitude) ? googleVerifiedPlace.latitude : place?.latitude,
+      longitude: Number.isFinite(googleVerifiedPlace?.longitude) ? googleVerifiedPlace.longitude : place?.longitude,
       mapProvider: 'naver',
-      naverPlaceName: place.naverPlaceName || place.name || '',
-      naverUrl: place.naverUrl || fallback.naverUrl,
+      naverPlaceName: localizedName,
+      naverUrl: place?.naverUrl || fallback.naverUrl,
       googleMapsUrl: '',
       koreaCoordinateSource: googleVerifiedPlace ? 'google-places' : 'nominatim',
       googlePlaceReason: googleVerifiedPlace
@@ -1849,7 +1853,7 @@ function applyAIRoutePreview() {
       tripName: `${destination} Aitinerary`, tripDestination: destination,
       tripStartDate: startDate, tripEndDate: endDate, multipleCities: false,
       cities: [], members: [], language, departureFlight: '', returnFlight: '', geocodeCache: {},
-      activities: activities.map(createAIActivity), bills: [], routeFees: {}, settlementLogs: [],
+      activities: activities.map((activity, index) => createAIActivity(activity, index, destination)), bills: [], routeFees: {}, settlementLogs: [],
       walletBudget: 0, walletTargetCurrency, theme, savedRoutes: [], aiSearchHistory, tripLibrary,
       activeTripId: createTripId(),
     });
@@ -1905,7 +1909,7 @@ function updateAIPlanUsage() {
   aiPlannerUsageReset.textContent = state.language === 'zh' ? '每日 UTC 00:00 重設' : 'Resets daily at 00:00 UTC';
 }
 
-function createAIActivity(activity, index) {
+function createAIActivity(activity, index, destination = '') {
   return {
     id: `${Date.now().toString(36)}ai${index}${Math.random().toString(36).slice(2, 6)}`,
     date: activity.date,
@@ -1930,7 +1934,7 @@ function createAIActivity(activity, index) {
     latitude: Number.isFinite(activity.latitude) ? activity.latitude : undefined,
     longitude: Number.isFinite(activity.longitude) ? activity.longitude : undefined,
     googleReviewCount: Number(activity.googleReviewCount) || 0,
-    mapProvider: getMapProviderForDate(activity.date),
+    mapProvider: isKoreaDestination(destination || getCityForDate(activity.date)) ? 'naver' : 'google',
     naverPlaceName: activity.naverPlaceName || '',
     naverUrl: activity.naverUrl || '',
     shoppingItems: [],
@@ -5828,8 +5832,9 @@ function renderItineraryForSelectedDay(days) {
           : state.geocodeCache?.[`korea:${activity.address || activity.location}`]
             || state.geocodeCache?.[activityCity ? `${activity.location}, ${activityCity}` : activity.location];
         const mapLink = document.createElement('a');
-        const preferredMapProvider = getMapProviderForDate(activity.date) === 'naver' ? 'naver' : (activity.mapProvider || 'google');
-        const getLinkProvider = () => activity.mapProvider || preferredMapProvider;
+        const isKoreaAIActivity = getMapProviderForDate(activity.date) === 'naver' && String(activity.id || '').includes('ai');
+        const preferredMapProvider = isKoreaAIActivity ? 'naver' : (activity.mapProvider || getMapProviderForDate(activity.date));
+        const getLinkProvider = () => isKoreaAIActivity ? 'naver' : (activity.mapProvider || preferredMapProvider);
         let mapProvider = getLinkProvider();
         mapLink.className = `item-map-link map-${mapProvider}`;
         mapLink.href = getMapUrl(mapProvider, mapQuery, activityCity, activity.location, activityCoordinates, activity.naverUrl, activity.placeId, activity.naverPlaceName);
