@@ -1839,6 +1839,21 @@ function renderAIReferencePlaceList() {
   window.lucide?.createIcons({ nodes: [aiRoutePreviewList] });
 }
 
+function applyOptimizedActivityOrder(activities, routePreview) {
+  const previewById = new Map(routePreview.map((item, index) => [item.id, { ...item, order: index }]));
+  activities.forEach((activity) => {
+    delete activity.aiRouteNote;
+    const preview = previewById.get(activity.id);
+    if (preview) activity.time = preview.time;
+  });
+  activities.sort((first, second) => (
+    (first.date || '').localeCompare(second.date || '')
+    || (first.time || '').localeCompare(second.time || '')
+    || (previewById.get(first.id)?.order ?? Number.MAX_SAFE_INTEGER)
+      - (previewById.get(second.id)?.order ?? Number.MAX_SAFE_INTEGER)
+  ));
+}
+
 function applyAIRoutePreview() {
   if (pendingAICreatePreview?.activities.length) {
     const { destination, startDate, endDate, activities } = pendingAICreatePreview;
@@ -1877,13 +1892,7 @@ function applyAIRoutePreview() {
     return;
   }
   if (!pendingAIRoutePreview?.length) return;
-  const previewById = new Map(pendingAIRoutePreview.map((item) => [item.id, item]));
-  state.activities.forEach((activity) => {
-    const preview = previewById.get(activity.id);
-    if (!preview) return;
-    activity.time = preview.time;
-    activity.aiRouteNote = preview.evidence?.reason || preview.aiReason || '';
-  });
+  applyOptimizedActivityOrder(state.activities, pendingAIRoutePreview);
   saveState();
   render();
   clearAIRoutePreview();
@@ -5911,13 +5920,6 @@ function renderItineraryForSelectedDay(days) {
       remarksEl.className = 'item-remarks';
       remarksEl.textContent = activity.remarks;
       itemCard.appendChild(remarksEl);
-    }
-
-    if (activity.aiRouteNote) {
-      const routeNoteEl = document.createElement('div');
-      routeNoteEl.className = 'item-ai-route-note';
-      routeNoteEl.textContent = activity.aiRouteNote;
-      itemCard.appendChild(routeNoteEl);
     }
 
     if (activity.aiRecommendationNote) {
