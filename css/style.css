@@ -930,6 +930,12 @@ input[type='time'] {
   clear: both;
   pointer-events: auto;
 }
+
+#activityLocation.gm-err-autocomplete,
+#activityLocation[style*='icon_error'] {
+  background-image: none !important;
+}
+
 .leaflet-right .leaflet-control { float: right; }
 .leaflet-top .leaflet-control { margin-top: 10px; }
 .leaflet-bottom .leaflet-control { margin-bottom: 10px; }
@@ -1097,7 +1103,7 @@ input[type='time'] {
 }
 
 body[data-active-view='map'] .map-card {
-  margin-bottom: calc(14rem + env(safe-area-inset-bottom));
+  margin-bottom: 0.75rem;
 }
 
 .route-sheet-handle {

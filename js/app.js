@@ -74,7 +74,7 @@ const activityLocationInput = document.getElementById('activityLocation');
 const activityRatingInput = document.getElementById('activityRating');
 const activityDescriptionInput = document.getElementById('activityDescription');
 const activityMapProviderInput = document.getElementById('activityMapProvider');
-const activityNaverUrlInput = document.getElementById('activityNaverUrl');
+const activityWebsiteInput = document.getElementById('activityWebsite');
 const activityExpenseInput = document.getElementById('activityExpense');
 const activityExpenseCurrencyInput = document.getElementById('activityExpenseCurrency');
 const activityPaymentMethodInput = document.getElementById('activityPaymentMethod');
@@ -189,6 +189,7 @@ let currentPlaceId = '';
 let currentPlaceCoordinates = null;
 let currentNaverPlaceName = '';
 let currentGoogleReviewCount = 0;
+let currentPlaceWebsite = '';
 
 const routeList = document.getElementById('routeList');
 const routeStatus = document.getElementById('routeStatus');
@@ -802,7 +803,8 @@ activityForm.addEventListener('submit', (e) => {
     longitude: currentPlaceCoordinates?.lng,
     googleReviewCount: currentGoogleReviewCount,
     mapProvider: activityMapProviderInput.value || getMapProviderForDate(date),
-    naverUrl: activityNaverUrlInput.value.trim(),
+    naverUrl: existingActivity?.naverUrl || '',
+    website: activityWebsiteInput.value.trim() || currentPlaceWebsite,
     shoppingItems: category === 'shopping' ? shoppingItemsDraft : [],
     upfrontPaymentTitle: document.getElementById('activityUpfrontPaymentTitle').value.trim(),
     bookingDetails: document.getElementById('activityBookingDetails').value.trim(),
@@ -1736,6 +1738,30 @@ function renderAIReferencePlaceList() {
       mapsLink.append(mapIcon, document.createTextNode(place.naverUrl ? 'Naver Maps' : (state.language === 'zh' ? 'Google 地圖' : 'Google Maps')));
       actions.appendChild(mapsLink);
     }
+    // Add a Google -> Naver cross-reference pill: copies name/address and opens Naver search
+    if (!place.naverUrl && (place.location || place.address || place.name || place.googleMapsUrl)) {
+      const crossLink = document.createElement('button');
+      crossLink.type = 'button';
+      crossLink.className = 'ai-reference-place-button ai-reference-google-to-naver';
+      crossLink.title = state.language === 'zh'
+        ? '從 Google 擷取名稱與地址並在 Naver 地圖搜尋' : 'Copy Google name/address and search on Naver Maps';
+      const crossIcon = document.createElement('i');
+      crossIcon.dataset.lucide = 'globe';
+      crossIcon.setAttribute('aria-hidden', 'true');
+      crossLink.append(crossIcon, document.createTextNode(state.language === 'zh' ? 'Google → Naver' : 'Google → Naver'));
+      crossLink.addEventListener('click', () => {
+        const query = (place.address || place.formatted_address || place.location || place.name || '').trim();
+        if (!query) return;
+        const naverSearch = `https://map.naver.com/v5/search/${encodeURIComponent(query)}`;
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(query);
+        } catch (e) {
+          // ignore clipboard failures
+        }
+        window.open(naverSearch, '_blank', 'noopener');
+      });
+      actions.appendChild(crossLink);
+    }
     const addButton = document.createElement('button');
     addButton.className = 'ai-reference-place-button ai-reference-add-button';
     addButton.type = 'button';
@@ -2166,6 +2192,7 @@ function openActivityModal(activity = null) {
     : null;
   currentNaverPlaceName = activity?.naverPlaceName || getLegacyNaverSearchName(activity?.naverUrl) || '';
   currentGoogleReviewCount = Number(activity?.googleReviewCount) || 0;
+  currentPlaceWebsite = activity?.website || '';
   shoppingItemsDraft = activity?.shoppingItems ? activity.shoppingItems.map((item) => ({ ...item })) : [];
   activityForm.reset();
   populateExpenseCurrencyOptions(activityExpenseCurrencyInput, getExpenseCurrency(activity?.expense) || getCurrencyForDestination(getCityForDate(activity?.date || getTripDays()[selectedDayIndex])));
@@ -2188,8 +2215,7 @@ function openActivityModal(activity = null) {
     document.getElementById('activityLocation').value = activity.location || '';
     document.getElementById('activityRating').value = activity.rating || '';
     document.getElementById('activityDescription').value = activity.address || activity.description || '';
-    activityMapProviderInput.value = getMapProviderForDate(activity.date) === 'naver' ? 'naver' : (activity.mapProvider || 'google');
-    activityNaverUrlInput.value = activity.naverUrl || '';
+    activityMapProviderInput.value = activity.mapProvider || getMapProviderForDate(activity.date);
     document.getElementById('activityUpfrontPaymentTitle').value = activity.upfrontPaymentTitle || '';
     document.getElementById('activityBookingDetails').value = activity.bookingDetails || '';
     document.getElementById('activityContactDetails').value = activity.contactDetails || '';
@@ -2217,6 +2243,8 @@ function openActivityModal(activity = null) {
     document.getElementById('activityDate').value = selectedDate;
     activityMapProviderInput.value = getMapProviderForDate(selectedDate);
   }
+  activityWebsiteInput.value = currentPlaceWebsite;
+  placeLookupStatus.textContent = '';
   if (!activity) toggleCardFields(activityPaymentMethodInput, activityCardNetworkField, activityCardMarkupField, activityCardRateHint);
   activityModalOverlay.classList.remove('hidden');
 }
@@ -2898,11 +2926,16 @@ function loadKoreaMap() {
 
 function loadKoreaRatingService() {
   if (!GOOGLE_MAPS_API_KEY || GOOGLE_MAPS_API_KEY === 'YOUR_GOOGLE_MAPS_API_KEY' || GOOGLE_MAPS_API_KEY.length < 20) return;
+  window.gm_authFailure = () => {
+    restoreActivityLocationInput();
+    placeLookupStatus.textContent = 'Google Places rejected this site. Add this website URL to the API key HTTP referrer restrictions.';
+  };
   const initializePlaces = () => {
     if (!window.google?.maps?.places || activeMapProvider !== 'naver') return;
     placesService = new google.maps.places.PlacesService(document.createElement('div'));
     geocoder = new google.maps.Geocoder();
     directionsService = new google.maps.DirectionsService();
+    setupPlaceAutocomplete();
     if (mapViewMode === 'day') updateKoreaMapMarkers();
     else if (routeModeSelect.value === 'TRANSIT') requestSuggestedRoute();
   };
@@ -2917,7 +2950,7 @@ function loadKoreaRatingService() {
   }
   const script = document.createElement('script');
   script.id = 'googleMapsApiScript';
-  script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(GOOGLE_MAPS_API_KEY)}&libraries=places,geometry&language=en&region=KR`;
+  script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(GOOGLE_MAPS_API_KEY)}&libraries=places,geometry&language=ko&region=KR`;
   script.async = true;
   script.addEventListener('load', initializePlaces, { once: true });
   document.head.appendChild(script);
@@ -2970,6 +3003,7 @@ function loadGoogleMaps(apiKey) {
   window.gm_authFailure = () => {
     mapsApiLoaded = false;
     mapsApiLoading = false;
+    restoreActivityLocationInput();
     mapStatus.textContent = 'Google Maps rejected this API key. Check billing, HTTP referrer restrictions, Maps JavaScript API, and Places API.';
     mapStatus.style.display = 'block';
     placeLookupStatus.textContent = 'Google Places is unavailable because the API key was rejected. You can still edit the location and address manually.';
@@ -3026,26 +3060,40 @@ function loadGoogleMaps(apiKey) {
   document.head.appendChild(script);
 }
 
+function restoreActivityLocationInput() {
+  const restore = () => {
+    activityLocationInput.disabled = false;
+    activityLocationInput.classList.remove('gm-err-autocomplete');
+    activityLocationInput.placeholder = 'Search a place or address';
+  };
+  restore();
+  setTimeout(restore, 0);
+}
+
 function setupPlaceAutocomplete() {
   if (placeAutocomplete || !window.google?.maps?.places?.Autocomplete) return;
-  placeAutocomplete = new google.maps.places.Autocomplete(activityLocationInput, {
-    fields: ['name', 'formatted_address', 'rating', 'user_ratings_total', 'editorial_summary', 'place_id', 'types', 'geometry', 'formatted_phone_number', 'international_phone_number'],
+  const autocompleteOptions = {
+    fields: ['name', 'formatted_address', 'address_components', 'rating', 'user_ratings_total', 'editorial_summary', 'place_id', 'types', 'geometry', 'formatted_phone_number', 'international_phone_number', 'website'],
     types: ['establishment', 'geocode'],
-  });
+  };
+  if (activeMapProvider === 'naver') autocompleteOptions.componentRestrictions = { country: 'kr' };
+  placeAutocomplete = new google.maps.places.Autocomplete(activityLocationInput, autocompleteOptions);
   placeAutocomplete.addListener('place_changed', () => {
     const place = placeAutocomplete.getPlace();
     if (!place || !place.name) return;
     clearTimeout(placeLookupTimer);
     placeLookupRequestId += 1;
     activityLocationInput.value = place.name;
-    currentPlaceAddress = place.formatted_address || '';
+    currentPlaceAddress = getKoreanGoogleAddress(place) || place.formatted_address || '';
     currentPlaceId = place.place_id || '';
     currentPlaceCoordinates = place.geometry?.location
       ? { lat: place.geometry.location.lat(), lng: place.geometry.location.lng() }
       : null;
     currentGoogleReviewCount = Number(place.user_ratings_total) || 0;
+    currentPlaceWebsite = place.website || '';
+    activityWebsiteInput.value = currentPlaceWebsite;
     activityRatingInput.value = place.rating || '';
-    activityDescriptionInput.value = place.formatted_address || '';
+    activityDescriptionInput.value = currentPlaceAddress;
     activityCategoryInput.value = inferActivityCategory(place.types, activityCategoryInput.value || 'other');
     toggleFlightDetails(activityCategoryInput.value);
     toggleShoppingDetails(activityCategoryInput.value);
@@ -3055,12 +3103,37 @@ function setupPlaceAutocomplete() {
   });
 }
 
+function getKoreanGoogleAddress(place) {
+  if (activeMapProvider !== 'naver') return '';
+  const components = Array.isArray(place?.address_components) ? place.address_components : [];
+  const addressOrder = [
+    'administrative_area_level_1', 'administrative_area_level_2', 'locality',
+    'sublocality_level_1', 'sublocality_level_2', 'sublocality_level_3',
+    'route', 'street_number', 'premise', 'subpremise', 'postal_code',
+  ];
+  const values = components
+    .filter((component) => {
+      const value = component.long_name || component.short_name || '';
+      return /[가-힣]/.test(value) || component.types?.some((type) => type === 'street_number' || type === 'postal_code');
+    })
+    .map((component, index) => ({
+      value: component.long_name || component.short_name || '',
+      order: Math.min(...(component.types || []).map((type) => addressOrder.indexOf(type)).filter((position) => position >= 0), addressOrder.length + index),
+    }))
+    .sort((first, second) => first.order - second.order)
+    .map((component) => component.value)
+    .filter((value) => !/^(대한민국|한국)$/.test(value));
+  return [...new Set(values)].join(' ');
+}
+
 // Looks up rating and a short description for the entered location via Google Places and fills the read-only fields.
 let placeLookupTimer = null;
+let placeLookupTimeout = null;
 let placeLookupRequestId = 0;
 function lookupPlaceDetails() {
   const location = activityLocationInput.value.trim();
   const requestId = ++placeLookupRequestId;
+  clearTimeout(placeLookupTimeout);
 
   if (!location) {
     activityRatingInput.value = '';
@@ -3071,11 +3144,6 @@ function lookupPlaceDetails() {
   }
 
   const activityDate = document.getElementById('activityDate').value;
-  if (getMapProviderForDate(activityDate) === 'naver') {
-    lookupKoreaPlaceDetails(location, requestId, activityDate);
-    return;
-  }
-
   if (!mapsApiLoaded || !placesService) {
     placeLookupStatus.textContent = GOOGLE_MAPS_API_KEY && GOOGLE_MAPS_API_KEY !== 'YOUR_GOOGLE_MAPS_API_KEY'
       ? 'Google Places is unavailable. Your manual location, rating, and address will still be saved.'
@@ -3085,12 +3153,18 @@ function lookupPlaceDetails() {
 
   const queryCity = getCityForDate(activityDate);
   const query = queryCity ? `${location}, ${queryCity}` : location;
-  placeLookupStatus.textContent = 'Looking up place details…';
+  const pendingMessage = 'Looking up place details…';
+  placeLookupStatus.textContent = pendingMessage;
+  placeLookupTimeout = setTimeout(() => {
+    if (placeLookupStatus.textContent !== pendingMessage) return;
+    placeLookupStatus.textContent = 'Google Places did not respond. Check the API key website restrictions and Places API access.';
+  }, 8000);
 
   placesService.findPlaceFromQuery(
     { query, fields: ['place_id', 'name', 'formatted_address'] },
     (results, status) => {
       if (requestId !== placeLookupRequestId || activityLocationInput.value.trim() !== location) return;
+      clearTimeout(placeLookupTimeout);
       if (status === 'REQUEST_DENIED') {
         placeLookupStatus.textContent = 'Google Places access was denied. Your manual location, rating, and address will still be saved.';
         return;
@@ -3112,10 +3186,15 @@ function lookupPlaceDetails() {
         locationSuggestions.appendChild(option);
       });
 
+      placeLookupTimeout = setTimeout(() => {
+        if (placeLookupStatus.textContent !== pendingMessage) return;
+        placeLookupStatus.textContent = 'Google Place Details did not respond. Check Places API access for this key.';
+      }, 8000);
       placesService.getDetails(
-        { placeId: results[0].place_id, fields: ['name', 'rating', 'user_ratings_total', 'editorial_summary', 'types', 'geometry', 'formatted_address', 'formatted_phone_number', 'international_phone_number'] },
+        { placeId: results[0].place_id, fields: ['name', 'rating', 'user_ratings_total', 'editorial_summary', 'types', 'geometry', 'formatted_address', 'address_components', 'formatted_phone_number', 'international_phone_number', 'website'] },
         (place, detailsStatus) => {
           if (requestId !== placeLookupRequestId || activityLocationInput.value.trim() !== location) return;
+          clearTimeout(placeLookupTimeout);
           if (detailsStatus === 'REQUEST_DENIED') {
             placeLookupStatus.textContent = 'Google Places details were denied. Enable Places API and check this key\'s restrictions.';
             return;
@@ -3125,14 +3204,18 @@ function lookupPlaceDetails() {
             return;
           }
 
+          activityLocationInput.value = place.name || results[0].name || location;
           activityRatingInput.value = place.rating || '';
-          currentPlaceAddress = place.formatted_address || results[0].formatted_address || '';
+          currentPlaceAddress = getKoreanGoogleAddress(place) || place.formatted_address || results[0].formatted_address || '';
           currentPlaceId = results[0].place_id || '';
+          currentNaverPlaceName = place.name || results[0].name || '';
           currentPlaceCoordinates = place.geometry?.location
             ? { lat: place.geometry.location.lat(), lng: place.geometry.location.lng() }
             : null;
           currentGoogleReviewCount = Number(place.user_ratings_total) || 0;
-          activityDescriptionInput.value = place.formatted_address || results[0].formatted_address || '';
+          currentPlaceWebsite = place.website || '';
+          activityWebsiteInput.value = currentPlaceWebsite;
+          activityDescriptionInput.value = currentPlaceAddress;
           activityCategoryInput.value = inferActivityCategory(place.types, activityCategoryInput.value || 'other');
           toggleFlightDetails(activityCategoryInput.value);
           toggleShoppingDetails(activityCategoryInput.value);
@@ -3145,100 +3228,18 @@ function lookupPlaceDetails() {
   );
 }
 
-async function lookupKoreaPlaceDetails(location, requestId, activityDate) {
-  if (!window.itinerarySync?.isConfigured()) {
-    placeLookupStatus.textContent = state.language === 'zh' ? '韓國地點搜尋需要 Firebase 設定；仍可手動輸入地址。' : 'Korea place search requires Firebase setup. You can still enter the address manually.';
-    return;
-  }
-  const city = getCityForDate(activityDate);
-  placeLookupStatus.textContent = state.language === 'zh' ? '正在 OpenStreetMap 搜尋韓國地點…' : 'Searching Korea places with OpenStreetMap…';
-  try {
-    await window.itinerarySync.authenticate();
-    const searchKoreaPlaces = firebase.app().functions('asia-east2').httpsCallable('searchKoreaPlaces');
-    const result = await searchKoreaPlaces({ query: [location, city].filter(Boolean).join(' ') });
-    if (requestId !== placeLookupRequestId || activityLocationInput.value.trim() !== location) return;
-    const places = Array.isArray(result.data?.places) ? result.data.places : [];
-    locationSuggestions.innerHTML = '';
-    places.forEach((place) => {
-      const option = document.createElement('option');
-      option.value = place.name;
-      option.label = place.address;
-      locationSuggestions.appendChild(option);
-    });
-    const place = places[0];
-    if (!place) {
-      placeLookupStatus.textContent = state.language === 'zh' ? 'OpenStreetMap 找不到相符地點，請嘗試韓文名稱或道路地址。' : 'No OpenStreetMap match found. Try the Korean name or road address.';
-      return;
-    }
-    currentPlaceAddress = place.address || '';
-    currentPlaceId = '';
-    currentNaverPlaceName = place.naverPlaceName || place.name || '';
-    currentPlaceCoordinates = Number.isFinite(place.latitude) && Number.isFinite(place.longitude)
-      ? { lat: place.latitude, lng: place.longitude }
-      : null;
-    currentGoogleReviewCount = 0;
-    activityDescriptionInput.value = place.address || '';
-    activityNaverUrlInput.value = place.naverUrl || '';
-    if (Number.isFinite(place.latitude) && Number.isFinite(place.longitude)) {
-      state.geocodeCache[`korea:${place.address || location}`] = { lat: place.latitude, lng: place.longitude };
-      saveState();
-    }
-    activityCategoryInput.value = inferActivityCategory(place.category, activityCategoryInput.value || 'other');
-    toggleFlightDetails(activityCategoryInput.value);
-    toggleShoppingDetails(activityCategoryInput.value);
-    toggleBookingDetails(activityCategoryInput.value);
-    const ratingAdded = await enrichKoreaPlaceRating(place, location, requestId);
-    if (requestId !== placeLookupRequestId || activityLocationInput.value.trim() !== location) return;
-    placeLookupStatus.textContent = state.language === 'zh'
-      ? ratingAdded
-        ? '已使用韓文正式地址定位，並從 Google Places 補上評分。'
-        : '已使用 OpenStreetMap 的韓文正式地址；目前沒有可用評分。'
-      : ratingAdded
-        ? 'Matched with the official Korean address and added the Google Places rating.'
-        : 'Matched with the official Korean address. No rating is currently available.';
-  } catch (error) {
-    if (requestId !== placeLookupRequestId) return;
-    placeLookupStatus.textContent = state.language === 'zh' ? '韓國地點搜尋暫時無法使用，仍可手動輸入地址。' : 'Korea place search is temporarily unavailable. You can still enter the address manually.';
-  }
-}
-
-function enrichKoreaPlaceRating(place, enteredLocation, requestId) {
-  if (!placesService || !window.google?.maps?.places) return Promise.resolve(false);
-  const query = [place.name, place.address].filter(Boolean).join(', ');
-  return new Promise((resolve) => {
-    placesService.findPlaceFromQuery({
-      query,
-      fields: ['place_id', 'name', 'rating', 'user_ratings_total', 'types'],
-    }, (results, status) => {
-      if (requestId !== placeLookupRequestId || activityLocationInput.value.trim() !== enteredLocation) {
-        resolve(false);
-        return;
-      }
-      const googlePlace = status === google.maps.places.PlacesServiceStatus.OK ? results?.[0] : null;
-      if (!googlePlace || !Number.isFinite(Number(googlePlace.rating))) {
-        resolve(false);
-        return;
-      }
-      activityRatingInput.value = Number(googlePlace.rating).toFixed(1);
-      currentPlaceId = googlePlace.place_id || '';
-      currentGoogleReviewCount = Number(googlePlace.user_ratings_total) || 0;
-      activityCategoryInput.value = inferActivityCategory(googlePlace.types, activityCategoryInput.value || 'other');
-      toggleFlightDetails(activityCategoryInput.value);
-      toggleShoppingDetails(activityCategoryInput.value);
-      toggleBookingDetails(activityCategoryInput.value);
-      resolve(true);
-    });
-  });
-}
-
 activityLocationInput.addEventListener('input', () => {
   clearTimeout(placeLookupTimer);
+  clearTimeout(placeLookupTimeout);
   placeLookupRequestId += 1;
+  placeLookupStatus.textContent = '';
   currentPlaceAddress = '';
   currentPlaceId = '';
   currentPlaceCoordinates = null;
   currentNaverPlaceName = '';
   currentGoogleReviewCount = 0;
+  currentPlaceWebsite = '';
+  activityWebsiteInput.value = '';
   placeLookupTimer = setTimeout(lookupPlaceDetails, 600);
 });
 
@@ -5792,9 +5793,7 @@ function renderItineraryForSelectedDay(days) {
             || state.geocodeCache?.[activityCity ? `${activity.location}, ${activityCity}` : activity.location];
         const mapLink = document.createElement('a');
         const preferredMapProvider = getMapProviderForDate(activity.date) === 'naver' ? 'naver' : (activity.mapProvider || 'google');
-        const getLinkProvider = () => preferredMapProvider === 'naver' && !getNaverPlaceUrl(activity.naverUrl)
-          ? 'google'
-          : preferredMapProvider;
+        const getLinkProvider = () => activity.mapProvider || preferredMapProvider;
         let mapProvider = getLinkProvider();
         mapLink.className = `item-map-link map-${mapProvider}`;
         mapLink.href = getMapUrl(mapProvider, mapQuery, activityCity, activity.location, activityCoordinates, activity.naverUrl, activity.placeId, activity.naverPlaceName);
@@ -5825,6 +5824,16 @@ function renderItineraryForSelectedDay(days) {
         contactLink.href = `tel:${activity.contactDetails.replace(/[^+\d]/g, '')}`;
         contactLink.textContent = activity.contactDetails;
         footerRow.appendChild(contactLink);
+      }
+
+      if (/^https?:\/\//i.test(activity.website || '')) {
+        const websiteLink = document.createElement('a');
+        websiteLink.className = 'item-contact-pill item-website-pill';
+        websiteLink.href = activity.website;
+        websiteLink.target = '_blank';
+        websiteLink.rel = 'noopener noreferrer';
+        websiteLink.textContent = 'Website';
+        footerRow.appendChild(websiteLink);
       }
 
       if (activity.expense) {
