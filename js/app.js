@@ -2088,10 +2088,14 @@ function optimizeRouteOrder(activities, travelTimeLegs) {
     const stops = [start, ...route, end].filter(Boolean);
     return stops.slice(1).reduce((total, stop, index) => total + getCost(stops[index], stop), 0);
   };
-  const nearestNeighbor = (stops, start = null) => {
+  const nearestNeighbor = (stops, start = null, firstStop = null) => {
     const remaining = stops.slice();
     const route = [];
-    let current = start || remaining.shift();
+    let current = start;
+    if (!current) {
+      const firstIndex = firstStop ? remaining.findIndex((stop) => stop.id === firstStop.id) : 0;
+      current = remaining.splice(Math.max(0, firstIndex), 1)[0];
+    }
     if (!start && current) route.push(current);
     while (remaining.length) {
       let nearestIndex = 0;
@@ -2111,10 +2115,11 @@ function optimizeRouteOrder(activities, travelTimeLegs) {
   const refineWithTwoOpt = (initialRoute, start = null, end = null) => {
     let route = initialRoute.slice();
     let improved = true;
+    const firstReversibleIndex = start ? 0 : 1;
     while (improved) {
       improved = false;
       const currentCost = routeCost(route, start, end);
-      for (let first = 0; first < route.length - 1 && !improved; first += 1) {
+      for (let first = firstReversibleIndex; first < route.length - 1 && !improved; first += 1) {
         for (let last = first + 1; last < route.length; last += 1) {
           const candidate = [
             ...route.slice(0, first),
@@ -2133,7 +2138,13 @@ function optimizeRouteOrder(activities, travelTimeLegs) {
   };
   const optimizeSegment = (segment, start, end) => {
     if (segment.length < 2) return segment;
-    return refineWithTwoOpt(nearestNeighbor(segment, start), start, end);
+    const startCandidates = start ? [null] : segment;
+    return startCandidates.reduce((bestRoute, firstStop) => {
+      const candidate = refineWithTwoOpt(nearestNeighbor(segment, start, firstStop), start, end);
+      return !bestRoute || routeCost(candidate, start, end) < routeCost(bestRoute, start, end)
+        ? candidate
+        : bestRoute;
+    }, null);
   };
   const byDate = new Map();
   activities.forEach((activity) => {
