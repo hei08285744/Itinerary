@@ -6004,14 +6004,10 @@ function getMapUrl(provider, query, city = '', location = '', coordinates = null
   if (provider === 'naver') {
     const exactPlaceUrl = getNaverPlaceUrl(naverUrl);
     if (exactPlaceUrl) return exactPlaceUrl;
-    if (Number.isFinite(coordinates?.lat) && Number.isFinite(coordinates?.lng)) {
-      const destinationLabel = naverPlaceName || location || query || city;
-      return `https://map.naver.com/p/directions/-/${coordinates.lng},${coordinates.lat},${encodeURIComponent(destinationLabel)}/-/walk?c=${coordinates.lng},${coordinates.lat},18,0,0,0,dh`;
-    }
     const legacySearchName = getLegacyNaverSearchName(naverUrl);
     const legacyPlaceName = legacySearchName && !legacySearchName.includes(',') ? legacySearchName : '';
     const officialPlaceName = naverPlaceName || (/[가-힣]/.test(location) ? location : '') || legacyPlaceName;
-    const naverQuery = getNaverSearchQuery(location, query, officialPlaceName)
+    const naverQuery = officialPlaceName || getNaverSearchQuery(location, query, officialPlaceName)
       || (location && city ? `${location}, ${city}` : location);
     const encodedNaverQuery = encodeURIComponent(naverQuery);
     const center = Number.isFinite(coordinates?.lat) && Number.isFinite(coordinates?.lng)
