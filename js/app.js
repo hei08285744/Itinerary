@@ -2243,6 +2243,7 @@ function openActivityModal(activity = null) {
     document.getElementById('activityDate').value = selectedDate;
     activityMapProviderInput.value = getMapProviderForDate(selectedDate);
   }
+  updatePlaceAutocompleteRestrictions(document.getElementById('activityDate').value);
   activityWebsiteInput.value = currentPlaceWebsite;
   placeLookupStatus.textContent = '';
   if (!activity) toggleCardFields(activityPaymentMethodInput, activityCardNetworkField, activityCardMarkupField, activityCardRateHint);
@@ -3076,7 +3077,9 @@ function setupPlaceAutocomplete() {
     fields: ['name', 'formatted_address', 'address_components', 'rating', 'user_ratings_total', 'editorial_summary', 'place_id', 'types', 'geometry', 'formatted_phone_number', 'international_phone_number', 'website'],
     types: ['establishment', 'geocode'],
   };
-  if (activeMapProvider === 'naver') autocompleteOptions.componentRestrictions = { country: 'kr' };
+  if (getMapProviderForDate(document.getElementById('activityDate').value) === 'naver') {
+    autocompleteOptions.componentRestrictions = { country: 'kr' };
+  }
   placeAutocomplete = new google.maps.places.Autocomplete(activityLocationInput, autocompleteOptions);
   placeAutocomplete.addListener('place_changed', () => {
     const place = placeAutocomplete.getPlace();
@@ -3103,8 +3106,15 @@ function setupPlaceAutocomplete() {
   });
 }
 
+function updatePlaceAutocompleteRestrictions(date) {
+  if (!placeAutocomplete?.setComponentRestrictions) return;
+  const country = getMapProviderForDate(date) === 'naver' ? 'kr' : [];
+  placeAutocomplete.setComponentRestrictions({ country });
+}
+
 function getKoreanGoogleAddress(place) {
-  if (activeMapProvider !== 'naver') return '';
+  const activityDate = document.getElementById('activityDate').value;
+  if (getMapProviderForDate(activityDate) !== 'naver') return '';
   const components = Array.isArray(place?.address_components) ? place.address_components : [];
   const addressOrder = [
     'administrative_area_level_1', 'administrative_area_level_2', 'locality',
@@ -3245,6 +3255,8 @@ activityLocationInput.addEventListener('input', () => {
 
 document.getElementById('activityDate').addEventListener('change', (event) => {
   updateActivityExpenseHint(event.target.value);
+  activityMapProviderInput.value = getMapProviderForDate(event.target.value);
+  updatePlaceAutocompleteRestrictions(event.target.value);
 });
 
 
@@ -5800,7 +5812,10 @@ function renderItineraryForSelectedDay(days) {
         mapLink.target = '_blank';
         mapLink.rel = 'noopener noreferrer';
         const mapLabels = { google: 'Google Maps', naver: 'Naver Maps', kakao: 'Kakao Map' };
-        mapLink.textContent = mapLabels[mapProvider];
+        const getMapLabel = (provider) => provider === 'naver' && !getNaverPlaceUrl(activity.naverUrl)
+          ? 'Find on Naver'
+          : mapLabels[provider];
+        mapLink.textContent = getMapLabel(mapProvider);
         mapLink.addEventListener('click', () => {
           const latestCoordinates = Number.isFinite(activity.latitude) && Number.isFinite(activity.longitude)
             ? { lat: activity.latitude, lng: activity.longitude }
@@ -5809,11 +5824,14 @@ function renderItineraryForSelectedDay(days) {
           const latestQuery = activity.address || (activityCity ? `${activity.location}, ${activityCity}` : activity.location);
           mapProvider = getLinkProvider();
           mapLink.className = `item-map-link map-${mapProvider}`;
-          mapLink.textContent = mapLabels[mapProvider];
+          mapLink.textContent = getMapLabel(mapProvider);
           mapLink.href = getMapUrl(mapProvider, latestQuery, activityCity, activity.location, latestCoordinates, activity.naverUrl, activity.placeId, activity.naverPlaceName);
         });
-        if (mapProvider === 'naver' && activityCoordinates) {
-          mapLink.title = state.language === 'zh' ? '在 Naver Maps 開啟精確座標' : 'Open exact coordinates in Naver Maps';
+        if (mapProvider === 'naver') {
+          const hasExactNaverPlace = Boolean(getNaverPlaceUrl(activity.naverUrl));
+          mapLink.title = hasExactNaverPlace
+            ? (state.language === 'zh' ? '在 Naver Maps 開啟地點詳情' : 'Open place details in Naver Maps')
+            : (state.language === 'zh' ? '在 Naver Maps 選擇相符地點' : 'Choose the matching place in Naver Maps');
         }
         footerRow.appendChild(mapLink);
       }
