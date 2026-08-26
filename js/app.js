@@ -182,6 +182,7 @@ let editingActivityId = null;
 let editingBillId = null;
 let selectedBillMember = 'all';
 let highlightedOwedMember = '';
+let isDebtSetoffActive = false;
 let splittingBillId = null;
 let currentPlaceAddress = '';
 let currentPlaceId = '';
@@ -4826,6 +4827,7 @@ function renderBillTabs() {
     button.addEventListener('click', () => {
       selectedBillMember = tab.key;
       highlightedOwedMember = '';
+      isDebtSetoffActive = false;
       renderExpenseList();
     });
     billTabs.appendChild(button);
@@ -5007,6 +5009,22 @@ async function calculateSelectedMemberOwesConverted(expenses, debtor) {
   return convertMemberCurrencyTotals(calculateSelectedMemberOwesByCurrency(expenses, debtor));
 }
 
+async function calculateSelectedMemberSetoff(expenses, member) {
+  const members = (state.members || []).filter((otherMember) => otherMember && otherMember !== member);
+  const [amountsOwed, reciprocalAmounts] = await Promise.all([
+    calculateSelectedMemberOwesConverted(expenses, member),
+    Promise.all(members.map(async (otherMember) => {
+      const totals = await calculateSelectedMemberOwesConverted(expenses, otherMember);
+      return [otherMember, totals.get(member) || 0];
+    })),
+  ]);
+  const owedToMember = new Map(reciprocalAmounts);
+  return new Map(members.map((otherMember) => [
+    otherMember,
+    Math.max(0, (amountsOwed.get(otherMember) || 0) - (owedToMember.get(otherMember) || 0)),
+  ]));
+}
+
 function isSelectedMemberOwedPayment(expense, paidBy) {
   if (selectedBillMember === 'all') return false;
   if (!paidBy || expense.paidBy !== paidBy || expense.paidBy === selectedBillMember) return false;
@@ -5014,14 +5032,14 @@ function isSelectedMemberOwedPayment(expense, paidBy) {
   return getBillShareMembers(expense).includes(selectedBillMember);
 }
 
-function createMemberOwesRow(member, amountText) {
+function createMemberOwesRow(member, amountText, labelText = member) {
   const row = document.createElement('div');
   row.className = `member-owes-row${highlightedOwedMember === member ? ' is-active' : ''}`;
   row.setAttribute('role', 'button');
   row.tabIndex = 0;
   row.title = state.language === 'zh' ? '高亮相關付款項目' : 'Highlight related payment items';
   const name = document.createElement('span');
-  name.textContent = member;
+  name.textContent = labelText;
   const amount = document.createElement('strong');
   amount.textContent = amountText;
   row.append(name, amount);
@@ -5061,7 +5079,22 @@ function renderMemberOwesSummary(expenses) {
   title.textContent = isMemberTab
     ? (state.language === 'zh' ? `${selectedBillMember} 欠款` : `${selectedBillMember} owes`)
     : (state.language === 'zh' ? '每位成員總欠款' : 'Total owed by member');
-  memberOwesSummary.appendChild(title);
+  const heading = document.createElement('div');
+  heading.className = 'member-owes-heading';
+  heading.appendChild(title);
+
+  const setoffButton = document.createElement('button');
+  setoffButton.type = 'button';
+  setoffButton.className = `member-owes-setoff-btn${isDebtSetoffActive ? ' active' : ''}`;
+  setoffButton.textContent = state.language === 'zh' ? '債務抵銷' : 'Set off';
+  setoffButton.title = state.language === 'zh' ? '計算雙方互欠後的餘額' : 'Calculate the remainder after mutual debts cancel out';
+  setoffButton.setAttribute('aria-pressed', String(isDebtSetoffActive));
+  setoffButton.addEventListener('click', () => {
+    isDebtSetoffActive = true;
+    renderExpenseList();
+  });
+  heading.appendChild(setoffButton);
+  memberOwesSummary.appendChild(heading);
 
   const list = document.createElement('div');
   list.className = 'member-owes-list';
@@ -5071,7 +5104,9 @@ function renderMemberOwesSummary(expenses) {
   memberOwesSummary.appendChild(list);
 
   const totalsPromise = isMemberTab
-    ? calculateSelectedMemberOwesConverted(expenses, selectedBillMember)
+    ? (isDebtSetoffActive
+      ? calculateSelectedMemberSetoff(expenses, selectedBillMember)
+      : calculateSelectedMemberOwesConverted(expenses, selectedBillMember))
     : calculateMemberOwesConverted(expenses);
   totalsPromise.then((totals) => {
     list.innerHTML = '';

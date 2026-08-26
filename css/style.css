@@ -1899,6 +1899,33 @@ body[data-active-view='map'] .map-card {
   text-transform: uppercase;
 }
 
+.member-owes-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.member-owes-setoff-btn {
+  flex: 0 0 auto;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--theme-border);
+  border-radius: 6px;
+  background: var(--theme-surface);
+  color: var(--theme-accent-dark);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.68rem;
+}
+
+.member-owes-setoff-btn:hover,
+.member-owes-setoff-btn:focus-visible,
+.member-owes-setoff-btn.active {
+  border-color: var(--theme-accent);
+  background: var(--theme-accent-soft);
+  outline: none;
+}
+
 .member-owes-list {
   display: grid;
   gap: 0.35rem;
