@@ -10,7 +10,7 @@ const GEMINI_MODEL = 'gemini-2.5-flash';
 const REGION = 'asia-east2';
 const VERTEX_LOCATION = 'global';
 const AI_DAILY_LIMIT = 5;
-const CATEGORIES = new Set(['sight', 'meal', 'transport', 'hotel', 'shopping', 'other']);
+const CATEGORIES = new Set(['sight', 'meal', 'transport', 'hotel', 'shopping', 'flight', 'other']);
 const MAP_CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 const NOMINATIM_USER_AGENT = 'ItineraryPlanner/1.0 (Firebase Cloud Function; itinerary-hei08285744)';
 const firestore = getFirestore();
@@ -544,6 +544,7 @@ exports.generateItinerary = onCall({
       'For create-plan: include breakfast, lunch, dinner, 2 to 4 sightseeing stops per day, and a small number of shopping stops. Keep each day in one compact area or neighboring districts.',
       'For recommend-activities: return 2 to 4 real, non-duplicate places that fit reachable open slots near that day’s existing activities. Make the set meaningfully varied in experience type, pace, setting, and popularity; do not return several versions of the same attraction or activity. For each visitorVibe, write one short natural sentence (maximum 90 characters) about the distinct experience it adds. Do not address the traveler or predict a favorite.',
       `For optimize-route: return every supplied activity ID exactly once, keep dates and flight times fixed, and provide practical local times. Use the supplied ${mapServiceName} travel-time matrix to reduce total travel time and long transfers while preserving a comfortable, enjoyable day rather than optimizing distance alone.`,
+      'The client will enforce nearest-neighbor ordering followed by 2-opt local search on the measured travel-time matrix. Supply practical time slots and route notes that remain useful after that deterministic refinement.',
       'Treat 30 minutes between consecutive stops as a planning target and 60 minutes as a soft warning, not a prohibition. Prefer a friendlier nearby alternative when possible; if a longer transfer is worthwhile, keep it and explain why.',
       `Respect stated transportation preferences and account for typical traffic, transfers, opening hours, meals, and rest. Use official names of real places searchable on ${mapServiceName}.`,
       mapProvider === 'naver' ? 'For every Korean activity, location MUST be the official venue name written in Korean Hangul and address MUST be its complete Korean road address. Never translate location or address into Traditional Chinese. Never use only a city, province, district, neighborhood, or generic area as an activity location; title and description may use the traveler language.' : '',
@@ -558,6 +559,7 @@ exports.generateItinerary = onCall({
       `Optimize the visit order for this existing ${destination} itinerary from ${startDate} through ${endDate}.`,
       'Group nearby places and reduce backtracking. Optimize each date independently; never move an activity to another date.',
       'Keep flight times fixed. Use hotel stops as sensible daily start or end points. Return every supplied ID exactly once with a practical local time.',
+      'The client will use nearest-neighbor ordering followed by 2-opt local search on your proposed schedule and the measured matrix. Choose practical time slots and route notes that remain useful after this deterministic refinement.',
       `Treat the ${mapServiceName} travel-time matrix as the primary routing evidence. Minimize unnecessary total travel time, avoid isolated long transfers, and leave enough time at each stop. Do not sacrifice meal timing, rest, opening-hour practicality, or a uniquely worthwhile experience merely to save a few minutes.`,
       `Write each concise routeNote in ${language}; mention the suggested transport to that stop or why it follows the previous stop.`,
       preferences ? `Traveler preferences: ${preferences}` : 'Traveler preferences: efficient routing at a comfortable pace.',

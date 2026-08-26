@@ -2081,6 +2081,90 @@ async function buildAITravelTimeMatrix(activities) {
   return legs;
 }
 
+function optimizeRouteOrder(activities, travelTimeLegs) {
+  const legCosts = new Map(travelTimeLegs.map((leg) => [`${leg.fromId}:${leg.toId}`, Number(leg.durationMinutes) || Infinity]));
+  const getCost = (from, to) => legCosts.get(`${from.id}:${to.id}`) ?? Infinity;
+  const routeCost = (route, start = null, end = null) => {
+    const stops = [start, ...route, end].filter(Boolean);
+    return stops.slice(1).reduce((total, stop, index) => total + getCost(stops[index], stop), 0);
+  };
+  const nearestNeighbor = (stops, start = null) => {
+    const remaining = stops.slice();
+    const route = [];
+    let current = start || remaining.shift();
+    if (!start && current) route.push(current);
+    while (remaining.length) {
+      let nearestIndex = 0;
+      let nearestCost = getCost(current, remaining[0]);
+      for (let index = 1; index < remaining.length; index += 1) {
+        const cost = getCost(current, remaining[index]);
+        if (cost < nearestCost) {
+          nearestCost = cost;
+          nearestIndex = index;
+        }
+      }
+      current = remaining.splice(nearestIndex, 1)[0];
+      route.push(current);
+    }
+    return route;
+  };
+  const refineWithTwoOpt = (initialRoute, start = null, end = null) => {
+    let route = initialRoute.slice();
+    let improved = true;
+    while (improved) {
+      improved = false;
+      const currentCost = routeCost(route, start, end);
+      for (let first = 0; first < route.length - 1 && !improved; first += 1) {
+        for (let last = first + 1; last < route.length; last += 1) {
+          const candidate = [
+            ...route.slice(0, first),
+            ...route.slice(first, last + 1).reverse(),
+            ...route.slice(last + 1),
+          ];
+          if (routeCost(candidate, start, end) < currentCost) {
+            route = candidate;
+            improved = true;
+            break;
+          }
+        }
+      }
+    }
+    return route;
+  };
+  const optimizeSegment = (segment, start, end) => {
+    if (segment.length < 2) return segment;
+    return refineWithTwoOpt(nearestNeighbor(segment, start), start, end);
+  };
+  const byDate = new Map();
+  activities.forEach((activity) => {
+    if (!byDate.has(activity.date)) byDate.set(activity.date, []);
+    byDate.get(activity.date).push(activity);
+  });
+  const optimized = [];
+  [...byDate.keys()].sort().forEach((date) => {
+    const day = byDate.get(date).slice().sort((first, second) => (first.time || '').localeCompare(second.time || ''));
+    const timeSlots = day.map((activity) => activity.time || '');
+    const ordered = [];
+    let segment = [];
+    let previousAnchor = null;
+    day.forEach((activity) => {
+      if (activity.category !== 'flight') {
+        segment.push(activity);
+        return;
+      }
+      ordered.push(...optimizeSegment(segment, previousAnchor, activity), activity);
+      segment = [];
+      previousAnchor = activity;
+    });
+    ordered.push(...optimizeSegment(segment, previousAnchor, null));
+    optimized.push(...ordered.map((activity, index) => ({
+      ...activity,
+      time: activity.category === 'flight' ? activity.time : timeSlots[index],
+    })));
+  });
+  return optimized;
+}
+
 aiPlannerForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   const startDate = aiPlannerStartDate.value;
@@ -2135,8 +2219,17 @@ aiPlannerForm.addEventListener('submit', async (event) => {
     setAIUsage(result.data?.usage || {});
     const action = result.data?.action || 'create-plan';
     if (action === 'optimize-route') {
-      const optimizedActivities = Array.isArray(result.data?.optimizedActivities) ? result.data.optimizedActivities : [];
+      let optimizedActivities = Array.isArray(result.data?.optimizedActivities) ? result.data.optimizedActivities : [];
       if (optimizedActivities.length < 2) throw new Error('No optimized route returned');
+      const currentById = new Map(currentActivities.map((activity) => [activity.id, activity]));
+      optimizedActivities = optimizeRouteOrder(optimizedActivities.map((activity) => ({
+        ...currentById.get(activity.id),
+        ...activity,
+      })), travelTimeLegs).map((activity) => ({
+        id: activity.id,
+        time: activity.time,
+        routeNote: activity.routeNote,
+      }));
       aiPlannerStatus.textContent = plannerMapProvider === 'naver'
         ? (state.language === 'zh' ? '正在用韓國地圖驗證距離與交通時間。' : 'Verifying distances and travel times with Korea map data.')
         : (state.language === 'zh' ? '正在用 Google Maps 驗證距離與交通時間。' : 'Verifying distances and travel times with Google Maps.');
@@ -2167,9 +2260,12 @@ aiPlannerForm.addEventListener('submit', async (event) => {
       aiPlannerStatus.textContent = plannerMapProvider === 'naver'
         ? (state.language === 'zh' ? '正在用韓國地圖驗證每個地點。' : 'Verifying every place with Korea map data.')
         : (state.language === 'zh' ? '正在用 Google Maps 驗證每個地點。' : 'Verifying every place with Google Maps.');
-      const verifiedActivities = await verifyAIActivityPlaces(generatedActivities, aiPlannerDestination.value.trim());
+      let verifiedActivities = await verifyAIActivityPlaces(generatedActivities, aiPlannerDestination.value.trim());
       verifyAIDailyMeals(verifiedActivities, startDate, endDate);
-      aiPlannerStatus.textContent = state.language === 'zh' ? '正在比較每日移動時間並標示較長路段。' : 'Comparing daily travel times and flagging longer transfers.';
+      const routableActivities = verifiedActivities.map((activity, index) => ({ ...activity, id: `ai-route-${index}` }));
+      aiPlannerStatus.textContent = state.language === 'zh' ? '正在使用最近鄰與 2-opt 比較每日路線。' : 'Optimizing each day with nearest-neighbor and 2-opt.';
+      const generatedTravelTimeLegs = await buildAITravelTimeMatrix(routableActivities);
+      if (generatedTravelTimeLegs.length) verifiedActivities = optimizeRouteOrder(routableActivities, generatedTravelTimeLegs);
       const activities = await verifyAIDailyReachability(verifiedActivities, aiPlannerDestination.value.trim(), false, plannerMapProvider);
       if (!activities.length) throw new Error('No activities returned');
       pendingAICreatePreview = {
