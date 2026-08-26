@@ -1176,7 +1176,7 @@ function requestRouteLeg(origin, destination, mode, departureTime = null) {
   });
 }
 
-function verifyAIActivityPlace(activity, destination) {
+function verifyAIActivityPlace(activity, destination, preserveDisplayText = false) {
   return new Promise((resolve) => {
     if (!placesService || !window.google?.maps?.places) {
       resolve(null);
@@ -1209,8 +1209,8 @@ function verifyAIActivityPlace(activity, destination) {
       const longitude = place.geometry?.location?.lng();
       finish({
         ...activity,
-        location: place.name || activity.location,
-        address: place.formatted_address || '',
+        location: preserveDisplayText ? (activity.location || place.name) : (place.name || activity.location),
+        address: preserveDisplayText ? (activity.address || place.formatted_address || '') : (place.formatted_address || activity.address || ''),
         rating: rating || '',
         placeId: place.place_id || '',
         placeTypes: place.types || [],
@@ -1301,7 +1301,7 @@ async function verifyAIActivityPlaces(activities, destination) {
         latitude: attachedPlace.latitude,
         longitude: attachedPlace.longitude,
       } : activity, destination);
-      if (!attachedPlace) return verifyAIActivityPlace(activity, destination);
+      if (!attachedPlace) return verifyAIActivityPlace(activity, destination, true);
       return Promise.resolve({
         ...activity,
         location: attachedPlace.name,
@@ -1332,7 +1332,7 @@ async function verifyAttachedReferencePlaces(destination) {
     };
     const verifiedPlace = isKoreaDestination(destination)
       ? await verifyAIKoreaActivityPlace(referenceActivity, destination)
-      : await verifyAIActivityPlace(referenceActivity, destination);
+      : await verifyAIActivityPlace(referenceActivity, destination, true);
     return {
       ...verifiedPlace,
       title: verifiedPlace?.title || place.name,
@@ -1604,6 +1604,9 @@ function renderAICreatePreview() {
     const location = document.createElement('p');
     location.className = 'ai-create-preview-location';
     location.textContent = activity.location || activity.description || '';
+    const address = document.createElement('p');
+    address.className = 'ai-create-preview-address';
+    address.textContent = activity.address && activity.address !== activity.location ? activity.address : '';
     const reason = document.createElement('p');
     reason.textContent = activity.remarks || activity.description || (state.language === 'zh' ? 'Aitinerary 建議的行程停靠點。' : 'Aitinerary-selected stop for this itinerary.');
     const metrics = document.createElement('div');
@@ -1620,9 +1623,13 @@ function renderAICreatePreview() {
       const warning = document.createElement('p');
       warning.className = 'ai-reachability-warning';
       warning.textContent = activity.reachabilityWarning;
-      content.append(heading, location, reason, warning, metrics);
+      content.append(heading, location);
+      if (address.textContent) content.appendChild(address);
+      content.append(reason, warning, metrics);
     } else {
-      content.append(heading, location, reason, metrics);
+      content.append(heading, location);
+      if (address.textContent) content.appendChild(address);
+      content.append(reason, metrics);
     }
     if (activity.planningWarning) {
       const warning = document.createElement('p');
