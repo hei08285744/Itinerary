@@ -1,4 +1,5 @@
 (function () {
+  const googleRedirectKey = 'mytinerary-google-redirect';
   const clientId = `client-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 9)}`;
   let firestore = null;
   let currentTripId = '';
@@ -79,11 +80,28 @@
   }
 
   async function completeGoogleRedirect() {
+    const redirectUrl = localStorage.getItem(googleRedirectKey);
+    if (!redirectUrl) return getCurrentUser();
     const auth = initializeFirebaseApp();
     const result = await auth.getRedirectResult();
-    if (!result?.user) return getCurrentUser();
+    const user = result?.user || auth.currentUser || await Promise.race([
+      new Promise((resolve, reject) => {
+        let unsubscribeAuth = () => {};
+        unsubscribeAuth = auth.onAuthStateChanged((nextUser) => {
+          if (!nextUser) return;
+          unsubscribeAuth();
+          resolve(nextUser);
+        }, reject);
+      }),
+      new Promise((resolve) => setTimeout(() => resolve(auth.currentUser), 5000)),
+    ]);
+    if (!user) return null;
+    localStorage.removeItem(googleRedirectKey);
+    if (redirectUrl.startsWith(window.location.origin)) {
+      window.history.replaceState(null, '', redirectUrl);
+    }
     firestore = firebase.firestore();
-    initializationPromise = Promise.resolve(result.user.uid);
+    initializationPromise = Promise.resolve(user.uid);
     return getCurrentUser();
   }
 
@@ -92,6 +110,7 @@
     const provider = new firebase.auth.GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
     if (requiresGoogleRedirect()) {
+      localStorage.setItem(googleRedirectKey, window.location.href);
       await auth.signInWithRedirect(provider);
       return null;
     }

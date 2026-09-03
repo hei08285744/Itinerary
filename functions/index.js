@@ -173,7 +173,22 @@ exports.prepareTrip = onCall({ region: REGION }, async (request) => {
       });
       return { access: true, owner: true, pinEnabled: false };
     }
-    const accessMembers = trip.accessMembers && typeof trip.accessMembers === 'object' ? trip.accessMembers : {};
+    const accessMembers = trip.accessMembers && typeof trip.accessMembers === 'object' ? { ...trip.accessMembers } : {};
+    if (trip.pinEnabled !== true && !trip.memberUids.includes(request.auth.uid)) {
+      const nextState = trip.state && typeof trip.state === 'object' ? { ...trip.state } : {};
+      if (memberName) {
+        accessMembers[request.auth.uid] = { name: memberName };
+        nextState.members = [...new Set([...(Array.isArray(nextState.members) ? nextState.members : []), memberName])];
+      }
+      transaction.update(tripRef, {
+        state: nextState,
+        memberUids: FieldValue.arrayUnion(request.auth.uid),
+        accessMembers,
+        updatedAt: FieldValue.serverTimestamp(),
+        updatedBy: request.auth.uid,
+      });
+      return { access: true, owner: false, pinEnabled: false };
+    }
     if (memberName && trip.memberUids.includes(request.auth.uid) && accessMembers[request.auth.uid]?.name !== memberName) {
       accessMembers[request.auth.uid] = { name: memberName };
       transaction.update(tripRef, { accessMembers });
