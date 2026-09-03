@@ -1919,10 +1919,12 @@ body[data-active-view='map'] .map-card {
 
 .wallet-receipt-brand img {
   position: absolute;
-  width: 146%;
+  top: 50%;
+  left: 50%;
+  width: 131.4%;
   max-width: none;
   height: auto;
-  transform: translate(-15.8%, -37.4%);
+  transform: translate(-50%, -50%);
 }
 
 .wallet-panel {
@@ -9681,11 +9683,6 @@ body[data-active-view='profile'] .profile-collaboration .profile-share-trip-btn.
 body[data-active-view='profile'] .profile-collaboration .profile-share-trip-btn .file-action-icon {
   color: var(--theme-surface);
   stroke: var(--theme-surface) !important;
-}
-
-.wallet-receipt-brand img {
-  left: 50%;
-  transform: translate(-50%, -37.4%);
 }
 
 body[data-active-view='profile'] .profile-ticket-stub .profile-ticket-pin {
