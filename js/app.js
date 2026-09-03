@@ -674,6 +674,11 @@ function finishAccountSignIn(account) {
 async function initializeAccountGate() {
   loginError.textContent = '';
   try {
+    const redirectAccount = await window.itinerarySync.completeGoogleRedirect();
+    if (redirectAccount && !redirectAccount.anonymous) {
+      finishAccountSignIn(redirectAccount);
+      return;
+    }
     await window.itinerarySync.authenticate();
     const account = window.itinerarySync.getCurrentUser();
     if (account && !account.anonymous) finishAccountSignIn(account);
@@ -722,7 +727,7 @@ googleSignInBtn.addEventListener('click', async () => {
   loginError.textContent = '';
   try {
     const account = await window.itinerarySync.signInWithGoogle();
-    finishAccountSignIn(account);
+    if (account) finishAccountSignIn(account);
   } catch (error) {
     const popupIssue = error?.code === 'auth/popup-blocked'
       || error?.code === 'auth/cancelled-popup-request';

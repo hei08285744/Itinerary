@@ -66,13 +66,35 @@
     };
   }
 
-  async function signInWithGoogle() {
+  function initializeFirebaseApp() {
     if (!isConfigured()) throw new Error('Firebase is not configured');
     if (!window.firebase) throw new Error('Firebase SDK did not load');
     if (!firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);
-    const auth = firebase.auth();
+    return firebase.auth();
+  }
+
+  function requiresGoogleRedirect() {
+    const userAgent = navigator.userAgent || '';
+    return /Safari/i.test(userAgent) && !/(Chrome|CriOS|FxiOS|EdgiOS|OPiOS|Android)/i.test(userAgent);
+  }
+
+  async function completeGoogleRedirect() {
+    const auth = initializeFirebaseApp();
+    const result = await auth.getRedirectResult();
+    if (!result?.user) return getCurrentUser();
+    firestore = firebase.firestore();
+    initializationPromise = Promise.resolve(result.user.uid);
+    return getCurrentUser();
+  }
+
+  async function signInWithGoogle() {
+    const auth = initializeFirebaseApp();
     const provider = new firebase.auth.GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
+    if (requiresGoogleRedirect()) {
+      await auth.signInWithRedirect(provider);
+      return null;
+    }
     await auth.signInWithPopup(provider);
     firestore = firebase.firestore();
     initializationPromise = Promise.resolve(auth.currentUser?.uid || '');
@@ -225,6 +247,7 @@
 
   window.itinerarySync = {
     authenticate: initializeFirebase,
+    completeGoogleRedirect,
     connect,
     deleteTrip,
     disconnect,
