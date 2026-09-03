@@ -3,7 +3,25 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /trips/{tripId} {
-      allow read, write: if request.auth != null;
+      function isMember() {
+        return request.auth != null
+          && resource.data.memberUids is list
+          && resource.data.memberUids.hasAny([request.auth.uid]);
+      }
+
+      allow read: if isMember();
+      allow update: if isMember()
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['state', 'updatedAt', 'updatedBy']);
+      allow create, delete: if false;
+    }
+
+    match /_tripSecrets/{tripId} {
+      allow read, write: if false;
+    }
+
+    match /_tripJoinAttempts/{attemptId} {
+      allow read, write: if false;
     }
   }
 }

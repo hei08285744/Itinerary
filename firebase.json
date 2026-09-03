@@ -20,6 +20,22 @@
       "firestore.rules",
       "README.md"
     ],
-    "cleanUrls": true
+    "cleanUrls": true,
+    "rewrites": [
+      {
+        "source": "/share/**",
+        "function": {
+          "functionId": "socialShare",
+          "region": "asia-east2"
+        }
+      },
+      {
+        "source": "/ticket-preview/**",
+        "function": {
+          "functionId": "ticketPreview",
+          "region": "asia-east2"
+        }
+      }
+    ]
   }
 }

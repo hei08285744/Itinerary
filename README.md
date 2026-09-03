@@ -36,10 +36,20 @@ window.FIREBASE_CONFIG = {
 };
 ```
 
-After setup, open **Profile > Shared trip** and use **Share trip**. Anyone with
-that URL can edit the same trip. Changes are delivered in real time; if two
+After setup, open **Profile > Shared trip** and use **Share trip**. Set a 4-digit
+PIN and send the copied link and PIN separately. A recipient must enter the PIN
+and a member name before Firestore grants access to the trip. Changes are delivered in real time; if two
 people change the itinerary at nearly the same instant, the latest saved
 snapshot wins.
+
+The Profile trip list shows PIN management only for trips owned by the current
+Firebase user. The callable verifies ownership again before changing a PIN;
+joined members cannot manage trip passwords.
+
+Joined members are bound to their anonymous Firebase UID. When an owner removes
+a joined member in Trip Details, an owner-only callable removes that UID and the
+member profile from the shared trip, immediately revoking access. Names added
+only for itinerary or bill planning remain local trip entries.
 
 ## Korea maps and routing
 

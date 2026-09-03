@@ -4,21 +4,125 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Mytinerary</title>
+<meta name="description" content="Open your Mytinerary pass and join the shared trip.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Mytinerary">
+<meta property="og:title" content="You’re invited to a Mytinerary trip">
+<meta property="og:description" content="Open your ticket to join the shared trip and plan together.">
+<meta property="og:image" content="https://itinerary-hei08285744.web.app/assets/mytinerary-trip-ticket-preview.png?v=3">
+<meta property="og:image:secure_url" content="https://itinerary-hei08285744.web.app/assets/mytinerary-trip-ticket-preview.png?v=3">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="520">
+<meta property="og:image:height" content="230">
+<meta property="og:image:alt" content="A Mytinerary trip ticket inviting a friend to join">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="You’re invited to a Mytinerary trip">
+<meta name="twitter:description" content="Open your ticket to join the shared trip and plan together.">
+<meta name="twitter:image" content="https://itinerary-hei08285744.web.app/assets/mytinerary-trip-ticket-preview.png?v=3">
+<meta name="twitter:image:alt" content="A Mytinerary trip ticket inviting a friend to join">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600&family=Nanum+Pen+Script&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600&family=Darumadrop+One&family=Nanum+Pen+Script&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIINfQ3ynHT/R7ZfxjMZx7egOUcBqAmJuQ=" crossorigin="">
-  <link rel="stylesheet" href="css/style.css?v=20260826-19">
+  <link rel="stylesheet" href="css/style.css?v=20260904-138">
 </head>
-<body>
+<body class="login-pending">
+  <main id="loginGate" class="login-gate" aria-labelledby="loginTitle">
+    <div class="login-gate-grid" aria-hidden="true"></div>
+    <section class="login-gate-content">
+      <div class="login-character-stage">
+        <img src="assets/Mytinerary-applogo.png" alt="Mytinerary traveler character">
+      </div>
+      <div class="login-copy">
+        <p>Plan wherever you go</p>
+        <h1 id="loginTitle">Welcome aboard</h1>
+      </div>
+      <label class="login-consent">
+        <input id="loginConsent" type="checkbox">
+        <span>I understand and agree to the <button class="login-legal-link" type="button" data-legal-panel="terms">Terms of Use</button> and <button class="login-legal-link" type="button" data-legal-panel="privacy">Privacy Notice</button>.</span>
+      </label>
+      <button id="googleSignInBtn" class="google-sign-in-btn" type="button" disabled>
+        <svg class="google-sign-in-mark" viewBox="0 0 18 18" aria-hidden="true">
+          <path fill="#4285f4" d="M17.64 9.2c0-.64-.06-1.26-.16-1.86H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.91c1.7-1.57 2.69-3.88 2.69-6.6Z"/>
+          <path fill="#34a853" d="M9 18c2.43 0 4.47-.8 5.95-2.2l-2.91-2.26c-.81.54-1.84.86-3.04.86-2.34 0-4.33-1.58-5.04-3.71H.96v2.33A9 9 0 0 0 9 18Z"/>
+          <path fill="#fbbc05" d="M3.96 10.69A5.4 5.4 0 0 1 3.68 9c0-.59.1-1.16.28-1.69V4.98H.96A9 9 0 0 0 0 9c0 1.45.35 2.82.96 4.02l3-2.33Z"/>
+          <path fill="#ea4335" d="M9 3.58c1.32 0 2.51.46 3.44 1.35l2.58-2.58A8.65 8.65 0 0 0 9 0 9 9 0 0 0 .96 4.98l3 2.33C4.67 5.16 6.66 3.58 9 3.58Z"/>
+        </svg>
+        <span id="googleSignInText">Continue with Google</span>
+      </button>
+      <button id="guestSignInBtn" class="guest-sign-in-btn" type="button" disabled>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c.8-3.1 3.2-4.7 7-4.7s6.2 1.6 7 4.7"/></svg>
+        <span>Continue as guest</span>
+      </button>
+      <p class="guest-sign-in-note">Guest trips stay on this device. Use Google to access shared trips across devices.</p>
+      <p id="loginError" class="login-error" role="alert"></p>
+    </section>
+    <section id="legalPanel" class="login-legal-panel hidden" role="dialog" aria-modal="true" aria-labelledby="legalTitle">
+      <div class="login-legal-sheet">
+        <button id="closeLegalPanel" class="login-legal-close" type="button" aria-label="Close">&times;</button>
+        <div id="termsContent" class="login-legal-content hidden">
+          <p class="login-legal-kicker">MYTINERARY</p>
+          <h2 id="legalTitle">Terms of Use</h2>
+          <p class="login-legal-updated">Effective September 4, 2026</p>
+          <h3>Your account</h3>
+          <p>You use Google Sign-In to identify your account. Keep access to your Google account secure and do not impersonate another person.</p>
+          <h3>Shared trips</h3>
+          <p>Trip owners and invited members can view and change shared itinerary details. Only share a trip link or PIN with people you trust.</p>
+          <h3>Your content</h3>
+          <p>You keep ownership of content you add. You allow Mytinerary to store, process, and display it only as needed to provide trip planning and collaboration.</p>
+          <h3>Acceptable use</h3>
+          <p>Do not misuse the service, interfere with its operation, upload unlawful content, or attempt to access another person’s trips without permission.</p>
+          <h3>Travel information</h3>
+          <p>Schedules, maps, weather, prices, AI suggestions, and other travel details may be incomplete or outdated. Confirm important information with official providers before traveling.</p>
+          <h3>Availability</h3>
+          <p>The service is provided as available and may change or experience interruptions. To the extent allowed by law, Mytinerary is not responsible for losses caused by relying on unverified trip information.</p>
+          <h3>Ending use</h3>
+          <p>You may stop using Mytinerary at any time. Access may be limited for serious misuse or security reasons.</p>
+        </div>
+        <div id="privacyContent" class="login-legal-content hidden">
+          <p class="login-legal-kicker">MYTINERARY</p>
+          <h2 id="legalTitlePrivacy">Privacy Notice</h2>
+          <p class="login-legal-updated">Effective September 4, 2026</p>
+          <h3>What we collect</h3>
+          <p>Mytinerary uses only your Firebase user ID to recognize your account. It also stores the traveler personality, profile name, trips, itineraries, expenses, and collaboration details you choose to add.</p>
+          <h3>What we do not collect</h3>
+          <p>Mytinerary does not copy your Google profile photo into your app profile and never receives or stores your Google password. It does not request access to Gmail, Google Drive, contacts, or other private Google services.</p>
+          <h3>How information is used</h3>
+          <p>Information is used to sign you in, keep trips available across devices, synchronize shared trips, and operate app features.</p>
+          <h3>Who can see trip data</h3>
+          <p>People who are authorized for a shared trip can see its shared content. Firebase, Google Maps, and other service providers process limited data needed to deliver their features.</p>
+          <h3>Storage and security</h3>
+          <p>Authentication is handled by Google and Firebase over HTTPS. Firebase session tokens may be stored on your device to keep you signed in. No internet service can guarantee absolute security.</p>
+          <h3>Your choices</h3>
+          <p>You may stop signing in, remove content you control, or request account-data deletion from the app operator. Removing access may prevent shared trips from working across devices.</p>
+        </div>
+        <button id="acceptLegalPanel" class="login-legal-accept" type="button">I understand</button>
+      </div>
+    </section>
+  </main>
   <div class="app-shell">
     <header class="top-bar">
+      <div class="itinerary-user-welcome">
+        <div class="itinerary-avatar-stack">
+          <button id="itineraryProfileBtn" class="itinerary-user-avatar" type="button" aria-label="Edit your profile">
+            <img id="itineraryUserPhoto" alt="Your traveler avatar">
+            <span id="itineraryUserInitial" class="hidden">T</span>
+          </button>
+        </div>
+        <div>
+          <p id="itineraryWelcomeLabel">Welcome back,</p>
+          <strong id="itineraryWelcomeName">Traveler</strong>
+        </div>
+      </div>
       <div class="top-bar-text">
         <p class="eyebrow"><span id="topBarBonVoyage">Bon Voyage</span> <span class="dot">·</span> <span id="topBarTripName">My Trip</span></p>
         <h1><span id="topBarDestination">Your</span> Mytinerary</h1>
       </div>
       <div class="top-bar-actions">
-        <button id="settingsBtn" class="icon-btn" aria-label="Trip settings" type="button">⚙</button>
+        <section id="tripMemberStrip" class="itinerary-member-strip hidden" aria-label="Trip members">
+          <div id="tripMemberAvatars" class="trip-member-avatars"></div>
+        </section>
+        <button id="settingsBtn" class="icon-btn" aria-label="Edit trip" type="button">+</button>
       </div>
     </header>
 
@@ -51,6 +155,24 @@
         <div id="memberList" class="member-list"></div>
       </div>
       <div id="cityPeriods" class="city-periods hidden"></div>
+      <section id="tripPrivacySettings" class="trip-privacy-settings hidden" aria-labelledby="tripPrivacyTitle">
+        <div class="trip-privacy-heading">
+          <div>
+            <strong id="tripPrivacyTitle">Trip privacy</strong>
+            <small>Choose whether new members need a PIN to join.</small>
+          </div>
+          <label class="trip-pin-toggle">
+            <input id="tripPinEnabled" type="checkbox">
+            <span aria-hidden="true"></span>
+            <b>Enable PIN</b>
+          </label>
+        </div>
+        <label id="tripOwnerPinField" class="trip-owner-pin-field hidden">
+          <span>4-digit PIN</span>
+          <input id="tripOwnerPin" type="password" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" autocomplete="new-password" placeholder="••••">
+        </label>
+        <p id="tripPrivacyStatus" class="trip-privacy-status" role="status"></p>
+      </section>
       <div class="itinerary-utility-actions">
         <button id="addCityBtn" class="btn-secondary" type="button" data-i18n="addCity">+ Add city</button>
         <button id="closeSettingsBtn" class="btn-primary settings-save-button" type="button" data-i18n="saveClose">Save &amp; Close</button>
@@ -87,11 +209,14 @@
           <strong class="today-temperature" id="todayTemperature">—°C</strong>
         </div>
       </div>
+    </section>
+
+    <section class="itinerary-activity-list app-view" data-app-view="itinerary">
       <div id="itineraryDays"></div>
       <p id="emptyState" class="empty-state">No items yet. Add your first item above!</p>
       <div class="itinerary-header">
         <div class="itinerary-actions">
-          <button id="addActivityBtn" class="btn-primary" type="button" data-i18n="addItem">+ Add Item</button>
+          <button id="addActivityBtn" class="btn-primary" type="button" data-i18n="addItem">Add Item</button>
         </div>
       </div>
     </section>
@@ -177,60 +302,97 @@
       <div id="savedRoutePanel" class="saved-route-panel"></div>
     </section>
 
-    <section class="currency-card card app-view" data-app-view="wallet">
-      <h2 data-i18n="wallet">Wallet</h2>
-      <section class="virtual-card" aria-label="Trip budget card">
-        <div class="virtual-card-topline">
-          <span class="virtual-card-label" data-i18n="tripBudget">Trip budget</span>
-          <span class="virtual-card-chip" aria-hidden="true"></span>
+    <section class="currency-card app-view" data-app-view="wallet">
+      <section class="wallet-receipt" aria-label="Bills">
+        <div class="wallet-receipt-brand">
+          <img src="assets/mytinerary-billslogo.PNG" alt="Mytinerary Bills">
         </div>
-        <div class="virtual-card-budget">
-          <span id="budgetCurrencyLabel">USD</span>
-          <input id="walletBudget" type="number" min="0" step="0.01" inputmode="decimal" value="0" aria-label="Trip budget">
-        </div>
-        <div class="virtual-card-summary">
-          <div>
-            <span data-i18n="totalSpent">Total spent</span>
-            <strong id="walletTotalSpent">USD 0.00</strong>
-          </div>
-          <div>
-            <span data-i18n="budgetLeft">Budget left</span>
-            <strong id="walletBudgetLeft">USD 0.00</strong>
-          </div>
+        <div id="billTabs" class="bill-tabs" aria-label="Filter bills by traveler"></div>
+        <div id="billDateTabs" class="bill-date-tabs" role="group" aria-label="Filter bills by date"></div>
+        <div id="memberOwesSummary" class="member-owes-summary hidden"></div>
+        <div class="expense-list" id="expenseList"></div>
+        <section id="settlementLog" class="settlement-log hidden" aria-live="polite"></section>
+        <div class="itinerary-actions wallet-expense-actions">
+          <button type="button" id="addExpenseBtn" class="btn-primary" data-i18n="addExpense">+ Add Expense</button>
         </div>
       </section>
-      <h3 class="currency-section-title" data-i18n="currencyExchange">Currency Exchange</h3>
-      <div class="currency-convert-panel">
-        <div class="currency-box">
-          <span class="currency-box-label">From</span>
-          <select id="currencyFrom" class="currency-select"></select>
-          <input type="number" id="currencyAmount" class="currency-amount-input" value="0">
+      <section class="spending-summary wallet-panel" aria-labelledby="spendingSummaryTitle">
+        <div class="spending-summary-heading">
+          <div>
+            <p class="spending-summary-kicker">Trip analysis</p>
+            <h3 id="spendingSummaryTitle">Daily spending</h3>
+          </div>
+          <strong id="spendingSummaryTotal">HKD 0.00</strong>
         </div>
-        <button type="button" id="currencySwapBtn" class="currency-swap-btn" aria-label="Swap currencies">→</button>
-        <div class="currency-box">
-          <span class="currency-box-label">To</span>
-          <select id="currencyTo" class="currency-select"></select>
-          <span id="currencyResult" class="currency-amount-result">0</span>
+        <div id="spendingHeatmap" class="spending-heatmap" aria-label="Daily spending heatmap"></div>
+        <div class="spending-legend" aria-hidden="true">
+          <span>Less</span>
+          <i data-level="0"></i><i data-level="1"></i><i data-level="2"></i><i data-level="3"></i><i data-level="4"></i>
+          <span>More</span>
         </div>
-      </div>
-      <p class="currency-rate-status" id="currencyRateStatus"></p>
-      <h3 class="currency-section-title bills-section-title" data-i18n="bills">Bills</h3>
-      <div id="billTabs" class="bill-tabs" role="tablist" aria-label="Bill members"></div>
-      <div id="memberOwesSummary" class="member-owes-summary hidden"></div>
-      <div class="expense-list" id="expenseList"></div>
-      <section id="settlementLog" class="settlement-log hidden" aria-live="polite"></section>
-      <div class="itinerary-actions wallet-expense-actions">
-        <button type="button" id="addExpenseBtn" class="btn-primary" data-i18n="addExpense">+ Add Expense</button>
-      </div>
+        <div id="spendingMetrics" class="spending-metrics"></div>
+        <p id="spendingInsight" class="spending-insight">Add expenses to see spending patterns for this trip.</p>
+      </section>
+      <section class="currency-exchange-panel wallet-panel" aria-labelledby="currencyExchangeTitle">
+        <h3 id="currencyExchangeTitle" class="currency-section-title" data-i18n="currencyExchange">Currency Exchange</h3>
+        <div class="currency-convert-panel">
+          <div class="currency-box">
+            <span class="currency-box-label">From</span>
+            <select id="currencyFrom" class="currency-select"></select>
+            <input type="number" id="currencyAmount" class="currency-amount-input" value="0">
+          </div>
+          <button type="button" id="currencySwapBtn" class="currency-swap-btn" aria-label="Swap currencies">→</button>
+          <div class="currency-box">
+            <span class="currency-box-label">To</span>
+            <select id="currencyTo" class="currency-select"></select>
+            <span id="currencyResult" class="currency-amount-result">0</span>
+          </div>
+        </div>
+        <p class="currency-rate-status" id="currencyRateStatus"></p>
+      </section>
     </section>
 
     <section class="profile-card card app-view" data-app-view="profile">
       <div class="profile-identity">
-        <span id="profileInitials" class="profile-avatar">T</span>
-        <div>
-          <p class="profile-kicker" data-i18n="tripProfile">Trip profile</p>
-          <h2 id="profileTripName">My Trip</h2>
-          <p id="profileDestination" class="profile-destination">No destination yet</p>
+        <div class="profile-ticket-main">
+          <img class="profile-ticket-blueberries" src="assets/blueberry-tickets.png" alt="">
+          <img class="profile-ticket-stamp" src="assets/Stamp-tickets.png" alt="">
+          <div class="profile-ticket-fruit-art" aria-hidden="true">
+            <span></span><span></span><span></span><span></span><span></span>
+          </div>
+          <div class="profile-ticket-meta">
+            <p class="profile-kicker" data-i18n="tripProfile">Trip profile</p>
+            <span>MYTINERARY PASS</span>
+          </div>
+          <div class="profile-ticket-heading">
+            <div class="profile-trip-copy">
+              <button id="profileTripName" class="profile-trip-name" type="button" aria-label="Edit trip">
+                <strong id="profileTripNameFallback" class="profile-trip-name-fallback">My Trip</strong>
+                <span class="profile-route-place">
+                  <strong id="profileRouteOriginCode">TRP</strong>
+                  <small id="profileRouteOriginName">Trip origin</small>
+                </span>
+                <span class="profile-route-arrow" aria-hidden="true">→</span>
+                <span class="profile-route-place">
+                  <strong id="profileRouteDestinationCode">DST</strong>
+                  <small id="profileDestination">No destination yet</small>
+                </span>
+              </button>
+            </div>
+          </div>
+          <div class="profile-ticket-footer">
+            <div class="profile-ticket-footer-actions">
+              <p class="profile-ticket-instruction">Scan QR<br>to join trip</p>
+            </div>
+            <p id="profileTripDates" class="profile-trip-dates">Dates not set</p>
+          </div>
+        </div>
+        <div class="profile-ticket-stub">
+          <button id="openProfileQrBtn" class="profile-trip-qr-frame" type="button" aria-label="Show full-screen QR code to join this trip">
+            <div id="profileTripQr" class="profile-trip-qr" role="img" aria-label="QR code to join this trip"></div>
+            <img class="profile-trip-qr-logo" src="assets/Mytinerary-applogo.png" alt="" aria-hidden="true">
+          </button>
+          <span class="profile-ticket-code">TAP TO ENLARGE</span>
         </div>
       </div>
       <div class="profile-stats">
@@ -250,11 +412,8 @@
       <section class="profile-trip-library" aria-labelledby="profileTripLibraryTitle">
         <h3 id="profileTripLibraryTitle" data-i18n="trips">Trips</h3>
         <div id="profileTripLibrary" class="profile-trip-library-list"></div>
-        <button id="newTripBtn" class="btn-secondary profile-new-trip-btn" type="button" data-i18n="newTrip">+ New trip</button>
+        <button id="newTripBtn" class="btn-secondary profile-new-trip-btn profile-primary-action" type="button" data-i18n="newTrip">New trip</button>
       </section>
-      <div class="itinerary-actions profile-edit-actions">
-        <button id="editTripProfileBtn" class="btn-primary" type="button" data-i18n="editTrip">Edit trip</button>
-      </div>
       <section class="profile-settings" aria-labelledby="profileSettingsTitle">
         <h3 id="profileSettingsTitle" data-i18n="settings">Settings</h3>
         <div class="profile-setting-row">
@@ -268,15 +427,6 @@
           <span data-i18n="targetCurrency">Target currency</span>
           <select id="targetCurrencySelect" class="language-select" aria-label="Target currency"></select>
         </div>
-        <div class="profile-setting-row profile-theme-setting">
-          <span data-i18n="theme">Theme</span>
-          <div class="theme-picker" role="group" aria-label="Theme selection">
-            <button class="theme-swatch" type="button" data-theme-option="joy" aria-label="Joy theme" title="Joy theme" hidden></button>
-            <button class="theme-swatch" type="button" data-theme-option="violet" aria-label="Violet Trip theme" title="Violet Trip theme"></button>
-            <button class="theme-swatch" type="button" data-theme-option="cobalt" aria-label="Cobalt Play theme" title="Cobalt Play theme"></button>
-            <button class="theme-swatch" type="button" data-theme-option="coffee" aria-label="Coffee Cat theme" title="Coffee Cat theme"></button>
-          </div>
-        </div>
       </section>
       <section class="profile-collaboration" aria-labelledby="profileCollaborationTitle">
         <div class="profile-collaboration-heading">
@@ -286,24 +436,42 @@
             <span id="collaborationStatusText">Connecting…</span>
           </span>
         </div>
-        <button id="shareTripBtn" class="btn-secondary profile-share-trip-btn" type="button" disabled>
-          <svg class="file-action-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 10.5 6.8-4m-6.8 7 6.8 4"/></svg>
-          <span id="shareTripBtnText" data-i18n="shareTrip">Share trip</span>
+        <button id="profileShareTripBtn" class="btn-secondary profile-share-trip-btn profile-primary-action" type="button">
+          <svg class="file-action-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 10.5 6.8-4M8.6 13.5l6.8 4"/></svg>
+          <span data-i18n="shareTrip">Share trip</span>
         </button>
       </section>
       <section class="profile-trip-files" aria-labelledby="profileTripFilesTitle">
         <h3 id="profileTripFilesTitle" data-i18n="tripFiles">Trip Files</h3>
         <p data-i18n="tripFilesHint">Load another saved itinerary to replace this trip.</p>
         <div class="profile-trip-file-actions">
-          <label class="btn-secondary itinerary-file-picker profile-file-button">
+          <label class="btn-secondary itinerary-file-picker profile-file-button profile-primary-action">
             <svg class="file-action-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4m0 0 4 4m-4-4-4 4M5 17v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2"/></svg>
             <span data-i18n="loadAnotherTrip">Load another trip</span>
             <input id="profileImportItineraryInput" type="file" accept="application/json,.json">
           </label>
-          <button id="profileExportItineraryBtn" class="btn-secondary profile-file-button" type="button">
+          <button id="profileExportItineraryBtn" class="btn-secondary profile-file-button profile-primary-action" type="button">
             <svg class="file-action-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11m0 0 4-4m-4 4-4-4M5 17v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2"/></svg>
             <span data-i18n="exportItinerary">Download trip</span>
           </button>
+        </div>
+      </section>
+      <section class="profile-app-coming-soon" aria-labelledby="profileAppComingSoonTitle">
+        <img class="profile-app-icon" src="assets/Mytinerary-applogo.png?v=20260901-1" alt="Mytinerary app icon">
+        <div class="profile-app-copy">
+          <p class="profile-app-kicker">Plan wherever you go</p>
+          <h3 id="profileAppComingSoonTitle">Mytinerary mobile app</h3>
+          <p>The Mytinerary app is coming soon to iPhone and Android. Stay tuned.</p>
+        </div>
+        <div class="profile-store-badges" aria-label="Mobile app availability">
+          <div class="profile-store-badge">
+            <i data-lucide="apple" aria-hidden="true"></i>
+            <span><small>Coming soon to the</small><strong>App Store</strong></span>
+          </div>
+          <div class="profile-store-badge">
+            <i data-lucide="play" aria-hidden="true"></i>
+            <span><small>Coming soon on</small><strong>Google Play</strong></span>
+          </div>
         </div>
       </section>
     </section>
@@ -335,11 +503,93 @@
       </div>
     </section>
 
+    <div id="profileQrModal" class="profile-qr-modal hidden" role="dialog" aria-modal="true" aria-labelledby="profileQrTitle">
+      <button id="closeProfileQrBtn" class="profile-qr-close" type="button" aria-label="Close QR code"><span class="cross-glyph" aria-hidden="true">&times;</span></button>
+      <div class="profile-qr-dialog">
+        <img class="profile-qr-app-logo" src="assets/Mytinerary-applogo.png" alt="Mytinerary">
+        <p class="profile-qr-kicker">JOIN TRIP</p>
+        <h2 id="profileQrTitle">Scan to join this trip</h2>
+        <div class="profile-qr-large-frame">
+          <div id="profileTripQrLarge" class="profile-trip-qr-large" role="img" aria-label="QR code to join this trip"></div>
+          <img class="profile-qr-large-logo" src="assets/Mytinerary-applogo.png" alt="" aria-hidden="true">
+        </div>
+        <p class="profile-qr-hint">Open your camera and scan the code. Enter the trip PIN when prompted.</p>
+      </div>
+    </div>
+
+    <div id="userProfileModal" class="modal-overlay hidden">
+      <section class="user-profile-modal modal-card card" role="dialog" aria-modal="true" aria-labelledby="userProfileTitle">
+        <div class="modal-header">
+          <div>
+            <p class="trip-access-kicker">Traveler profile</p>
+            <h2 id="userProfileTitle">Set up your profile</h2>
+          </div>
+          <button id="closeUserProfileBtn" class="icon-btn hidden" type="button" aria-label="Close"><span class="cross-glyph" aria-hidden="true">&times;</span></button>
+        </div>
+        <p class="user-profile-description">Choose the traveler personality that feels most like you. Trip members will see your name and avatar.</p>
+        <form id="userProfileForm" class="user-profile-form">
+          <fieldset class="traveler-avatar-fieldset">
+            <legend>What type of traveler are you?</legend>
+            <div id="travelerAvatarGrid" class="traveler-avatar-grid" role="radiogroup" aria-label="Traveler personality"></div>
+          </fieldset>
+          <label>
+            <span>Your name</span>
+            <input id="userNameInput" type="text" maxlength="40" autocomplete="name" placeholder="e.g. Marco" required>
+          </label>
+          <p id="userProfileError" class="trip-access-error" role="alert"></p>
+          <button class="btn-primary" type="submit">Save profile</button>
+        </form>
+        <section class="profile-account-panel" aria-labelledby="profileAccountTitle">
+          <div>
+            <span id="profileAccountTitle">Account</span>
+            <strong id="profileAccountStatus">Guest</strong>
+            <small id="profileAccountHint">Guest trips are available on this device only.</small>
+          </div>
+          <div class="profile-account-actions">
+            <button id="profileGoogleLoginBtn" class="btn-secondary" type="button">Sign in with Google</button>
+            <button id="profileLogoutBtn" class="btn-secondary hidden" type="button">Log out</button>
+          </div>
+          <p id="profileAccountError" class="profile-account-error" role="alert"></p>
+        </section>
+      </section>
+    </div>
+
+    <div id="tripAccessModal" class="modal-overlay hidden">
+      <section class="trip-access-modal modal-card card" role="dialog" aria-modal="true" aria-labelledby="tripAccessTitle">
+        <div class="modal-header">
+          <div>
+            <p id="tripAccessKicker" class="trip-access-kicker">Private sharing</p>
+            <h2 id="tripAccessTitle">Share this trip</h2>
+          </div>
+          <button id="closeTripAccessBtn" class="icon-btn" type="button" aria-label="Close"><span class="cross-glyph" aria-hidden="true">&times;</span></button>
+        </div>
+        <p id="tripAccessDescription" class="trip-access-description">Set a 4-digit PIN. Your friend will need the link and PIN to join.</p>
+        <form id="tripAccessForm" class="trip-access-form">
+          <label id="tripMemberNameField" class="hidden">
+            <span id="tripMemberNameLabel">Your name</span>
+            <input id="tripMemberNameInput" type="text" maxlength="40" autocomplete="name" placeholder="e.g. Alex">
+          </label>
+          <label id="tripJoinPinField">
+            <span id="tripPinLabel">4-digit PIN</span>
+            <span class="trip-pin-control">
+              <span id="tripPinDigits" class="trip-pin-digits" aria-hidden="true">
+                <span></span><span></span><span></span><span></span>
+              </span>
+              <input id="tripPinInput" class="trip-pin-input" type="password" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" autocomplete="one-time-code" aria-label="4-digit PIN" required>
+            </span>
+          </label>
+          <p id="tripAccessError" class="trip-access-error" role="alert"></p>
+          <button id="tripAccessSubmitBtn" class="btn-primary" type="submit">Set PIN &amp; copy link</button>
+          <button id="exitSharedTripBtn" class="btn-secondary hidden" type="button">Exit trip</button>
+        </form>
+      </section>
+    </div>
+
     <div id="shoppingHaulModal" class="modal-overlay hidden">
       <section class="shopping-haul-modal modal-card" role="dialog" aria-modal="true" aria-labelledby="shoppingHaulModalTitle">
         <div class="modal-header">
           <h2 id="shoppingHaulModalTitle">Add target item</h2>
-          <button id="closeShoppingHaulFormBtn" class="icon-btn" type="button" aria-label="Close">&times;</button>
+          <button id="closeShoppingHaulFormBtn" class="icon-btn" type="button" aria-label="Close"><span class="cross-glyph" aria-hidden="true">&times;</span></button>
         </div>
         <form id="shoppingHaulForm" class="shopping-haul-form modal-detail-form">
           <section class="activity-form-section" aria-labelledby="shoppingHaulDetailsTitle">
@@ -389,7 +639,7 @@
               <h2 id="aiPlannerTitle">Aitinerary</h2>
             </div>
           </div>
-          <button id="closeAIPlannerBtn" class="icon-btn" type="button" aria-label="Close">&times;</button>
+          <button id="closeAIPlannerBtn" class="icon-btn" type="button" aria-label="Close"><span class="cross-glyph" aria-hidden="true">&times;</span></button>
         </div>
         <form id="aiPlannerForm" class="modal-detail-form">
           <section class="activity-form-section ai-planner-prompt" aria-labelledby="aiPlannerDetailsTitle">
@@ -428,7 +678,7 @@
                 <div id="aiPlacesFileSummary" class="ai-json-file-summary hidden" aria-live="polite">
                   <span class="ai-json-file-icon" aria-hidden="true">▦</span>
                   <span id="aiPlacesFileName"></span>
-                  <button id="removeAIPlacesFileBtn" class="icon-btn" type="button" aria-label="Remove saved places file">&times;</button>
+                  <button id="removeAIPlacesFileBtn" class="icon-btn" type="button" aria-label="Remove saved places file"><span class="cross-glyph" aria-hidden="true">&times;</span></button>
                 </div>
                 <textarea id="aiPlannerPreferences" maxlength="1200" rows="4" placeholder="Try: Create a relaxed food trip, add two nearby rainy-day activities, or optimize my route for public transport…"></textarea>
                 <div class="ai-prompt-tools">
@@ -472,7 +722,7 @@
         <section class="add-activity card modal-card">
           <div class="modal-header">
             <h2 id="activityModalTitle">Add Item</h2>
-            <button id="closeActivityModalBtn" class="icon-btn" type="button" aria-label="Close">&times;</button>
+            <button id="closeActivityModalBtn" class="icon-btn" type="button" aria-label="Close"><span class="cross-glyph" aria-hidden="true">&times;</span></button>
           </div>
           <form id="activityForm" class="activity-form">
             <section class="activity-form-section activity-section-schedule" aria-labelledby="activityScheduleTitle">
@@ -712,7 +962,7 @@
       <section class="add-activity card modal-card">
         <div class="modal-header">
           <h2 id="expenseModalTitle">Add Expense</h2>
-          <button id="closeExpenseModalBtn" class="icon-btn" type="button" aria-label="Close">&times;</button>
+          <button id="closeExpenseModalBtn" class="icon-btn" type="button" aria-label="Close"><span class="cross-glyph" aria-hidden="true">&times;</span></button>
         </div>
         <form id="expenseForm" class="activity-form modal-detail-form">
           <section class="activity-form-section activity-section-schedule" aria-labelledby="expenseDetailsTitle">
@@ -809,7 +1059,7 @@
       <section class="add-activity card modal-card split-bill-modal">
         <div class="modal-header">
           <h2 id="splitBillModalTitle">Split bill</h2>
-          <button id="closeSplitBillModalBtn" class="icon-btn" type="button" aria-label="Close">&times;</button>
+          <button id="closeSplitBillModalBtn" class="icon-btn" type="button" aria-label="Close"><span class="cross-glyph" aria-hidden="true">&times;</span></button>
         </div>
         <p id="splitBillModalHint" class="split-bill-hint">Choose the members sharing this expense.</p>
         <div class="split-bill-mode" role="group" aria-label="Split method">
@@ -847,13 +1097,15 @@
           </span>
           <span id="aiPlanUsageBadge" class="aitinerary-usage-badge">5 / day</span>
         </button>
-        <button id="hideAitineraryBtn" class="aitinerary-hide-button" type="button" aria-label="Hide Aitinerary assistant" title="Hide Aitinerary">&times;</button>
+        <button id="hideAitineraryBtn" class="aitinerary-hide-button" type="button" aria-label="Hide Aitinerary assistant" title="Hide Aitinerary"><span class="cross-glyph" aria-hidden="true">&times;</span></button>
       </div>
       <button id="showAitineraryBtn" class="aitinerary-restore-button" type="button" aria-label="Show Aitinerary assistant" title="Show Aitinerary">
         <span aria-hidden="true">✦</span>
         <span>Aitinerary</span>
       </button>
     </aside>
+
+  </div>
 
     <nav class="app-tab-bar" aria-label="Primary navigation">
       <span class="app-tab-indicator" aria-hidden="true"></span>
@@ -879,8 +1131,6 @@
       </button>
     </nav>
 
-  </div>
-
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
@@ -888,9 +1138,10 @@
   <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.js"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="js/firebase-config.js"></script>
-  <script src="js/firebase-sync.js"></script>
-  <script src="js/app.js?v=20260827-42"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="js/firebase-config.js?v=20260904-3"></script>
+  <script src="js/firebase-sync.js?v=20260904-20"></script>
+  <script src="js/app.js?v=20260904-112"></script>
   <script>window.lucide?.createIcons();</script>
 </body>
 </html>
