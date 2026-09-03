@@ -1,5 +1,4 @@
 (function () {
-  const googleRedirectKey = 'mytinerary-google-redirect';
   const clientId = `client-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 9)}`;
   let firestore = null;
   let currentTripId = '';
@@ -80,8 +79,6 @@
   }
 
   async function completeGoogleRedirect() {
-    if (sessionStorage.getItem(googleRedirectKey) !== 'pending') return null;
-    sessionStorage.removeItem(googleRedirectKey);
     const auth = initializeFirebaseApp();
     const result = await auth.getRedirectResult();
     if (!result?.user) return getCurrentUser();
@@ -95,7 +92,6 @@
     const provider = new firebase.auth.GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
     if (requiresGoogleRedirect()) {
-      sessionStorage.setItem(googleRedirectKey, 'pending');
       await auth.signInWithRedirect(provider);
       return null;
     }
