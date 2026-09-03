@@ -9229,7 +9229,7 @@ body[data-active-view='profile'] .profile-ticket-stamp {
   position: absolute;
   right: 0.45rem;
   bottom: 0.35rem;
-  z-index: 7;
+  z-index: 0;
   width: calc(var(--ticket-fruit-height, 184px) * 0.8);
   height: calc(var(--ticket-fruit-height, 184px) * 0.8);
   object-fit: contain;
