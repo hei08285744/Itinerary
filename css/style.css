@@ -7706,6 +7706,7 @@ body[data-active-view='profile'] .profile-identity.ticket-variant-3 .profile-tic
 }
 
 .profile-trip-qr {
+  position: relative;
   display: grid;
   width: 86px;
   height: 86px;
@@ -7718,9 +7719,13 @@ body[data-active-view='profile'] .profile-identity.ticket-variant-3 .profile-tic
 
 .profile-trip-qr img,
 .profile-trip-qr canvas {
+  position: absolute;
+  top: 50%;
+  left: 50%;
   display: block;
   width: 72px !important;
   height: 72px !important;
+  transform: translate(-50%, -50%);
 }
 
 .profile-trip-qr-logo {

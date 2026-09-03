@@ -1198,7 +1198,7 @@ exports.ticketPreview = onRequest({ region: REGION, cors: false }, async (reques
     const [fruitResponse, logoResponse, stampResponse] = await Promise.all([
       fetch(`${HOSTING_ORIGIN}/assets/${fruitFiles[ticket.variant]}`),
       fetch(`${HOSTING_ORIGIN}/assets/Mytinerary-applogo.png`),
-      fetch(`${HOSTING_ORIGIN}/assets/stamp-tickets.png`),
+      fetch(`${HOSTING_ORIGIN}/assets/stamp-tickets-trimmed.png`),
     ]);
     if (!fruitResponse.ok || !logoResponse.ok || !stampResponse.ok) throw new Error('Ticket artwork could not be loaded.');
     const fruit = await sharp(Buffer.from(await fruitResponse.arrayBuffer()))
@@ -1255,7 +1255,7 @@ exports.socialShare = onRequest({ region: REGION, cors: false }, async (request,
     ? `${ticket.originCode && ticket.destinationCode ? `${ticket.originCode} to ${ticket.destinationCode}` : ticket.title} · ${ticket.dateLabel}`
     : 'Open your ticket to join the shared trip and plan together.';
   const previewQuery = new URLSearchParams(request.query).toString();
-  const imageUrl = ticket ? `${HOSTING_ORIGIN}/ticket-preview/${encodeURIComponent(tripId)}.png?renderer=stamp-2&${previewQuery}` : `${HOSTING_ORIGIN}/assets/mytinerary-trip-ticket-preview.png?v=3`;
+  const imageUrl = ticket ? `${HOSTING_ORIGIN}/ticket-preview/${encodeURIComponent(tripId)}.png?renderer=stamp-3&${previewQuery}` : `${HOSTING_ORIGIN}/assets/mytinerary-trip-ticket-preview.png?v=3`;
   const appUrl = `${HOSTING_ORIGIN}/?trip=${encodeURIComponent(tripId || '')}`;
   response.set('Cache-Control', 'public, max-age=300, s-maxage=300');
   response.type('html').send(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeMarkup(title)}</title><meta name="description" content="${escapeMarkup(description)}"><meta property="og:type" content="website"><meta property="og:site_name" content="Mytinerary"><meta property="og:title" content="${escapeMarkup(title)}"><meta property="og:description" content="${escapeMarkup(description)}"><meta property="og:url" content="${escapeMarkup(`${HOSTING_ORIGIN}/share/${tripId || ''}`)}"><meta property="og:image" content="${escapeMarkup(imageUrl)}"><meta property="og:image:secure_url" content="${escapeMarkup(imageUrl)}"><meta property="og:image:type" content="image/png"><meta property="og:image:width" content="520"><meta property="og:image:height" content="230"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${escapeMarkup(title)}"><meta name="twitter:description" content="${escapeMarkup(description)}"><meta name="twitter:image" content="${escapeMarkup(imageUrl)}"><meta http-equiv="refresh" content="0;url=${escapeMarkup(appUrl)}"><script>location.replace(${JSON.stringify(appUrl)})</script></head><body><a href="${escapeMarkup(appUrl)}">Open trip</a></body></html>`);
