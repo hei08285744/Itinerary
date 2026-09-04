@@ -4722,8 +4722,8 @@ function requestSuggestedRoute() {
   }
   if (!directionsService) return;
   const city = getCityForDate(from.date);
-  const origin = city ? `${from.location}, ${city}` : from.location;
-  const destination = city ? `${to.location}, ${city}` : to.location;
+  const origin = from.address || (city ? `${from.location}, ${city}` : from.location);
+  const destination = to.address || (city ? `${to.location}, ${city}` : to.location);
   const mode = routeModeSelect.value;
   mapViewMode = 'route';
   const routeToken = ++mapRenderToken;
@@ -4733,8 +4733,27 @@ function requestSuggestedRoute() {
   spotFareGrid.innerHTML = '';
   currentSuggestedRoute = null;
   saveSuggestedRouteBtn.disabled = true;
+  if (mode === 'TRANSIT') {
+    requestGoogleTransitRoute(from, to, routeToken).then((handled) => {
+      if (!handled && mapViewMode === 'route' && routeToken === mapRenderToken) {
+        requestLegacySuggestedRoute(from, to, mode, routeToken, origin, destination);
+      }
+    });
+    return;
+  }
+  requestLegacySuggestedRoute(from, to, mode, routeToken, origin, destination);
+}
+
+function requestLegacySuggestedRoute(from, to, mode, routeToken, origin, destination) {
   const request = { origin, destination, travelMode: google.maps.TravelMode[mode] };
-  if (mode === 'TRANSIT') request.transitOptions = { departureTime: new Date() };
+  if (mode === 'TRANSIT') {
+    const plannedDeparture = new Date(`${from.date}T${from.time || '09:00'}:00`);
+    request.transitOptions = {
+      departureTime: Number.isNaN(plannedDeparture.getTime()) || plannedDeparture <= new Date()
+        ? new Date()
+        : plannedDeparture,
+    };
+  }
   directionsService.route(request, (result, status) => {
     if (mapViewMode !== 'route' || routeToken !== mapRenderToken) return;
     if (status !== 'OK' || !result.routes.length) {
@@ -4753,12 +4772,138 @@ function requestSuggestedRoute() {
     focusGoogleRoute(result.routes[0].bounds);
     const leg = result.routes[0].legs[0];
     const transitDetails = getTransitRouteDetails(leg, result.routes[0]);
-    spotRouteStatus.textContent = state.language === 'zh' ? '建議路線' : 'Suggested route';
+    const alternativeCount = Math.max(0, result.routes.length - 1);
+    spotRouteStatus.textContent = alternativeCount
+      ? (state.language === 'zh'
+        ? `Google 建議路線（另有 ${alternativeCount} 條）`
+        : `Google suggested route (${alternativeCount} alternative${alternativeCount === 1 ? '' : 's'})`)
+      : (state.language === 'zh' ? 'Google 建議路線' : 'Google suggested route');
     spotRouteResult.textContent = `${leg.distance.text} · ${leg.duration.text}`;
     renderFareEstimates(Number(leg.distance.value) || 0, leg.duration.text, false, transitDetails);
     currentSuggestedRoute = buildSuggestedRoute(from, to, mode, leg.distance.text, leg.duration.text, false, leg.start_location, leg.end_location, transitDetails);
     saveSuggestedRouteBtn.disabled = false;
   });
+}
+
+function getRoutesWaypoint(activity, city) {
+  if (activity.placeId) return { placeId: activity.placeId };
+  if (Number.isFinite(activity.latitude) && Number.isFinite(activity.longitude)) {
+    return { location: { latLng: { latitude: activity.latitude, longitude: activity.longitude } } };
+  }
+  return { address: activity.address || (city ? `${activity.location}, ${city}` : activity.location) };
+}
+
+function formatRouteDuration(duration = '') {
+  const seconds = Number.parseInt(duration, 10) || 0;
+  const minutes = Math.max(1, Math.round(seconds / 60));
+  return minutes >= 60 ? `${Math.floor(minutes / 60)}h ${minutes % 60}m` : `${minutes} min`;
+}
+
+function formatRouteDistance(distanceMeters = 0) {
+  return distanceMeters < 1000
+    ? `${Math.round(distanceMeters)} m`
+    : `${(distanceMeters / 1000).toFixed(1)} km`;
+}
+
+function getRoutesTransitDetails(route) {
+  const segments = (route.legs || []).flatMap((leg) => leg.steps || []).map((step) => {
+    const transit = step.transitDetails;
+    if (!transit) {
+      return {
+        type: step.travelMode || 'WALK',
+        distance: formatRouteDistance(step.distanceMeters || 0),
+        duration: formatRouteDuration(step.staticDuration),
+      };
+    }
+    const line = transit.transitLine || {};
+    const vehicle = line.vehicle?.name?.text || line.vehicle?.type || 'Transit';
+    const service = line.nameShort || line.name || vehicle;
+    const localized = transit.localizedValues || {};
+    return {
+      type: 'TRANSIT',
+      service: service === vehicle ? vehicle : `${vehicle} ${service}`,
+      vehicle,
+      color: line.color ? `#${line.color.replace(/^#/, '')}` : '#24a148',
+      headsign: transit.headsign || '',
+      stops: transit.stopCount || 0,
+      departureStop: transit.stopDetails?.departureStop?.name || '',
+      arrivalStop: transit.stopDetails?.arrivalStop?.name || '',
+      departureTime: localized.departureTime?.time?.text || '',
+      arrivalTime: localized.arrivalTime?.time?.text || '',
+      distance: formatRouteDistance(step.distanceMeters || 0),
+      duration: formatRouteDuration(step.staticDuration),
+    };
+  });
+  const legs = segments.filter((segment) => segment.type === 'TRANSIT');
+  return legs.length ? { legs, segments, fare: '' } : null;
+}
+
+async function requestGoogleTransitRoute(from, to, routeToken) {
+  if (!GOOGLE_MAPS_API_KEY || !window.google?.maps?.geometry?.encoding) return false;
+  const city = getCityForDate(from.date);
+  const plannedDeparture = new Date(`${from.date}T${from.time || '09:00'}:00`);
+  const departureTime = Number.isNaN(plannedDeparture.getTime()) || plannedDeparture <= new Date()
+    ? new Date(Date.now() + 60000)
+    : plannedDeparture;
+  try {
+    const response = await fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': GOOGLE_MAPS_API_KEY,
+        'X-Goog-FieldMask': 'routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline,routes.legs.steps.distanceMeters,routes.legs.steps.staticDuration,routes.legs.steps.travelMode,routes.legs.steps.transitDetails',
+      },
+      body: JSON.stringify({
+        origin: getRoutesWaypoint(from, city),
+        destination: getRoutesWaypoint(to, city),
+        travelMode: 'TRANSIT',
+        departureTime: departureTime.toISOString(),
+        languageCode: state.language === 'zh' ? 'zh-TW' : 'en-US',
+        units: 'METRIC',
+      }),
+    });
+    if (!response.ok) return false;
+    const result = await response.json();
+    if (mapViewMode !== 'route' || routeToken !== mapRenderToken) return true;
+    if (!result.routes?.length) return false;
+    const route = result.routes[0];
+    const encodedPath = route.polyline?.encodedPolyline;
+    if (!encodedPath) return false;
+    const path = google.maps.geometry.encoding.decodePath(encodedPath);
+    clearSuggestedGeometry();
+    suggestedPolyline = new google.maps.Polyline({
+      path,
+      geodesic: true,
+      strokeColor: '#24a148',
+      strokeOpacity: 0.9,
+      strokeWeight: 6,
+      map,
+    });
+    const bounds = new google.maps.LatLngBounds();
+    path.forEach((position) => bounds.extend(position));
+    focusGoogleRoute(bounds);
+    const distanceMeters = Number(route.distanceMeters) || 0;
+    const distance = formatRouteDistance(distanceMeters);
+    const duration = formatRouteDuration(route.duration);
+    const transitDetails = getRoutesTransitDetails(route);
+    const alternativeCount = Math.max(0, result.routes.length - 1);
+    spotRouteStatus.textContent = alternativeCount
+      ? (state.language === 'zh' ? `Google 建議路線（另有 ${alternativeCount} 條）` : `Google suggested route (${alternativeCount} alternative${alternativeCount === 1 ? '' : 's'})`)
+      : (state.language === 'zh' ? 'Google 建議路線' : 'Google suggested route');
+    spotRouteResult.textContent = `${distance} · ${duration}`;
+    renderFareEstimates(distanceMeters, duration, false, transitDetails);
+    currentSuggestedRoute = buildSuggestedRoute(from, to, 'TRANSIT', distance, duration, false, null, null, transitDetails);
+    currentSuggestedRoute.routeProvider = 'google-routes';
+    if (path.length) {
+      currentSuggestedRoute.fromCoordinates = { lat: path[0].lat(), lng: path[0].lng() };
+      currentSuggestedRoute.toCoordinates = { lat: path[path.length - 1].lat(), lng: path[path.length - 1].lng() };
+    }
+    saveSuggestedRouteBtn.disabled = false;
+    return true;
+  } catch (error) {
+    console.warn('Google transit route failed', error);
+    return false;
+  }
 }
 
 async function requestKoreaSuggestedRoute(from, to) {

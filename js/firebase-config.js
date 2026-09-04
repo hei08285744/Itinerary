@@ -1,6 +1,6 @@
 window.FIREBASE_CONFIG = {
   apiKey: 'AIzaSyAalaq5_dUbsIpy0hkh2Jfo3keCyIfgm7k',
-  authDomain: 'itinerary-hei08285744.firebaseapp.com',
+  authDomain: 'mytinerary.site',
   projectId: 'itinerary-hei08285744',
   storageBucket: 'itinerary-hei08285744.firebasestorage.app',
   messagingSenderId: '99018691027',
