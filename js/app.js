@@ -41,7 +41,7 @@ function getTravelerAvatarDataUri(avatarId, name = '') {
 }
 
 // Fixed Google Maps API key (restrict it to your domain via HTTP referrer restrictions in Google Cloud Console).
-const GOOGLE_MAPS_API_KEY = 'AIzaSyDpcKhIMm0_2uX79oKv1WkvZOSyXhCWX74';
+const GOOGLE_MAPS_API_KEY = window.FIREBASE_CONFIG?.apiKey || '';
 
 const state = loadState();
 const userProfile = loadUserProfile();
@@ -3910,8 +3910,6 @@ let placeAutocomplete = null;
 let activeMapProvider = '';
 let koreaMapResizeObserver = null;
 let googleMapsLanguage = '';
-let placeAutocompleteRestrictionId = 0;
-const destinationCountryCodeCache = {};
 
 function loadTripMapProvider() {
   const provider = getTripMapProvider();
@@ -4117,7 +4115,6 @@ function setupPlaceAutocomplete() {
   if (placeAutocomplete || !window.google?.maps?.places?.Autocomplete) return;
   const autocompleteOptions = {
     fields: ['name', 'formatted_address', 'address_components', 'rating', 'user_ratings_total', 'editorial_summary', 'place_id', 'types', 'geometry', 'formatted_phone_number', 'international_phone_number', 'website'],
-    types: ['establishment', 'geocode'],
   };
   if (getMapProviderForDate(document.getElementById('activityDate').value) === 'naver') {
     autocompleteOptions.componentRestrictions = { country: 'kr' };
@@ -4160,28 +4157,11 @@ function setupPlaceAutocomplete() {
 
 function updatePlaceAutocompleteRestrictions(date) {
   if (!placeAutocomplete?.setComponentRestrictions) return;
-  const requestId = ++placeAutocompleteRestrictionId;
-  const destination = getCityForDate(date).trim();
   if (getMapProviderForDate(date) === 'naver') {
     placeAutocomplete.setComponentRestrictions({ country: 'kr' });
     return;
   }
-  const cacheKey = destination.toLocaleLowerCase();
-  if (destinationCountryCodeCache[cacheKey]) {
-    placeAutocomplete.setComponentRestrictions({ country: destinationCountryCodeCache[cacheKey] });
-    return;
-  }
   placeAutocomplete.setComponentRestrictions({ country: [] });
-  if (!destination || !geocoder) return;
-  geocoder.geocode({ address: destination }, (results, status) => {
-    if (requestId !== placeAutocompleteRestrictionId || status !== 'OK' || !results?.[0]) return;
-    const country = results[0].address_components
-      ?.find((component) => component.types?.includes('country'))
-      ?.short_name?.toLocaleLowerCase();
-    if (!country) return;
-    destinationCountryCodeCache[cacheKey] = country;
-    placeAutocomplete.setComponentRestrictions({ country });
-  });
 }
 
 function getKoreanGoogleAddress(place) {
