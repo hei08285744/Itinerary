@@ -59,6 +59,7 @@
   }
 
   function getCurrentUser() {
+    if (!window.firebase?.apps?.length) return null;
     const user = window.firebase?.auth().currentUser;
     if (!user) return null;
     return {
