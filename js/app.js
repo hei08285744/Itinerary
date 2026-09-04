@@ -4793,6 +4793,18 @@ function getRoutesWaypoint(activity, city) {
   return { address: activity.address || (city ? `${activity.location}, ${city}` : activity.location) };
 }
 
+function getGoogleTransitDirectionsUrl(from, to) {
+  const params = new URLSearchParams({
+    api: '1',
+    origin: from.address || from.location,
+    destination: to.address || to.location,
+    travelmode: 'transit',
+  });
+  if (from.placeId) params.set('origin_place_id', from.placeId);
+  if (to.placeId) params.set('destination_place_id', to.placeId);
+  return `https://www.google.com/maps/dir/?${params.toString()}`;
+}
+
 function formatRouteDuration(duration = '') {
   const seconds = Number.parseInt(duration, 10) || 0;
   const minutes = Math.max(1, Math.round(seconds / 60));
@@ -5161,17 +5173,18 @@ function createTransitDetailsElement(transitDetails) {
   heading.className = 'transit-route-heading';
   heading.textContent = state.language === 'zh' ? '大眾運輸路線' : 'Public transport route';
   if (transitDetails.unavailable) {
+    const providerName = transitDetails.providerName || 'Naver Maps';
     const message = document.createElement('p');
     message.className = 'transit-route-unavailable';
     message.textContent = state.language === 'zh'
-      ? '目前的地圖供應商沒有回傳可驗證的班次，請在 Naver Maps 查看即時公車或地鐵路線。'
-      : 'The map provider did not return a verified service. Check live bus or subway directions in Naver Maps.';
+      ? `目前的地圖供應商沒有回傳可驗證的班次，請在 ${providerName} 查看即時公車或鐵路路線。`
+      : `The map provider did not return a verified service. Check live bus or rail directions in ${providerName}.`;
     const link = document.createElement('a');
     link.className = 'transit-route-external';
     link.href = transitDetails.externalUrl;
     link.target = '_blank';
     link.rel = 'noopener';
-    link.textContent = state.language === 'zh' ? '在 Naver Maps 查看' : 'View in Naver Maps';
+    link.textContent = state.language === 'zh' ? `在 ${providerName} 查看` : `View in ${providerName}`;
     details.append(heading, message, link);
     return details;
   }
@@ -5312,10 +5325,25 @@ function requestCoordinateRoute(positions, from, to, mode, routeToken) {
       saveSuggestedRouteBtn.disabled = false;
       return;
     }
+    if (mode === 'TRANSIT') {
+      clearSuggestedGeometry();
+      spotRouteStatus.textContent = state.language === 'zh'
+        ? 'Google Maps 找不到可驗證的大眾運輸路線'
+        : 'No verified Google public transport route found';
+      spotRouteResult.textContent = '';
+      renderFareEstimates(0, '', false, {
+        unavailable: true,
+        providerName: 'Google Maps',
+        externalUrl: getGoogleTransitDirectionsUrl(from, to),
+      });
+      currentSuggestedRoute = null;
+      saveSuggestedRouteBtn.disabled = true;
+      return;
+    }
     const distance = google.maps.geometry?.spherical?.computeDistanceBetween
       ? google.maps.geometry.spherical.computeDistanceBetween(positions[0], positions[1]) * 1.25
       : 0;
-    const speed = mode === 'WALKING' ? 5 : mode === 'TRANSIT' ? 28 : 35;
+    const speed = mode === 'WALKING' ? 5 : 35;
     const minutes = Math.max(1, Math.round((distance / 1000 / speed) * 60));
     const duration = minutes >= 60 ? `${Math.floor(minutes / 60)}h ${minutes % 60}m` : `${minutes} min`;
     suggestedPolyline = new google.maps.Polyline({ path: positions, geodesic: true, strokeColor: '#d94b73', strokeOpacity: 0.85, strokeWeight: 5, map });
