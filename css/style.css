@@ -5146,30 +5146,42 @@ body.trip-access-pending {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.25rem;
+  border-radius: 6px;
+  background: #002d84;
+  color: #ffffff;
+  padding: 2px 4px;
+  min-height: 24px;
 }
 
 .shopping-haul-quantity button {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   padding: 0;
   border: 0;
-  border-radius: 50%;
-  background: var(--theme-accent-soft);
-  color: var(--theme-ink);
+  border-radius: 4px;
+  background: transparent;
+  color: #ffffff;
   cursor: pointer;
-  font: 0.8rem/1 inherit;
+  font: bold 0.82rem/1 inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.shopping-haul-quantity button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.15);
 }
 
 .shopping-haul-quantity button:disabled {
-  opacity: 0.45;
+  opacity: 0.35;
   cursor: default;
 }
 
 .shopping-haul-quantity strong {
-  min-width: 1rem;
+  min-width: 1.15rem;
   text-align: center;
-  font-size: 0.7rem;
+  font-size: 0.8rem;
+  color: #ffffff;
 }
 
 .shopping-haul-status-checkbox {
