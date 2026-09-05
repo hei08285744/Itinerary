@@ -5143,26 +5143,28 @@ body.trip-access-pending {
 
 .shopping-haul-quantity {
   grid-column: 2;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   border-radius: 6px;
   background: #002d84;
   color: #ffffff;
-  padding: 1px 3px;
+  padding: 1px 2px;
   min-height: 20px;
+  max-width: 48px;
+  justify-self: center;
 }
 
 .shopping-haul-quantity button {
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   padding: 0;
   border: 0;
-  border-radius: 3px;
+  border-radius: 2px;
   background: transparent;
   color: #ffffff;
   cursor: pointer;
-  font: bold 0.72rem/1 inherit;
+  font: bold 0.68rem/1 inherit;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -5178,9 +5180,9 @@ body.trip-access-pending {
 }
 
 .shopping-haul-quantity strong {
-  min-width: 1.15rem;
+  min-width: 0.85rem;
   text-align: center;
-  font-size: 0.8rem;
+  font-size: 0.72rem;
   color: #ffffff;
 }
 
