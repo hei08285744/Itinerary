@@ -4758,7 +4758,13 @@ function requestSuggestedRoute() {
 }
 
 function requestLegacySuggestedRoute(from, to, mode, routeToken, origin, destination) {
-  const request = { origin, destination, travelMode: google.maps.TravelMode[mode] };
+  const originLatLng = (Number.isFinite(from.latitude) && Number.isFinite(from.longitude))
+    ? new google.maps.LatLng(from.latitude, from.longitude)
+    : origin;
+  const destinationLatLng = (Number.isFinite(to.latitude) && Number.isFinite(to.longitude))
+    ? new google.maps.LatLng(to.latitude, to.longitude)
+    : destination;
+  const request = { origin: originLatLng, destination: destinationLatLng, travelMode: google.maps.TravelMode[mode] };
   if (mode === 'TRANSIT') {
     const plannedDeparture = new Date(`${from.date}T${from.time || '09:00'}:00`);
     request.transitOptions = {
