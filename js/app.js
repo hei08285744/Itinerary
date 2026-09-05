@@ -4758,11 +4758,15 @@ function requestSuggestedRoute() {
 }
 
 function requestLegacySuggestedRoute(from, to, mode, routeToken, origin, destination) {
-  const originLatLng = (Number.isFinite(from.latitude) && Number.isFinite(from.longitude))
-    ? new google.maps.LatLng(from.latitude, from.longitude)
+  const fromLat = from ? Number(from.latitude) : NaN;
+  const fromLng = from ? Number(from.longitude) : NaN;
+  const toLat = to ? Number(to.latitude) : NaN;
+  const toLng = to ? Number(to.longitude) : NaN;
+  const originLatLng = (Number.isFinite(fromLat) && Number.isFinite(fromLng))
+    ? new google.maps.LatLng(fromLat, fromLng)
     : origin;
-  const destinationLatLng = (Number.isFinite(to.latitude) && Number.isFinite(to.longitude))
-    ? new google.maps.LatLng(to.latitude, to.longitude)
+  const destinationLatLng = (Number.isFinite(toLat) && Number.isFinite(toLng))
+    ? new google.maps.LatLng(toLat, toLng)
     : destination;
   const request = { origin: originLatLng, destination: destinationLatLng, travelMode: google.maps.TravelMode[mode] };
   if (mode === 'TRANSIT') {
