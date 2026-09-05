@@ -5149,20 +5149,20 @@ body.trip-access-pending {
   border-radius: 6px;
   background: #002d84;
   color: #ffffff;
-  padding: 2px 4px;
-  min-height: 24px;
+  padding: 1px 3px;
+  min-height: 20px;
 }
 
 .shopping-haul-quantity button {
-  width: 18px;
-  height: 18px;
+  width: 14px;
+  height: 14px;
   padding: 0;
   border: 0;
-  border-radius: 4px;
+  border-radius: 3px;
   background: transparent;
   color: #ffffff;
   cursor: pointer;
-  font: bold 0.82rem/1 inherit;
+  font: bold 0.72rem/1 inherit;
   display: inline-flex;
   align-items: center;
   justify-content: center;
