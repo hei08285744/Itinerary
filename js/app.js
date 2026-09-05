@@ -255,6 +255,7 @@ const spotRouteStatus = document.getElementById('spotRouteStatus');
 const spotRouteResult = document.getElementById('spotRouteResult');
 const spotFareGrid = document.getElementById('spotFareGrid');
 const saveSuggestedRouteBtn = document.getElementById('saveSuggestedRouteBtn');
+const routeSheetHandle = document.getElementById('routeSheetHandle');
 
 const topBarTripName = document.getElementById('topBarTripName');
 const topBarDestination = document.getElementById('topBarDestination');
@@ -5643,6 +5644,86 @@ routeModeButtons.forEach((button) => {
     routeModeSelect.dispatchEvent(new Event('change'));
   });
 });
+
+if (routeSheetHandle) {
+  let startY = 0;
+  let startTranslateY = 0;
+  let isDragging = false;
+  const sheet = document.querySelector('.route-summary-sheet');
+
+  const getTranslateY = () => {
+    const style = window.getComputedStyle(sheet);
+    const matrix = new WebKitCSSMatrix(style.transform);
+    return matrix.m42 || 0;
+  };
+
+  const handleDragStart = (clientY) => {
+    startY = clientY;
+    startTranslateY = getTranslateY();
+    isDragging = true;
+    sheet.style.transition = 'none';
+  };
+
+  const handleDragMove = (clientY) => {
+    if (!isDragging) return;
+    const deltaY = clientY - startY;
+    let newY = startTranslateY + deltaY;
+    // Cap expansion
+    if (newY < -320) newY = -320 + (newY + 320) * 0.25;
+    // Cap collapse
+    if (newY > 0) newY = newY * 0.25;
+    sheet.style.transform = `translateY(${newY}px)`;
+  };
+
+  const handleDragEnd = () => {
+    if (!isDragging) return;
+    isDragging = false;
+    sheet.style.transition = 'transform 0.3s cubic-bezier(0.25, 1, 0.5, 1)';
+    const currentY = getTranslateY();
+    if (currentY < -120) {
+      sheet.style.transform = 'translateY(-290px)';
+      sheet.classList.add('sheet-expanded');
+    } else {
+      sheet.style.transform = 'translateY(0)';
+      sheet.classList.remove('sheet-expanded');
+    }
+  };
+
+  // Toggle on click
+  routeSheetHandle.addEventListener('click', () => {
+    sheet.style.transition = 'transform 0.4s cubic-bezier(0.25, 1, 0.5, 1)';
+    const currentY = getTranslateY();
+    if (currentY < -50) {
+      sheet.style.transform = 'translateY(0)';
+      sheet.classList.remove('sheet-expanded');
+    } else {
+      sheet.style.transform = 'translateY(-290px)';
+      sheet.classList.add('sheet-expanded');
+    }
+  });
+
+  // Touch listener
+  routeSheetHandle.addEventListener('touchstart', (e) => {
+    handleDragStart(e.touches[0].clientY);
+  }, { passive: true });
+
+  window.addEventListener('touchmove', (e) => {
+    if (isDragging) handleDragMove(e.touches[0].clientY);
+  }, { passive: false });
+
+  window.addEventListener('touchend', handleDragEnd);
+
+  // Mouse drag listener
+  routeSheetHandle.addEventListener('mousedown', (e) => {
+    handleDragStart(e.clientY);
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (isDragging) handleDragMove(e.clientY);
+  });
+
+  window.addEventListener('mouseup', handleDragEnd);
+}
 
 function renderGreetingAndDaySelector(days) {
   if (!days.length) {

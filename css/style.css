@@ -1320,12 +1320,15 @@ input[type='time'] {
 
 .route-summary-sheet {
   position: relative;
-  z-index: 3;
-  margin-top: 0;
-  padding: 0.65rem 1rem 1rem;
-  border-radius: 18px 18px 0 0;
+  z-index: 1001;
+  margin-top: -30px;
+  padding: 0.65rem 1rem 1.75rem;
+  border-radius: 20px 20px 0 0;
   background: var(--theme-surface);
-  box-shadow: 0 -10px 30px rgba(30, 33, 29, 0.12);
+  box-shadow: 0 -12px 32px rgba(30, 33, 29, 0.16);
+  transform: translateY(0);
+  transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+  will-change: transform;
 }
 
 body[data-active-view='map'] .map-card {
@@ -1334,11 +1337,20 @@ body[data-active-view='map'] .map-card {
 
 .route-sheet-handle {
   display: block;
-  width: 36px;
-  height: 4px;
-  margin: 0 auto 0.75rem;
+  width: 44px;
+  height: 5px;
+  margin: 0 auto 0.9rem;
   border-radius: 999px;
-  background: #d5d8cf;
+  background: #ccd0c4;
+  cursor: grab;
+  touch-action: none;
+  padding: 8px 12px;
+  background-clip: content-box;
+}
+
+.route-sheet-handle:active {
+  cursor: grabbing;
+  background-color: #b0b4a8;
 }
 
 .route-summary-heading {
