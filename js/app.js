@@ -662,6 +662,19 @@ function renderAccountControls(account = window.itinerarySync?.getCurrentUser?.(
 
 function finishAccountSignIn(account) {
   if (!account) return false;
+  if (!account.anonymous && account.displayName && !userProfile.name) {
+    const name = account.displayName.trim().slice(0, 40);
+    userProfile.name = name;
+    userProfile.avatarId = getTravelerAvatar(userProfile.avatarId, name).id;
+    try {
+      localStorage.setItem(USER_PROFILE_KEY, JSON.stringify(userProfile));
+      if (!state.memberProfiles || typeof state.memberProfiles !== 'object') state.memberProfiles = {};
+      state.memberProfiles[name] = userProfile.avatarId;
+      saveState();
+    } catch (e) {
+      console.warn('Could not save auto-populated user profile', e);
+    }
+  }
   loginGate.classList.add('hidden');
   document.body.classList.remove('login-pending');
   renderAccountControls(account);

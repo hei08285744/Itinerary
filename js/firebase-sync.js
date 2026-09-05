@@ -65,6 +65,7 @@
     return {
       uid: user.uid,
       anonymous: user.isAnonymous,
+      displayName: user.displayName || user.email?.split('@')[0] || '',
     };
   }
 
