@@ -4841,7 +4841,22 @@ function formatRouteDistance(distanceMeters = 0) {
 }
 
 function getRoutesTransitDetails(route) {
-  const segments = (route.legs || []).flatMap((leg) => leg.steps || []).map((step) => {
+  const rawSteps = (route.legs || []).flatMap((leg) => leg.steps || []);
+  const aggregatedSteps = [];
+  for (const step of rawSteps) {
+    const isWalking = !step.transitDetails && (step.travelMode === 'WALK' || !step.travelMode);
+    const lastStep = aggregatedSteps[aggregatedSteps.length - 1];
+    const isLastWalking = lastStep && !lastStep.transitDetails && (lastStep.travelMode === 'WALK' || !lastStep.travelMode);
+    if (isWalking && isLastWalking) {
+      lastStep.distanceMeters = (lastStep.distanceMeters || 0) + (step.distanceMeters || 0);
+      const lastSeconds = Number.parseInt(lastStep.staticDuration, 10) || 0;
+      const currentSeconds = Number.parseInt(step.staticDuration, 10) || 0;
+      lastStep.staticDuration = `${lastSeconds + currentSeconds}s`;
+    } else {
+      aggregatedSteps.push({ ...step });
+    }
+  }
+  const segments = aggregatedSteps.map((step) => {
     const transit = step.transitDetails;
     if (!transit) {
       return {
@@ -5156,7 +5171,32 @@ function buildSuggestedRoute(from, to, mode, distance, duration, estimated, from
 }
 
 function getTransitRouteDetails(leg, route) {
-  const segments = (leg.steps || []).map((step) => {
+  const rawSteps = leg.steps || [];
+  const aggregatedSteps = [];
+  for (const step of rawSteps) {
+    const isWalking = !step.transit;
+    const lastStep = aggregatedSteps[aggregatedSteps.length - 1];
+    const isLastWalking = lastStep && !lastStep.transit;
+    if (isWalking && isLastWalking) {
+      const totalDistanceVal = (lastStep.distance?.value || 0) + (step.distance?.value || 0);
+      const totalDurationVal = (lastStep.duration?.value || 0) + (step.duration?.value || 0);
+      lastStep.distance = {
+        value: totalDistanceVal,
+        text: formatRouteDistance(totalDistanceVal),
+      };
+      lastStep.duration = {
+        value: totalDurationVal,
+        text: formatRouteDuration(`${totalDurationVal}s`),
+      };
+    } else {
+      aggregatedSteps.push({
+        ...step,
+        distance: step.distance ? { ...step.distance } : undefined,
+        duration: step.duration ? { ...step.duration } : undefined,
+      });
+    }
+  }
+  const segments = aggregatedSteps.map((step) => {
     if (!step.transit) {
       return {
         type: step.travel_mode || 'WALKING',
