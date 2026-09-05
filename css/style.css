@@ -9813,10 +9813,10 @@ body:has(.profile-qr-modal:not(.hidden)) .app-tab-bar {
 }
 
 .login-copy p {
-  font-family: 'Courier New', monospace;
-  font-size: 0.68rem;
-  font-weight: 700;
-  text-transform: uppercase;
+  font-family: 'Nanum Pen Script', 'Caveat', 'Segoe Print', 'Bradley Hand', cursive;
+  font-size: 1.35rem;
+  font-weight: 400;
+  line-height: 1.1;
 }
 
 .login-copy h1 {
