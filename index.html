@@ -22,9 +22,9 @@
 <meta name="twitter:image:alt" content="A Mytinerary trip ticket inviting a friend to join">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600&family=Darumadrop+One&family=Nanum+Pen+Script&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIINfQ3ynHT/R7ZfxjMZx7egOUcBqAmJuQ=" crossorigin="">
-  <link rel="stylesheet" href="css/style.css?v=20260905-148">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=DM+Sans:wght@400;700&family=Caveat:wght@400;500;600&family=Darumadrop+One&family=Nanum+Pen+Script&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="css/style.css?v=20260906-160">
 </head>
 <body class="login-pending">
   <main id="loginGate" class="login-gate" aria-labelledby="loginTitle">
@@ -104,7 +104,7 @@
     <header class="top-bar">
       <div class="itinerary-user-welcome">
         <div class="itinerary-avatar-stack">
-          <button id="itineraryProfileBtn" class="itinerary-user-avatar" type="button" aria-label="Edit your profile">
+          <button id="itineraryProfileBtn" class="itinerary-user-avatar" type="button" aria-label="Profile">
             <img id="itineraryUserPhoto" alt="Your traveler avatar">
             <span id="itineraryUserInitial" class="hidden">T</span>
           </button>
@@ -537,16 +537,54 @@
             <input id="userNameInput" type="text" maxlength="40" autocomplete="name" placeholder="e.g. Marco" required>
           </label>
           <p id="userProfileError" class="trip-access-error" role="alert"></p>
-          <button class="btn-primary" type="submit">Save profile</button>
+          <div class="itinerary-actions" style="margin-top:0.2rem;">
+            <button class="btn-primary" type="submit">Save profile</button>
+          </div>
         </form>
+        <section class="user-profile-settings" aria-labelledby="userProfileSettingsTitle">
+          <div>
+            <p class="trip-access-kicker">Settings</p>
+            <h2 id="userProfileSettingsTitle">Settings</h2>
+          </div>
+          <div class="profile-font-section">
+            <label class="profile-font-label">Select font</label>
+            <div id="profileFontOptions" class="font-options" role="list">
+              <button type="button" class="font-option" data-font="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial" role="listitem"><span class="font-sample">Aa</span><small>Inter</small></button>
+              <button type="button" class="font-option" data-font="DM Sans, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial" role="listitem"><span class="font-sample">Aa</span><small>DM Sans</small></button>
+              <button type="button" class="font-option" data-font="Satoshi, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial" role="listitem"><span class="font-sample">Aa</span><small>Satoshi</small></button>
+              <button type="button" class="font-option" data-font="SF Pro Text, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial" role="listitem"><span class="font-sample">Aa</span><small>SF</small></button>
+            </div>
+            <!-- Font size control removed -->
+          </div>
+          <div class="profile-setting-row">
+            <span>Language</span>
+            <select id="userProfileLanguageSelect" class="language-select" aria-label="Language">
+              <option value="en">English</option>
+              <option value="zh">中文</option>
+            </select>
+          </div>
+          <div class="profile-setting-row">
+            <span>Target currency</span>
+            <select id="userProfileCurrencySelect" class="language-select" aria-label="Target currency">
+            </select>
+          </div>
+        </section>
         <section class="profile-account-panel" aria-labelledby="profileAccountTitle">
           <div>
             <span id="profileAccountTitle">Account</span>
-            <strong id="profileAccountStatus">Guest</strong>
+            <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.25rem;">
+              <svg class="google-sign-in-mark" viewBox="0 0 18 18" style="width: 18px; height: 18px; display: inline-block; vertical-align: middle;">
+                <path d="M17.64 9.2c0-.63-.06-1.25-.16-1.84H9v3.47h4.84c-.21 1.12-.84 2.07-1.79 2.7l2.8 2.17c1.64-1.51 2.59-3.74 2.59-6.5z" fill="#4285F4"/>
+                <path d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.8-2.17c-.78.52-1.78.83-3.16.83-2.43 0-4.49-1.64-5.22-3.85H.83v2.25C2.32 15.84 5.43 18 9 18z" fill="#34A853"/>
+                <path d="M3.78 10.63c-.19-.52-.3-1.07-.3-1.63s.11-1.11.3-1.63V5.12H.83C.3 6.18 0 7.37 0 9s.3 2.82.83 3.88l2.95-2.25z" fill="#FBBC05"/>
+                <path d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.8 11.43 0 9 0 5.43 0 2.32 2.16.83 5.12l2.95 2.25c.73-2.21 2.79-3.79 5.22-3.79z" fill="#EA4335"/>
+              </svg>
+              <strong id="profileAccountStatus" style="margin: 0; line-height: 1;">Guest</strong>
+            </div>
             <small id="profileAccountHint">Guest trips are available on this device only.</small>
           </div>
-          <div class="profile-account-actions">
-            <button id="profileGoogleLoginBtn" class="btn-secondary" type="button">Sign in with Google</button>
+          <div class="profile-account-actions itinerary-actions" style="margin-top: 1rem;">
+            <button id="profileGoogleLoginBtn" class="btn-primary" type="button">Sign in with Google</button>
             <button id="profileLogoutBtn" class="btn-secondary hidden" type="button">Log out</button>
           </div>
           <p id="profileAccountError" class="profile-account-error" role="alert"></p>
@@ -848,6 +886,13 @@
                   Shop website
                   <input type="url" id="activityWebsite" placeholder="Website from Google Places">
                 </label>
+                <div class="opening-hours-field" style="grid-column: 1 / -1; display: flex; flex-direction: column; gap: 0.35rem; margin-top: 0.25rem;">
+                  <button type="button" id="activityToggleOpeningHours" class="opening-hours-btn">
+                    <span id="openingHoursIcon">⏰</span>
+                    <span id="openingHoursText">Enable Opening Hours</span>
+                  </button>
+                  <p id="activityHoursPreview" class="field-hint" style="margin: 0; font-size: 0.75rem; color: var(--theme-muted); display: none;"></p>
+                </div>
                 <div id="bookingDetails" class="booking-details hidden">
                   <div class="booking-details-heading">
                     <strong>Booking details</strong>
@@ -861,6 +906,21 @@
                     Contact details
                     <input type="text" id="activityContactDetails" placeholder="e.g. +82 2 1234 5678">
                   </label>
+                  <div class="attachment-input-wrapper" style="grid-column: 1 / -1; display: flex; flex-direction: column; gap: 0.35rem; margin-top: 0.25rem;">
+                    <span style="font-size: 0.8rem; font-weight: 600; color: var(--theme-ink);">Attachment</span>
+                    <div class="attachment-actions" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                      <button type="button" id="activityAddAttachmentBtn" class="opening-hours-btn">
+                        <span>📎</span>
+                        <span>Upload File (PDF/Image)</span>
+                      </button>
+                      <button type="button" id="activityDeleteAttachmentBtn" class="opening-hours-btn" style="display: none; border-color: #f5c2c2; background: #ffebee; color: #c62828;">
+                        <span>🗑️</span>
+                        <span>Remove Attachment</span>
+                      </button>
+                      <span id="activityAttachmentFileName" style="font-size: 0.8rem; color: var(--theme-muted); max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"></span>
+                    </div>
+                    <input type="file" id="activityAttachmentFileInput" accept="image/*,application/pdf" style="display: none;">
+                  </div>
                 </div>
               </div>
             </section>
@@ -1107,6 +1167,16 @@
 
   </div>
 
+  <div id="attachmentViewerModal" class="modal-overlay hidden" style="display: none;">
+    <section class="add-activity card modal-card" style="max-width: 500px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2rem;">
+      <div class="modal-header" style="width: 100%; display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+        <h2 style="font-size: 1.25rem; font-weight: 700; color: var(--theme-ink);">Attachment Viewer</h2>
+        <button id="closeAttachmentViewerBtn" class="icon-btn" type="button" aria-label="Close" style="background: none; border: none; cursor: pointer; font-size: 1.5rem; color: var(--theme-muted);">&times;</button>
+      </div>
+      <div id="attachmentViewerContent" style="width: 100%; display: flex; justify-content: center; align-items: center;"></div>
+    </section>
+  </div>
+
     <nav class="app-tab-bar" aria-label="Primary navigation">
       <span class="app-tab-indicator" aria-hidden="true"></span>
       <button class="app-tab is-active" type="button" data-app-tab="itinerary" aria-current="page">
@@ -1134,14 +1204,15 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
   <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.js"></script>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script src="js/firebase-config.js?v=20260904-7"></script>
   <script src="js/firebase-sync.js?v=20260905-26"></script>
-  <script src="js/app.js?v=20260905-122"></script>
+  <script src="js/app.js?v=20260907-1"></script>
   <script>window.lucide?.createIcons();</script>
 </body>
 </html>

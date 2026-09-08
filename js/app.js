@@ -241,6 +241,12 @@ let currentPlaceCoordinates = null;
 let currentNaverPlaceName = '';
 let currentGoogleReviewCount = 0;
 let currentPlaceWebsite = '';
+let currentPlaceOpeningHours = null;
+let currentPlaceOpeningHoursEnabled = false;
+let currentAttachmentBase64 = '';
+let currentAttachmentFileType = '';
+let currentAttachmentFileName = '';
+let currentAttachmentStoragePath = '';
 let activitySubmissionId = 0;
 
 const routeList = document.getElementById('routeList');
@@ -388,6 +394,10 @@ const userNameInput = document.getElementById('userNameInput');
 const travelerAvatarGrid = document.getElementById('travelerAvatarGrid');
 const userProfileError = document.getElementById('userProfileError');
 const closeUserProfileBtn = document.getElementById('closeUserProfileBtn');
+// New profile settings elements (font, language, currency)
+const userProfileLanguageSelect = document.getElementById('userProfileLanguageSelect');
+const userProfileCurrencySelect = document.getElementById('userProfileCurrencySelect');
+const profileFontOptions = document.getElementById('profileFontOptions');
 let selectedProfileAvatarId = userProfile.avatarId;
 
 const TRANSLATIONS = {
@@ -462,6 +472,8 @@ function loadState() {
     savedRoutes: [],
     aiSearchHistory: [],
     walletTargetCurrency: 'HKD',
+    fontFamily: '',
+    fontSize: 15,
   };
 }
 
@@ -640,7 +652,7 @@ function renderTravelerAvatarGrid() {
 
 function openUserProfileModal(isFirstRun = false) {
   userProfileModal.dataset.firstRun = String(isFirstRun);
-  userProfileTitle.textContent = isFirstRun ? 'Set up your profile' : 'Edit your profile';
+  userProfileTitle.textContent = isFirstRun ? 'Set up your profile' : '';
   userNameInput.value = userProfile.name;
   selectedProfileAvatarId = userProfile.avatarId;
   renderTravelerAvatarGrid();
@@ -648,6 +660,8 @@ function openUserProfileModal(isFirstRun = false) {
   closeUserProfileBtn.classList.toggle('hidden', isFirstRun);
   userProfileModal.classList.remove('hidden');
   document.body.classList.add('user-profile-pending');
+  // Ensure account action buttons reflect current sign-in state
+  try { renderAccountControls(window.itinerarySync?.getCurrentUser?.()); } catch (e) { /* ignore */ }
   setTimeout(() => (isFirstRun ? travelerAvatarGrid.querySelector('.selected') : userNameInput).focus(), 0);
 }
 
@@ -831,6 +845,82 @@ userProfileForm.addEventListener('submit', (event) => {
 
 itineraryProfileBtn.addEventListener('click', () => openUserProfileModal(false));
 closeUserProfileBtn.addEventListener('click', closeUserProfileModal);
+
+// Initialize profile modal settings selects and persist changes
+if (userProfileLanguageSelect) {
+  userProfileLanguageSelect.value = state.language || 'en';
+  userProfileLanguageSelect.addEventListener('change', (e) => {
+    state.language = e.target.value;
+    saveState();
+    renderUserProfile();
+  });
+}
+
+if (userProfileCurrencySelect) {
+  userProfileCurrencySelect.value = state.targetCurrency || state.walletTargetCurrency || 'HKD';
+  userProfileCurrencySelect.addEventListener('change', (e) => {
+    const code = e.target.value;
+    state.targetCurrency = code;
+    state.walletTargetCurrency = code;
+    if (targetCurrencySelect) targetCurrencySelect.value = code;
+    saveState();
+    renderUserProfile();
+  });
+}
+
+// Initialize font controls and apply saved preferences
+function applyFontSettings() {
+  const family = state.fontFamily || getComputedStyle(document.documentElement).getPropertyValue('--app-font-family').trim() || '';
+  const size = (state.fontSize || state.fontSize === 0) ? state.fontSize : (state.fontSize = 15);
+  if (family) document.documentElement.style.setProperty('--app-font-family', family);
+  document.documentElement.style.setProperty('--app-font-size', `${size}px`);
+}
+
+if (profileFontOptions) {
+  profileFontOptions.querySelectorAll('.font-option').forEach((btn) => {
+    const font = btn.dataset.font;
+    // set sample display
+    const sample = btn.querySelector('.font-sample');
+    if (sample) sample.style.fontFamily = font;
+    btn.addEventListener('click', () => {
+      profileFontOptions.querySelectorAll('.font-option').forEach((b) => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      state.fontFamily = font;
+      saveState();
+      // apply immediately to the CSS variable so fallbacks update; then try to load font face
+      document.documentElement.style.setProperty('--app-font-family', font);
+      // attempt to load primary font name via Font Loading API for a smoother switch
+      try {
+        const primary = (font.split(',')[0] || '').replace(/^["']|["']$/g, '').trim();
+        if (primary && document.fonts && document.fonts.load) {
+          document.fonts.load(`16px "${primary}"`).then(() => applyFontSettings()).catch(() => applyFontSettings());
+        } else {
+          applyFontSettings();
+        }
+      } catch (e) {
+        applyFontSettings();
+      }
+    });
+  });
+  // initial selection
+  (function initFontSelection() {
+    const current = state.fontFamily || '';
+    let matched = false;
+    profileFontOptions.querySelectorAll('.font-option').forEach((b, i) => {
+      const f = b.dataset.font || '';
+      if (!matched && current && f.indexOf(current) !== -1) {
+        b.classList.add('selected'); matched = true;
+      }
+    });
+    if (!matched) {
+      const first = profileFontOptions.querySelector('.font-option');
+      if (first) first.classList.add('selected');
+    }
+  })();
+}
+
+// apply on load
+applyFontSettings();
 
 function saveState() {
   if (creatingTripDraft) return;
@@ -1719,6 +1809,12 @@ activityForm.addEventListener('submit', async (e) => {
     koreaCoordinateSource: getMapProviderForDate(date) === 'naver' ? 'korea-localized' : '',
     naverUrl: existingActivity?.naverUrl || '',
     website: activityWebsiteInput.value.trim() || currentPlaceWebsite,
+    openingHours: currentPlaceOpeningHours,
+    enableOpeningHours: currentPlaceOpeningHoursEnabled,
+    attachmentBase64: currentAttachmentBase64,
+    attachmentStoragePath: currentAttachmentStoragePath,
+    attachmentFileType: currentAttachmentFileType,
+    attachmentFileName: currentAttachmentFileName,
     shoppingItems: category === 'shopping' ? shoppingItemsDraft : [],
     upfrontPaymentTitle: document.getElementById('activityUpfrontPaymentTitle').value.trim(),
     bookingDetails: document.getElementById('activityBookingDetails').value.trim(),
@@ -3254,6 +3350,138 @@ activityModalOverlay.addEventListener('click', (e) => {
   if (e.target === activityModalOverlay) e.stopPropagation();
 });
 
+document.getElementById('activityToggleOpeningHours').addEventListener('click', () => {
+  currentPlaceOpeningHoursEnabled = !currentPlaceOpeningHoursEnabled;
+  updateOpeningHoursUI();
+});
+
+// Attachment Event Listeners
+const fileInput = document.getElementById('activityAttachmentFileInput');
+document.getElementById('activityAddAttachmentBtn').addEventListener('click', () => {
+  fileInput.click();
+});
+// Upload attachment to Firebase Storage (if Firebase configured) or fallback to DataURL for local-only use.
+async function uploadAttachmentFile(file) {
+  if (!file) throw new Error('No file');
+  // Enforce client size limit
+  if (file.size > 8 * 1024 * 1024) {
+    throw new Error(state.language === 'zh' ? '請上傳小於 8MB 的檔案。' : 'Please upload a file smaller than 8MB.');
+  }
+
+  // If Firebase Storage is available and configured, upload and return download URL.
+  try {
+    if (window.itinerarySync && window.itinerarySync.isConfigured && window.itinerarySync.isConfigured()) {
+      // Ensure Firebase app is initialized & authenticated
+      await window.itinerarySync.authenticate();
+      if (!window.firebase?.storage) throw new Error('Firebase Storage unavailable');
+      const storage = window.firebase.storage();
+      const basePath = `attachments/${state.activeTripId || 'unsaved'}`;
+      const safeName = `${Date.now().toString(36)}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+      const ref = storage.ref(`${basePath}/${safeName}`);
+      const uploadTaskSnapshot = await ref.put(file);
+      const downloadUrl = await ref.getDownloadURL();
+      return { downloadUrl, storagePath: uploadTaskSnapshot.ref.fullPath };
+    }
+  } catch (err) {
+    console.warn('Storage upload failed, falling back to client DataURL', err);
+  }
+
+  // Fallback: read as DataURL (not recommended for large files or cloud sync)
+  return await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = function(event) {
+      resolve({ downloadUrl: event.target.result, storagePath: '' });
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+fileInput.addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  try {
+    // show temporary UI feedback
+    const addBtn = document.getElementById('activityAddAttachmentBtn');
+    const prevText = addBtn?.textContent;
+    if (addBtn) addBtn.textContent = state.language === 'zh' ? '上傳中…' : 'Uploading…';
+    const result = await uploadAttachmentFile(file);
+    currentAttachmentBase64 = result.downloadUrl || '';
+    currentAttachmentFileType = file.type;
+    currentAttachmentFileName = file.name;
+    currentAttachmentStoragePath = result.storagePath || '';
+    updateOpeningHoursUI();
+    if (addBtn) addBtn.textContent = prevText;
+  } catch (err) {
+    alert(err.message || (state.language === 'zh' ? '上傳失敗' : 'Upload failed'));
+    fileInput.value = '';
+    const addBtn = document.getElementById('activityAddAttachmentBtn');
+    if (addBtn) addBtn.textContent = state.language === 'zh' ? '上傳檔案 (PDF/影像)' : 'Upload File (PDF/Image)';
+  }
+});
+
+document.getElementById('activityDeleteAttachmentBtn').addEventListener('click', () => {
+  currentAttachmentBase64 = '';
+  currentAttachmentFileType = '';
+  currentAttachmentFileName = '';
+  fileInput.value = '';
+  updateOpeningHoursUI();
+});
+
+// modal enlargement triggers
+const attachmentViewerModal = document.getElementById('attachmentViewerModal');
+const closeAttachmentViewerBtn = document.getElementById('closeAttachmentViewerBtn');
+const attachmentViewerContent = document.getElementById('attachmentViewerContent');
+
+function closeAttachmentViewer() {
+  attachmentViewerModal.classList.add('hidden');
+  attachmentViewerModal.style.display = 'none';
+  attachmentViewerContent.innerHTML = '';
+}
+
+closeAttachmentViewerBtn.addEventListener('click', closeAttachmentViewer);
+attachmentViewerModal.addEventListener('click', (e) => {
+  if (e.target === attachmentViewerModal) closeAttachmentViewer();
+});
+
+function enlargeAttachment(base64, type, name) {
+  attachmentViewerContent.innerHTML = '';
+  if (!base64) return;
+  
+  if (type.startsWith('image/')) {
+    const img = document.createElement('img');
+    img.src = base64;
+    img.style.maxWidth = '100%';
+    img.style.maxHeight = '70vh';
+    img.style.objectFit = 'contain';
+    img.style.borderRadius = '12px';
+    img.style.boxShadow = '0 8px 30px rgba(0,0,0,0.15)';
+    attachmentViewerContent.appendChild(img);
+  } else if (type === 'application/pdf') {
+    const iframe = document.createElement('iframe');
+    iframe.src = base64;
+    iframe.style.width = '100%';
+    iframe.style.height = '70vh';
+    iframe.style.border = 'none';
+    iframe.style.borderRadius = '12px';
+    attachmentViewerContent.appendChild(iframe);
+  } else {
+    // fallback view download link
+    const link = document.createElement('a');
+    link.href = base64;
+    link.download = name || 'attachment';
+    link.className = 'btn-primary';
+    link.textContent = state.language === 'zh' ? '下載附件' : 'Download Attachment';
+    attachmentViewerContent.appendChild(link);
+  }
+  
+  const titleEl = document.getElementById('attachmentViewerTitle');
+  if (titleEl) titleEl.textContent = name || (state.language === 'zh' ? '查看附件' : 'Attachment Viewer');
+  
+  attachmentViewerModal.classList.remove('hidden');
+  attachmentViewerModal.style.display = 'flex';
+}
+
 function openActivityModal(activity = null) {
   editingActivityId = activity?.id || null;
   currentPlaceAddress = activity?.address || '';
@@ -3264,6 +3492,14 @@ function openActivityModal(activity = null) {
   currentNaverPlaceName = activity?.naverPlaceName || getLegacyNaverSearchName(activity?.naverUrl) || '';
   currentGoogleReviewCount = Number(activity?.googleReviewCount) || 0;
   currentPlaceWebsite = activity?.website || '';
+  currentPlaceOpeningHours = activity?.openingHours || null;
+  currentPlaceOpeningHoursEnabled = Boolean(activity?.enableOpeningHours);
+  // Attachment state fields
+  currentAttachmentBase64 = activity?.attachmentBase64 || '';
+  currentAttachmentFileType = activity?.attachmentFileType || '';
+  currentAttachmentFileName = activity?.attachmentFileName || '';
+  currentAttachmentStoragePath = activity?.attachmentStoragePath || '';
+  
   shoppingItemsDraft = activity?.shoppingItems ? activity.shoppingItems.map((item) => ({ ...item })) : [];
   activityForm.reset();
   populateExpenseCurrencyOptions(activityExpenseCurrencyInput, getExpenseCurrency(activity?.expense) || getCurrencyForDestination(getCityForDate(activity?.date || getTripDays()[selectedDayIndex])));
@@ -3317,6 +3553,7 @@ function openActivityModal(activity = null) {
   updatePlaceAutocompleteRestrictions(document.getElementById('activityDate').value);
   activityWebsiteInput.value = currentPlaceWebsite;
   placeLookupStatus.textContent = '';
+  updateOpeningHoursUI();
   if (!activity) toggleCardFields(activityPaymentMethodInput, activityCardNetworkField, activityCardMarkupField, activityCardRateHint);
   activityModalOverlay.classList.remove('hidden');
 }
@@ -3330,7 +3567,110 @@ function toggleShoppingDetails(category) {
 }
 
 function toggleBookingDetails(category) {
-  bookingDetails.classList.toggle('hidden', !['meal', 'transport', 'sight', 'hotel'].includes(category));
+  // Show booking details for all categories
+  bookingDetails.classList.remove('hidden');
+}
+
+function convertKoreanOpeningHoursToEnglish(text) {
+  if (!text) return '';
+  let res = text;
+  
+  // Replace weekday names
+  res = res.replace(/월요일/g, 'Monday');
+  res = res.replace(/화요일/g, 'Tuesday');
+  res = res.replace(/수요일/g, 'Wednesday');
+  res = res.replace(/목요일/g, 'Thursday');
+  res = res.replace(/금요일/g, 'Friday');
+  res = res.replace(/토요일/g, 'Saturday');
+  res = res.replace(/일요일/g, 'Sunday');
+
+  // Replace common labels
+  res = res.replace(/휴무일/g, 'Closed');
+  res = res.replace(/24시간 영업/g, 'Open 24 hours');
+  res = res.replace(/매일/g, 'Everyday');
+  
+  // Replace AM/PM designators
+  // '오전 8:40' -> '8:40 AM'
+  res = res.replace(/오전\s*(\d{1,2}:\d{2})/g, '$1 AM');
+  res = res.replace(/오후\s*(\d{1,2}:\d{2})/g, (match, time) => {
+    return time + ' PM';
+  });
+  
+  // General fallback for just '오전' or '오후'
+  res = res.replace(/오전/g, 'AM');
+  res = res.replace(/오후/g, 'PM');
+  
+  return res;
+}
+
+function getDayOpeningHours(weekdayTextArray, dateStr) {
+  if (!weekdayTextArray || !weekdayTextArray.length || !dateStr) return null;
+  const parts = dateStr.split('-');
+  if (parts.length !== 3) return null;
+  const year = parseInt(parts[0], 10);
+  const month = parseInt(parts[1], 10) - 1;
+  const day = parseInt(parts[2], 10);
+  const dateObj = new Date(year, month, day);
+  
+  const daysEnglish = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const dayEn = daysEnglish[dateObj.getDay()];
+  
+  for (const text of weekdayTextArray) {
+    const englishConverted = convertKoreanOpeningHoursToEnglish(text);
+    if (englishConverted.toLowerCase().includes(dayEn.toLowerCase())) {
+      return englishConverted;
+    }
+  }
+  const indexMap = [6, 0, 1, 2, 3, 4, 5];
+  const gIndex = dateObj.getDay();
+  const rawText = weekdayTextArray[indexMap[gIndex]] || weekdayTextArray[0];
+  return convertKoreanOpeningHoursToEnglish(rawText);
+}
+
+function updateOpeningHoursUI() {
+  const btn = document.getElementById('activityToggleOpeningHours');
+  if (!btn) return;
+  const textSpan = document.getElementById('openingHoursText');
+  const iconSpan = document.getElementById('openingHoursIcon');
+  const preview = document.getElementById('activityHoursPreview');
+  const activityDateVal = document.getElementById('activityDate').value;
+  
+  if (currentPlaceOpeningHoursEnabled) {
+    btn.style.background = 'var(--theme-success-bg, #e8f5e9)';
+    btn.style.borderColor = 'var(--theme-success, #4caf50)';
+    btn.style.color = 'var(--theme-success-dark, #2e7d32)';
+    if (iconSpan) iconSpan.innerHTML = '<svg class="hours-clock-icon active" viewBox="0 0 24 24" style="width: 14px; height: 14px; fill: currentColor;"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm0 18c-4.4 0-8-3.6-8-8s3.6-8 8-8 8 3.6 8 8-3.6 8-8 8zm.5-13H11v6l5.2 3.2.8-1.3-4.5-2.7V7z"/></svg>';
+    if (textSpan) textSpan.textContent = state.language === 'zh' ? '已啟用營業時間' : 'Opening Hours Enabled';
+  } else {
+    btn.style.background = '';
+    btn.style.borderColor = '';
+    btn.style.color = '';
+    if (iconSpan) iconSpan.innerHTML = '<svg class="hours-clock-icon" viewBox="0 0 24 24" style="width: 14px; height: 14px; fill: currentColor;"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm0 18c-4.4 0-8-3.6-8-8s3.6-8 8-8 8 3.6 8 8-3.6 8-8 8zm.5-13H11v6l5.2 3.2.8-1.3-4.5-2.7V7z"/></svg>';
+    if (textSpan) textSpan.textContent = state.language === 'zh' ? '啟用營業時間' : 'Enable Opening Hours';
+  }
+
+  if (currentPlaceOpeningHours && currentPlaceOpeningHours.length && activityDateVal) {
+    const matchedText = getDayOpeningHours(currentPlaceOpeningHours, activityDateVal);
+    if (matchedText) {
+      preview.style.display = 'block';
+      preview.textContent = matchedText;
+    } else {
+      preview.style.display = 'none';
+    }
+  } else {
+    preview.style.display = 'none';
+  }
+
+  // Update attachment indicators
+  const delBtn = document.getElementById('activityDeleteAttachmentBtn');
+  const nameEl = document.getElementById('activityAttachmentFileName');
+  if (currentAttachmentBase64) {
+    if (delBtn) delBtn.style.display = 'inline-flex';
+    if (nameEl) nameEl.textContent = currentAttachmentFileName || 'Uploaded attachment';
+  } else {
+    if (delBtn) delBtn.style.display = 'none';
+    if (nameEl) nameEl.textContent = '';
+  }
 }
 
 function renderShoppingEditor() {
@@ -3984,6 +4324,8 @@ function loadKoreaRatingService() {
     restoreActivityLocationInput();
     placeLookupStatus.textContent = 'Google Places rejected this site. Add this website URL to the API key HTTP referrer restrictions.';
   };
+  
+  const targetLang = getGoogleMapsTargetLanguage();
   const initializePlaces = () => {
     if (!window.google?.maps?.places || activeMapProvider !== 'naver') return;
     placesService = new google.maps.places.PlacesService(document.createElement('div'));
@@ -3993,19 +4335,27 @@ function loadKoreaRatingService() {
     if (mapViewMode === 'day') updateKoreaMapMarkers();
     else if (routeModeSelect.value === 'TRANSIT') requestSuggestedRoute();
   };
-  if (window.google?.maps?.places) {
+  if (window.google?.maps?.places && googleMapsLanguage === targetLang) {
     initializePlaces();
     return;
   }
   const existingScript = document.getElementById('googleMapsApiScript');
-  if (existingScript) {
-    existingScript.addEventListener('load', initializePlaces, { once: true });
-    return;
+  if (existingScript && googleMapsLanguage !== targetLang) {
+    existingScript.remove();
+    try {
+      delete window.google;
+    } catch (e) {
+      window.google = undefined;
+    }
+    mapsApiLoaded = false;
+    mapsApiLoading = false;
   }
+  
   const script = document.createElement('script');
   script.id = 'googleMapsApiScript';
-  googleMapsLanguage = 'ko';
-  script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(GOOGLE_MAPS_API_KEY)}&libraries=places,geometry&language=ko&region=KR`;
+  googleMapsLanguage = targetLang;
+  const regionParam = targetLang === 'ko' ? '&region=KR' : '';
+  script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(GOOGLE_MAPS_API_KEY)}&libraries=places,geometry&language=${targetLang}${regionParam}`;
   script.async = true;
   script.addEventListener('load', initializePlaces, { once: true });
   document.head.appendChild(script);
@@ -4045,13 +4395,37 @@ function getTravelMapStyles(theme) {
   ];
 }
 
+function getGoogleMapsTargetLanguage() {
+  const activeDate = (getTripDays() && getTripDays()[selectedDayIndex]) || '';
+  const activeCity = getCityForDate(activeDate);
+  return isKoreaDestination(activeCity) ? 'ko' : 'en';
+}
+
 function loadGoogleMaps(apiKey) {
-  if (!apiKey || mapsApiLoaded || mapsApiLoading) return;
+  if (!apiKey) return;
   if (apiKey === 'YOUR_GOOGLE_MAPS_API_KEY' || apiKey.length < 20) {
     mapStatus.textContent = 'Set GOOGLE_MAPS_API_KEY in js/app.js to enable the map and Places features.';
     mapStatus.style.display = 'block';
     return;
   }
+
+  const targetLang = getGoogleMapsTargetLanguage();
+  const existingScript = document.getElementById('googleMapsApiScript');
+  
+  // Force a full clean reload if the translation language has changed (e.g. switching between Korea and non-Korea destinations)
+  if (existingScript && googleMapsLanguage && googleMapsLanguage !== targetLang) {
+    existingScript.remove();
+    try {
+      delete window.google;
+    } catch (e) {
+      window.google = undefined;
+    }
+    mapsApiLoaded = false;
+    mapsApiLoading = false;
+  }
+
+  if (mapsApiLoaded || mapsApiLoading) return;
+
   mapsApiLoading = true;
   mapStatus.textContent = 'Loading map…';
 
@@ -4090,21 +4464,16 @@ function loadGoogleMaps(apiKey) {
     renderDayStrip(getTripDays());
   };
 
-  if (window.google?.maps) {
+  if (window.google?.maps && googleMapsLanguage === targetLang) {
     window.__initTripMap();
-    return;
-  }
-
-  const existingScript = document.getElementById('googleMapsApiScript');
-  if (existingScript) {
-    existingScript.addEventListener('load', window.__initTripMap, { once: true });
     return;
   }
 
   const script = document.createElement('script');
   script.id = 'googleMapsApiScript';
-  googleMapsLanguage = 'en';
-  script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&libraries=places,geometry&language=en&callback=__initTripMap`;
+  googleMapsLanguage = targetLang;
+  const regionParam = targetLang === 'ko' ? '&region=KR' : '';
+  script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&libraries=places,geometry&language=${targetLang}${regionParam}&callback=__initTripMap`;
   script.async = true;
   script.onerror = () => {
     mapsApiLoading = false;
@@ -4128,7 +4497,7 @@ function restoreActivityLocationInput() {
 function setupPlaceAutocomplete() {
   if (placeAutocomplete || !window.google?.maps?.places?.Autocomplete) return;
   const autocompleteOptions = {
-    fields: ['name', 'formatted_address', 'address_components', 'rating', 'user_ratings_total', 'editorial_summary', 'place_id', 'types', 'geometry', 'formatted_phone_number', 'international_phone_number', 'website'],
+    fields: ['name', 'formatted_address', 'address_components', 'rating', 'user_ratings_total', 'editorial_summary', 'place_id', 'types', 'geometry', 'formatted_phone_number', 'international_phone_number', 'website', 'opening_hours'],
   };
   if (getMapProviderForDate(document.getElementById('activityDate').value) === 'naver') {
     autocompleteOptions.componentRestrictions = { country: 'kr' };
@@ -4148,6 +4517,9 @@ function setupPlaceAutocomplete() {
     currentGoogleReviewCount = Number(place.user_ratings_total) || 0;
     currentPlaceWebsite = place.website || '';
     activityWebsiteInput.value = currentPlaceWebsite;
+    currentPlaceOpeningHours = place.opening_hours?.weekday_text || null;
+    currentPlaceOpeningHoursEnabled = Boolean(currentPlaceOpeningHours && currentPlaceOpeningHours.length);
+    updateOpeningHoursUI();
     activityRatingInput.value = place.rating || '';
     activityDescriptionInput.value = currentPlaceAddress;
     activityCategoryInput.value = inferActivityCategory(place.types, activityCategoryInput.value || 'other');
@@ -4301,6 +4673,9 @@ activityLocationInput.addEventListener('input', () => {
   currentGoogleReviewCount = 0;
   currentPlaceWebsite = '';
   activityWebsiteInput.value = '';
+  currentPlaceOpeningHours = null;
+  currentPlaceOpeningHoursEnabled = false;
+  updateOpeningHoursUI();
   koreaPlaceLocalizationId += 1;
   koreaPlaceLocalizationPromise = Promise.resolve();
 });
@@ -4312,6 +4687,7 @@ document.getElementById('activityDate').addEventListener('change', (event) => {
   updateActivityExpenseHint(event.target.value);
   activityMapProviderInput.value = getMapProviderForDate(event.target.value);
   updatePlaceAutocompleteRestrictions(event.target.value);
+  updateOpeningHoursUI();
 });
 
 
@@ -5646,83 +6022,57 @@ routeModeButtons.forEach((button) => {
 });
 
 if (routeSheetHandle) {
-  let startY = 0;
-  let startTranslateY = 0;
-  let isDragging = false;
   const sheet = document.querySelector('.route-summary-sheet');
+  const routeSheetToggleBtn = document.getElementById('routeSheetToggleBtn');
+  const routeSheetToggleText = document.getElementById('routeSheetToggleText');
+  const routeSheetToggleIcon = document.getElementById('routeSheetToggleIcon');
+  const collapsibleContent = document.getElementById('routeSheetCollapsibleContent');
 
-  const getTranslateY = () => {
-    const style = window.getComputedStyle(sheet);
-    const matrix = new WebKitCSSMatrix(style.transform);
-    return matrix.m42 || 0;
-  };
+  let isExpanded = true;
 
-  const handleDragStart = (clientY) => {
-    startY = clientY;
-    startTranslateY = getTranslateY();
-    isDragging = true;
-    sheet.style.transition = 'none';
-  };
-
-  const handleDragMove = (clientY) => {
-    if (!isDragging) return;
-    const deltaY = clientY - startY;
-    let newY = startTranslateY + deltaY;
-    // Cap expansion
-    if (newY < -320) newY = -320 + (newY + 320) * 0.25;
-    // Cap collapse
-    if (newY > 0) newY = newY * 0.25;
-    sheet.style.transform = `translateY(${newY}px)`;
-  };
-
-  const handleDragEnd = () => {
-    if (!isDragging) return;
-    isDragging = false;
-    sheet.style.transition = 'transform 0.3s cubic-bezier(0.25, 1, 0.5, 1)';
-    const currentY = getTranslateY();
-    if (currentY < -120) {
-      sheet.style.transform = 'translateY(-290px)';
-      sheet.classList.add('sheet-expanded');
+  const updateToggleButtonState = (expanded) => {
+    isExpanded = expanded;
+    if (!routeSheetToggleBtn) return;
+    if (expanded) {
+      if (routeSheetToggleText) routeSheetToggleText.textContent = state.language === 'zh' ? '收合' : 'Collapse';
+      if (routeSheetToggleIcon) routeSheetToggleIcon.style.transform = 'rotate(180deg)';
+      if (collapsibleContent) {
+        collapsibleContent.style.maxHeight = '2000px';
+        collapsibleContent.style.opacity = '1';
+        collapsibleContent.style.pointerEvents = 'auto';
+      }
     } else {
-      sheet.style.transform = 'translateY(0)';
-      sheet.classList.remove('sheet-expanded');
+      if (routeSheetToggleText) routeSheetToggleText.textContent = state.language === 'zh' ? '展開' : 'Expand';
+      if (routeSheetToggleIcon) routeSheetToggleIcon.style.transform = 'rotate(0deg)';
+      if (collapsibleContent) {
+        collapsibleContent.style.maxHeight = '0';
+        collapsibleContent.style.opacity = '0';
+        collapsibleContent.style.pointerEvents = 'none';
+      }
     }
   };
 
-  // Toggle on click
-  routeSheetHandle.addEventListener('click', () => {
-    sheet.style.transition = 'transform 0.4s cubic-bezier(0.25, 1, 0.5, 1)';
-    const currentY = getTranslateY();
-    if (currentY < -50) {
-      sheet.style.transform = 'translateY(0)';
-      sheet.classList.remove('sheet-expanded');
-    } else {
-      sheet.style.transform = 'translateY(-290px)';
-      sheet.classList.add('sheet-expanded');
-    }
+  const toggleSheet = () => {
+    updateToggleButtonState(!isExpanded);
+  };
+
+  // Toggle on click of handle or the button
+  routeSheetHandle.addEventListener('click', (e) => {
+    toggleSheet();
   });
 
-  // Touch listener
-  routeSheetHandle.addEventListener('touchstart', (e) => {
-    handleDragStart(e.touches[0].clientY);
-  }, { passive: true });
+  if (routeSheetToggleBtn) {
+    routeSheetToggleBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleSheet();
+    });
+  }
 
-  window.addEventListener('touchmove', (e) => {
-    if (isDragging) handleDragMove(e.touches[0].clientY);
-  }, { passive: false });
-
-  window.addEventListener('touchend', handleDragEnd);
-
-  // Mouse drag listener
-  routeSheetHandle.addEventListener('mousedown', (e) => {
-    handleDragStart(e.clientY);
-  });
-
-  window.addEventListener('mousemove', (e) => {
-    if (isDragging) handleDragMove(e.clientY);
-  });
-
-  window.addEventListener('mouseup', handleDragEnd);
+  // Initialize sheet as statically positioned and fully expanded
+  sheet.style.position = 'relative';
+  sheet.style.transform = 'none';
+  sheet.style.marginTop = '-24px';
+  updateToggleButtonState(true);
 }
 
 function renderGreetingAndDaySelector(days) {
@@ -6273,18 +6623,21 @@ savedRoutePlatform.addEventListener('change', renderSavedRoutePanel);
 function loadTripFromLibrary(tripId) {
   const selected = (state.tripLibrary || []).find((trip) => trip.id === tripId);
   if (!selected) return;
-  const scrollPosition = window.scrollY;
   saveState();
   const tripLibrary = state.tripLibrary;
   Object.keys(state).forEach((key) => delete state[key]);
   Object.assign(state, selected.data, { tripLibrary, activeTripId: tripId });
   activeAccessMembers = {};
   saveState();
+  
+  // Set the clean URL pointing to the newly chosen trip
   const tripUrl = new URL(window.location.href);
   tripUrl.searchParams.set('trip', tripId);
-  window.history.replaceState(null, '', tripUrl);
-  init();
-  requestAnimationFrame(() => window.scrollTo(0, scrollPosition));
+  
+  // Perform a full hard page reload so that all Google Maps, local variables, 
+  // and autocomplete components are clean and correctly configured to either 
+  // Korea or Non-Korea Logic from scratch.
+  window.location.href = tripUrl.toString();
 }
 
 async function removeTripFromLibrary(tripId, removeButton) {
@@ -7463,6 +7816,51 @@ function renderItineraryForSelectedDay(days) {
         footerRow.appendChild(websiteLink);
       }
 
+      if (activity.enableOpeningHours && activity.openingHours) {
+        const matchedText = getDayOpeningHours(activity.openingHours, activity.date);
+        if (matchedText) {
+          let displayHours = matchedText;
+          const separatorIndex = matchedText.indexOf(':');
+          if (separatorIndex !== -1) {
+            displayHours = matchedText.substring(separatorIndex + 1).trim();
+          }
+          const isClosed = displayHours.toLowerCase().includes('closed');
+          const hoursEl = document.createElement('span');
+          hoursEl.className = isClosed ? 'item-hours-pill closed' : 'item-hours-pill';
+          let showText = displayHours;
+          if (state.language === 'zh') {
+            if (showText.toLowerCase() === 'closed') showText = '已關門';
+            else if (showText.toLowerCase() === 'open 24 hours') showText = '24小時營業';
+            else showText = showText.replace(/closed/i, '已關門').replace(/open 24 hours/i, '24小時營業');
+          }
+          
+          // Setup standardized clock icon SVG for the pill
+          hoursEl.innerHTML = `<svg class="hours-badge-icon" viewBox="0 0 24 24" style="width: 12px; height: 12px; fill: currentColor; margin-right: 4px; display: inline-block; vertical-align: middle;"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm0 18c-4.4 0-8-3.6-8-8s3.6-8 8-8 8 3.6 8 8-3.6 8-8 8zm.5-13H11v6l5.2 3.2.8-1.3-4.5-2.7V7z"/></svg><span style="vertical-align: middle;">${showText}</span>`;
+          footerRow.appendChild(hoursEl);
+        }
+      }
+
+      if (activity.attachmentBase64) {
+        const attachPill = document.createElement('button');
+        attachPill.type = 'button';
+        attachPill.className = 'item-contact-pill item-attachment-pill';
+        attachPill.style.cursor = 'pointer';
+        
+        let labelText = activity.attachmentFileName || 'Attachment';
+        if (labelText.length > 20) {
+          labelText = labelText.substring(0, 17) + '...';
+        }
+        
+        // Setup standardized vector paperclip SVG icon
+        const paperclipSvg = `<svg class="attachment-badge-icon" viewBox="0 0 24 24" style="width: 12px; height: 12px; fill: currentColor; margin-right: 4px; display: inline-block; vertical-align: middle;"><path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5c0-1.66 1.34-3 3-3s3 1.34 3 3v11.5c0 .28-.22.5-.5.5s-.5-.22-.5-.5V6H12v9.5c0 1.1-.9 2-2 2s-2-.9-2-2V5c0-2.76 2.24-5 5-5s5 2.24 5 5v12.5c0 3.59-2.41 6.5-6 6.5s-6-2.91-6-6.5V6h1.5v11.5c0 2.76 2.24 5 4.5 5s4.5-2.24 4.5-5V6h1.5z"/></svg>`;
+        attachPill.innerHTML = `${paperclipSvg}<span style="vertical-align: middle;">${labelText}</span>`;
+        attachPill.addEventListener('click', (e) => {
+          e.stopPropagation();
+          enlargeAttachment(activity.attachmentBase64, activity.attachmentFileType, activity.attachmentFileName);
+        });
+        footerRow.appendChild(attachPill);
+      }
+
       if (activity.expense) {
         const expenseEl = document.createElement('span');
         expenseEl.className = 'expense-badge';
@@ -7765,26 +8163,16 @@ function setDefaultWalletCurrencies(destination) {
 
 function populateCurrencyOptions() {
   const currencies = [
-    { code: 'USD', symbol: '$' },
-    { code: 'EUR', symbol: '€' },
-    { code: 'GBP', symbol: '£' },
-    { code: 'JPY', symbol: '¥' },
-    { code: 'CNY', symbol: '¥' },
-    { code: 'HKD', symbol: '$' },
-    { code: 'TWD', symbol: '$' },
-    { code: 'KRW', symbol: '₩' },
-    { code: 'THB', symbol: '฿' },
-    { code: 'SGD', symbol: '$' },
-    { code: 'AUD', symbol: '$' },
-    { code: 'CAD', symbol: '$' },
-    { code: 'CHF', symbol: 'Fr' },
-    { code: 'NZD', symbol: '$' },
-    { code: 'VND', symbol: '₫' },
-    { code: 'IDR', symbol: 'Rp' },
-    { code: 'MYR', symbol: 'RM' },
-    { code: 'PHP', symbol: '₱' },
-    { code: 'INR', symbol: '₹' },
-    { code: 'MOP', symbol: '$' },
+    { code: 'USD', symbol: '$' }, { code: 'EUR', symbol: '€' }, { code: 'GBP', symbol: '£' }, { code: 'JPY', symbol: '¥' },
+    { code: 'CNY', symbol: '¥' }, { code: 'HKD', symbol: '$' }, { code: 'TWD', symbol: '$' }, { code: 'KRW', symbol: '₩' },
+    { code: 'THB', symbol: '฿' }, { code: 'SGD', symbol: '$' }, { code: 'AUD', symbol: '$' }, { code: 'CAD', symbol: '$' },
+    { code: 'CHF', symbol: 'Fr' }, { code: 'NZD', symbol: '$' }, { code: 'VND', symbol: '₫' }, { code: 'IDR', symbol: 'Rp' },
+    { code: 'MYR', symbol: 'RM' }, { code: 'PHP', symbol: '₱' }, { code: 'INR', symbol: '₹' }, { code: 'MOP', symbol: '$' },
+    { code: 'SEK', symbol: 'kr' }, { code: 'NOK', symbol: 'kr' }, { code: 'DKK', symbol: 'kr' }, { code: 'PLN', symbol: 'zł' },
+    { code: 'CZK', symbol: 'Kč' }, { code: 'HUF', symbol: 'Ft' }, { code: 'RUB', symbol: '₽' }, { code: 'BRL', symbol: 'R$' },
+    { code: 'ARS', symbol: '$' }, { code: 'CLP', symbol: '$' }, { code: 'MXN', symbol: '$' }, { code: 'ZAR', symbol: 'R' },
+    { code: 'ILS', symbol: '₪' }, { code: 'AED', symbol: 'د.إ' }, { code: 'SAR', symbol: '﷼' }, { code: 'KWD', symbol: 'د.ك' },
+    { code: 'QAR', symbol: '﷼' }, { code: 'BHD', symbol: '.د.ب' }, { code: 'OMR', symbol: '﷼' }, { code: 'TRY', symbol: '₺' },
   ];
   const optionsHtml = currencies
     .map(({ code, symbol }) => `<option value="${code}">${code} ${symbol}</option>`)
@@ -7793,6 +8181,11 @@ function populateCurrencyOptions() {
   currencyToInput.innerHTML = optionsHtml;
   targetCurrencySelect.innerHTML = optionsHtml;
   targetCurrencySelect.value = state.walletTargetCurrency || 'HKD';
+  // ensure profile currency select is populated as well
+  if (userProfileCurrencySelect) {
+    userProfileCurrencySelect.innerHTML = optionsHtml;
+    userProfileCurrencySelect.value = state.targetCurrency || state.walletTargetCurrency || 'HKD';
+  }
   setDefaultWalletCurrencies(state.tripDestination);
 }
 
