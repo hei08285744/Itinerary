@@ -1,0 +1,41 @@
+{
+  "functions": {
+    "source": "functions",
+    "runtime": "nodejs22"
+  },
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "hosting": {
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      ".firebaserc",
+      ".gitignore",
+      ".firebase/**",
+      ".git/**",
+      ".vscode/**",
+      "functions/**",
+      "**/node_modules/**",
+      "firestore.rules",
+      "README.md"
+    ],
+    "cleanUrls": true,
+    "rewrites": [
+      {
+        "source": "/share/**",
+        "function": {
+          "functionId": "socialShare",
+          "region": "asia-east2"
+        }
+      },
+      {
+        "source": "/ticket-preview/**",
+        "function": {
+          "functionId": "ticketPreview",
+          "region": "asia-east2"
+        }
+      }
+    ]
+  }
+}

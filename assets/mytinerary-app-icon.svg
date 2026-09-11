@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">Mytinerary app icon</title>
+  <desc id="desc">A traveler reading a map on a cobalt background.</desc>
+  <rect width="256" height="256" rx="58" fill="#123b96"/>
+  <g fill="#fff8e8" stroke="#fff8e8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M119 49c4-17 29-21 39-7 14-2 23 12 16 23 6 10-1 23-12 24-8 13-28 9-31-5-15-4-17-24-4-31-2-2-5-3-8-4Z" stroke="none"/>
+    <path d="M143 84c-3 11 0 18 8 23l-18 9-20-20c12-1 19-5 20-15" fill="none" stroke-width="5"/>
+    <path d="M115 94c15 7 28 20 34 39l-17 55-44-13 5-59Z" stroke="none"/>
+    <path d="M155 108c22 4 34 20 36 43l3 44h-24l-3-54c-2-10-8-16-18-18" fill="none" stroke-width="7"/>
+    <path d="M186 145c15 2 20 15 18 30l-2 26h-27l-1-43c1-10 5-14 12-13Z" fill="none" stroke-width="6"/>
+    <path d="M39 102l44 20 37-17 35 22-14 70-48-18-43 13Z" fill="#fff8e8" stroke-width="5"/>
+    <path d="M83 122l10 57M120 105l-8 80" fill="none" stroke="#123b96" stroke-width="3"/>
+    <path d="M58 127c13-8 18 5 8 10 15 1 13 15 1 13 10 6 4 17-6 12M101 125c7-7 17 2 10 9-8 8 1 17 9 10M128 133c10-5 18 5 10 12-8 6-2 16 7 14" fill="none" stroke="#123b96" stroke-width="3"/>
+    <path d="M71 118l5 8M99 112l-3 10M134 118l-7 7" fill="none" stroke="#123b96" stroke-width="3"/>
+    <circle cx="143" cy="61" r="2.4" fill="#123b96" stroke="none"/>
+    <path d="M147 70c5 3 9 1 11-3M137 67l-3 5" fill="none" stroke="#123b96" stroke-width="2.5"/>
+  </g>
+  <text x="128" y="229" fill="#fff8e8" font-family="Arial Black, Arial, sans-serif" font-size="22" font-weight="900" letter-spacing="1" text-anchor="middle">MYTINERARY</text>
+</svg>
