@@ -24,6 +24,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=DM+Sans:wght@400;700&family=Caveat:wght@400;500;600&family=Darumadrop+One&family=Nanum+Pen+Script&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/confirmDate/confirmDate.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/confirmDate/confirmDate.js"></script>
   <link rel="stylesheet" href="css/style.css?v=20260906-160">
 </head>
 <body class="login-pending">
@@ -226,10 +230,6 @@
         <div class="map-stage">
           <div id="tripMap" class="trip-map"></div>
           <div class="map-route-toolbar">
-            <div class="spot-route-heading">
-              <h2 data-i18n="tripMap">Trip Map</h2>
-              <span class="spot-route-status" id="spotRouteStatus"></span>
-            </div>
             <div class="spot-route-fields">
               <label>
                 <span data-i18n="spotA">Spot A</span>
@@ -242,14 +242,29 @@
               </label>
             </div>
           </div>
+          <!-- Floating toggle control: show/hide Spot A / Spot B selects -->
+          <div class="map-toggle-panel" aria-hidden="false">
+            <button id="mapToggleSpotSelectBtn" class="map-toggle-btn map-toggle-small" aria-pressed="false" title="Hide spot selectors">
+              <span class="map-toggle-icon" aria-hidden="true" style="margin-top: 4px;">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/>
+                  <circle cx="12" cy="10" r="3"/>
+                </svg>
+              </span>
+              <span class="map-toggle-label" style="font-weight: bold; margin-top: 4px;"></span>
+            </button>
+            <button id="mapToggleLegendBtn" class="map-toggle-btn map-toggle-small" aria-pressed="false" title="Hide map legend" style="height: 44px; margin-top: 6px; border-radius: 12px; background: var(--theme-accent-dark, #10285f); color: #ffffff;">
+              <span class="map-toggle-icon" aria-hidden="true" style="font-size: 14px; display: inline-flex; align-items: center; justify-content: center;">🧭</span>
+            </button>
+            <div class="map-legend" id="mapLegend"></div>
+          </div>
           <p class="map-status" id="mapStatus">Loading map…</p>
-          <div class="map-legend" id="mapLegend"></div>
         </div>
         <div class="route-summary-sheet">
           <span class="route-sheet-handle" id="routeSheetHandle" aria-hidden="true"></span>
           <div class="route-summary-heading">
             <div>
-              <span class="route-summary-kicker" data-i18n="suggestedRoute">Suggested route</span>
+              <span class="route-summary-kicker" id="spotRouteStatus">Suggested route</span>
               <div class="spot-route-result" id="spotRouteResult"></div>
             </div>
             <div class="spot-route-options">
@@ -311,6 +326,13 @@
         <div id="billDateTabs" class="bill-date-tabs" role="group" aria-label="Filter bills by date"></div>
         <div id="memberOwesSummary" class="member-owes-summary hidden"></div>
         <div class="expense-list" id="expenseList"></div>
+        <div id="expenseTotalBar" class="expense-total-bar" aria-live="polite">
+          <span id="expenseTotalLabel">Total</span>
+          <div class="expense-total-values">
+            <strong id="expenseTotalAmount">—</strong>
+            <span id="expenseTotalConverted" class="expense-row-converted"></span>
+          </div>
+        </div>
         <section id="settlementLog" class="settlement-log hidden" aria-live="polite"></section>
         <div class="itinerary-actions wallet-expense-actions">
           <button type="button" id="addExpenseBtn" class="btn-primary" data-i18n="addExpense">+ Add Expense</button>
@@ -330,6 +352,10 @@
           <i data-level="0"></i><i data-level="1"></i><i data-level="2"></i><i data-level="3"></i><i data-level="4"></i>
           <span>More</span>
         </div>
+        <section class="spending-category-section" aria-labelledby="spendingCategoryTitle">
+          <h4 id="spendingCategoryTitle">Spending by category and date</h4>
+          <div id="spendingCategoryBreakdown" class="spending-category-scroll"></div>
+        </section>
         <div id="spendingMetrics" class="spending-metrics"></div>
         <p id="spendingInsight" class="spending-insight">Add expenses to see spending patterns for this trip.</p>
       </section>
@@ -774,7 +800,7 @@
               <div class="activity-section-grid">
                 <label class="activity-date-field">
                   Date
-                  <input type="date" id="activityDate" required>
+                  <input type="text" id="activityDate" placeholder="Select date" required>
                 </label>
                 <label class="activity-time-field">
                   Time
@@ -898,9 +924,11 @@
                     <strong>Booking details</strong>
                     <span>Confirmation and contact information</span>
                   </div>
-                  <label class="grow">
+                  <label class="grow booking-code-field">
                     Confirmation code
-                    <input type="text" id="activityBookingDetails" placeholder="e.g. ABC123 or reservation name">
+                    <div class="booking-code-wrapper">
+                      <input type="text" id="activityBookingDetails" class="booking-code-input" placeholder="e.g. ABC123 or reservation name" aria-label="Confirmation code input">
+                    </div>
                   </label>
                   <label class="grow">
                     Contact details
@@ -910,11 +938,13 @@
                     <span style="font-size: 0.8rem; font-weight: 600; color: var(--theme-ink);">Attachment</span>
                     <div class="attachment-actions" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
                       <button type="button" id="activityAddAttachmentBtn" class="opening-hours-btn">
-                        <span>📎</span>
+                        <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:currentColor;margin-right:8px;display:inline-block;vertical-align:middle"><path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5c0-1.66 1.34-3 3-3s3 1.34 3 3v11.5c0 .28-.22.5-.5.5s-.5-.22-.5-.5V6H12v9.5c0 1.1-.9 2-2 2s-2-.9-2-2V5c0-2.76 2.24-5 5-5s5 2.24 5 5v12.5c0 3.59-2.41 6.5-6 6.5s-6-2.91-6-6.5V6h1.5v11.5c0 2.76 2.24 5 4.5 5s4.5-2.24 4.5-5V6h1.5z"/></svg>
                         <span>Upload File (PDF/Image)</span>
                       </button>
                       <button type="button" id="activityDeleteAttachmentBtn" class="opening-hours-btn" style="display: none; border-color: #f5c2c2; background: #ffebee; color: #c62828;">
-                        <span>🗑️</span>
+                        <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:currentColor;margin-right:8px;display:inline-block;vertical-align:middle" aria-hidden="true" focusable="false">
+                          <path d="M6 7h12v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7zm3-4h6l1 2H8l1-2z"/>
+                        </svg>
                         <span>Remove Attachment</span>
                       </button>
                       <span id="activityAttachmentFileName" style="font-size: 0.8rem; color: var(--theme-muted); max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"></span>
@@ -1050,6 +1080,16 @@
                 Amount
                 <input type="text" id="billAmount" placeholder="e.g. $20 or NT$500" required>
               </label>
+              <label>
+                Category
+                <select id="billCategory">
+                  <option value="meal">Meal</option>
+                  <option value="transport">Transport</option>
+                  <option value="shopping">Shopping</option>
+                  <option value="bills">Other bills</option>
+                </select>
+              </label>
+              <!-- Receipt UI removed per request -->
             </div>
           </section>
 
@@ -1108,7 +1148,6 @@
           </section>
 
           <div class="activity-form-actions expense-form-actions">
-            <button id="removeExpenseBtn" class="btn-danger hidden" type="button">Remove Expense</button>
             <button id="expenseSubmitBtn" type="submit" class="btn-primary">Add Expense</button>
           </div>
         </form>
@@ -1167,6 +1206,8 @@
 
   </div>
 
+  <!-- Receipt parsing is now handled by a server-side Vision + Gemini Flash function -->
+
   <div id="attachmentViewerModal" class="modal-overlay hidden" style="display: none;">
     <section class="add-activity card modal-card" style="max-width: 500px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2rem;">
       <div class="modal-header" style="width: 100%; display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
@@ -1210,6 +1251,7 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="js/security.js?v=20260910-1"></script>
   <script src="js/firebase-config.js?v=20260904-7"></script>
   <script src="js/firebase-sync.js?v=20260905-26"></script>
   <script src="js/app.js?v=20260907-1"></script>

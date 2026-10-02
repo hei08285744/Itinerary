@@ -1,3 +1,122 @@
+const functions = require('firebase-functions');
+// Cloud Function stub: parseReceipt
+// This function accepts { text, targetLanguage } and returns a best-effort
+// parsed structure: { amount, currency, title, translatedText }
+
+async function translateText(text, targetLanguage) {
+  const key = process.env.GOOGLE_TRANSLATE_API_KEY || '';
+  if (!key || !text) return text;
+  try {
+    const url = `https://translation.googleapis.com/language/translate/v2?key=${encodeURIComponent(key)}`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ q: text, target: targetLanguage }),
+    });
+    const data = await res.json();
+    return data?.data?.translations?.[0]?.translatedText || text;
+  } catch (err) {
+    console.warn('Translate failed', err);
+    return text;
+  }
+}
+
+function parseNumberString(raw) {
+  if (!raw) return null;
+  const s = String(raw).trim();
+  // Heuristics: handle 1,234.56 and 1.234,56 and plain 1234.56
+  const onlyDigitsDotComma = s.replace(/[^0-9.,]/g, '');
+  if (onlyDigitsDotComma.indexOf(',') !== -1 && onlyDigitsDotComma.indexOf('.') !== -1) {
+    // assume '.' thousands and ',' decimals (e.g., 1.234,56) if comma appears last
+    if (onlyDigitsDotComma.lastIndexOf(',') > onlyDigitsDotComma.lastIndexOf('.')) {
+      return Number(onlyDigitsDotComma.replace(/\./g, '').replace(',', '.'));
+    }
+    return Number(onlyDigitsDotComma.replace(/,/g, ''));
+  }
+  if (onlyDigitsDotComma.indexOf(',') !== -1 && onlyDigitsDotComma.indexOf('.') === -1) {
+    // ambiguous: if commas separate thousands (length>3) treat as thousands
+    if ((onlyDigitsDotComma.match(/,/g) || []).length > 0 && onlyDigitsDotComma.length > 4) {
+      return Number(onlyDigitsDotComma.replace(/,/g, ''));
+    }
+    // otherwise treat comma as decimal
+    return Number(onlyDigitsDotComma.replace(',', '.'));
+  }
+  return Number(onlyDigitsDotComma);
+}
+
+function findAmountCandidates(text) {
+  if (!text) return [];
+  const candidates = [];
+  // match currency symbols or codes near numbers
+  const regex = /(?:([$€£¥])|\b(USD|EUR|GBP|JPY|HKD|TWD|CNY)\b)?\s*([0-9]{1,3}(?:[,\s][0-9]{3})*(?:\.[0-9]{1,2})|[0-9]+(?:\.[0-9]{1,2})|[0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2})/gi;
+  let m;
+  while ((m = regex.exec(text)) !== null) {
+    const raw = m[0];
+    const symbol = m[1] || '';
+    const code = m[2] || '';
+    const numStr = m[3];
+    const value = parseNumberString(numStr + '');
+    if (!isFinite(value)) continue;
+    const contextStart = Math.max(0, m.index - 20);
+    const context = text.slice(contextStart, Math.min(text.length, m.index + raw.length + 20));
+    candidates.push({ raw: raw.trim(), value, valueString: String(value), symbol, code, context });
+  }
+  // also try to find 'Total' lines
+  const totalMatch = text.match(/(^|\n)\s*(total|amount\s+due|amount)[:\s]*([\$€£¥]?\s*[0-9\.,]+)/i);
+  if (totalMatch) {
+    const raw = totalMatch[3];
+    const value = parseNumberString(raw);
+    if (isFinite(value)) candidates.unshift({ raw: raw.trim(), value, valueString: String(value), symbol: '', code: '', context: totalMatch[0] });
+  }
+  // sort unique by value descending (likely total is the largest)
+  const uniq = [];
+  const seen = new Set();
+  candidates.sort((a, b) => b.value - a.value).forEach((c) => {
+    const key = `${c.valueString}-${c.raw}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      uniq.push(c);
+    }
+  });
+  return uniq.slice(0, 6);
+}
+
+async function callLLMParse(text) {
+  const key = process.env.OPENAI_API_KEY || process.env.GPT_API_KEY || '';
+  if (!key || !text) return null;
+  try {
+    const system = 'You are a precise receipt parser. Return ONLY valid JSON (no explanatory text) with keys: totals (array of {raw, value}), total (string), date (string), time (string), items (array of {name, price}), currency (string).';
+    const user = `Parse the following receipt OCR text and return only JSON as instructed.\n\nText:\n${text}`;
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+      body: JSON.stringify({ model: 'gpt-3.5-turbo', messages: [{ role: 'system', content: system }, { role: 'user', content: user }], max_tokens: 800, temperature: 0 }),
+    });
+    const data = await res.json();
+    const textOut = data?.choices?.[0]?.message?.content || data?.choices?.[0]?.text || '';
+    const jsonMatch = String(textOut).match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return null;
+    try {
+      const parsed = JSON.parse(jsonMatch[0]);
+      return parsed;
+    } catch (err) {
+      // sometimes the model returns trailing commas or invalid JSON; try a relaxed fix
+      const cleaned = jsonMatch[0].replace(/,\s*}/g, '}').replace(/,\s*\]/g, ']');
+      try {
+        return JSON.parse(cleaned);
+      } catch (e) {
+        console.warn('LLM returned unparsable JSON', e, textOut);
+        return null;
+      }
+    }
+  } catch (err) {
+    console.warn('LLM parse failed', err);
+    return null;
+  }
+}
+
+// parseReceiptVision is implemented below using the v2 `onCall` API so it can access
+// `googleAuth` and other shared constants defined later in this file.
 const { createHash, timingSafeEqual } = require('node:crypto');
 const { initializeApp } = require('firebase-admin/app');
 const { FieldValue, getFirestore } = require('firebase-admin/firestore');
@@ -5,6 +124,13 @@ const { HttpsError, onCall, onRequest } = require('firebase-functions/v2/https')
 const { GoogleAuth } = require('google-auth-library');
 const QRCode = require('qrcode');
 const sharp = require('sharp');
+let GoogleGenAI;
+try {
+  GoogleGenAI = require('@google/genai').GoogleGenAI;
+} catch (e) {
+  // dependency may not be installed yet; handle later
+  GoogleGenAI = null;
+}
 
 initializeApp();
 
@@ -21,7 +147,414 @@ const firestore = getFirestore();
 const googleAuth = new GoogleAuth({ scopes: ['https://www.googleapis.com/auth/cloud-platform'] });
 let nextNominatimRequestAt = 0;
 
-const HOSTING_ORIGIN = 'https://itinerary-hei08285744.web.app';
+// Helper: call Cloud Vision OCR (DOCUMENT_TEXT_DETECTION) to extract text from base64 image
+async function runVisionOCR(imageBase64) {
+  try {
+    const client = await googleAuth.getClient();
+    const atRes = await client.getAccessToken();
+    const accessToken = (atRes && atRes.token) || atRes || '';
+    if (!accessToken) throw new Error('No access token for Vision API');
+    const url = `https://vision.googleapis.com/v1/images:annotate`;
+    const body = {
+      requests: [
+        {
+          image: { content: imageBase64 },
+          features: [{ type: 'DOCUMENT_TEXT_DETECTION', maxResults: 1 }],
+        },
+      ],
+    };
+    const resp = await fetch(url, { method: 'POST', headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const j = await resp.json();
+    console.log('runVisionOCR: vision response preview=', JSON.stringify(j).slice(0,2000));
+    const text = j?.responses?.[0]?.fullTextAnnotation?.text || j?.responses?.[0]?.textAnnotations?.[0]?.description || '';
+    console.log('runVisionOCR: extracted text preview=', String(text || '').slice(0,2000));
+    return String(text || '');
+  } catch (err) {
+    console.warn('Vision OCR failed', err);
+    return '';
+  }
+}
+
+// Try to call Gemini via the @google/genai SDK when GEMINI_API_KEY is set
+async function parseWithGenAI(imageBase64, targetLanguage) {
+  if (!process.env.GEMINI_API_KEY) return null;
+  if (!GoogleGenAI) {
+    try {
+      GoogleGenAI = require('@google/genai').GoogleGenAI;
+    } catch (e) {
+      console.warn('GenAI SDK not available', e);
+      return null;
+    }
+  }
+  try {
+    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    const buffer = Buffer.from(String(imageBase64 || ''), 'base64');
+    // best-effort mimeType guess: default to jpeg
+    const mimeType = 'image/jpeg';
+    const imagePart = { inlineData: { data: buffer.toString('base64'), mimeType } };
+    const prompt = `Analyze this receipt. Extract the merchant name as shopName, date as YYYY-MM-DD (date), total amount as a number (total), currency (currency), and items as array of {name, price}. Return ONLY valid JSON.`;
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: [imagePart, prompt],
+      config: { responseMimeType: 'application/json' },
+    });
+    // response shapes vary; try common fields
+    if (!response) return null;
+    // GenAI SDK may return candidates/content parts
+    let text = null;
+    if (typeof response.text === 'string' && response.text.trim()) text = response.text;
+    else if (response.candidates && response.candidates[0]) {
+      const parts = response.candidates[0].content?.parts || response.candidates[0].content || [];
+      if (Array.isArray(parts)) text = parts.map((p) => p.text || '').join('');
+    } else if (response.output && Array.isArray(response.output) && response.output[0]?.content) {
+      const parts = response.output[0].content?.parts || [];
+      text = parts.map((p) => p.text || '').join('');
+    }
+    if (!text) {
+      console.warn('GenAI response has no text/content');
+      return null;
+    }
+    // attempt parse
+    try {
+      const parsed = JSON.parse(text);
+      return parsed;
+    } catch (err) {
+      // try to clean trailing commas
+      const cleaned = String(text).replace(/,\s*}/g, '}').replace(/,\s*\]/g, ']');
+      try { return JSON.parse(cleaned); } catch (e) { console.warn('GenAI returned unparsable JSON', e); return null; }
+    }
+  } catch (err) {
+    console.warn('parseWithGenAI failed', err);
+    return null;
+  }
+}
+
+// Simple heuristic to extract item lines (name + price) from OCR text
+function extractItemsFromText(ocrText) {
+  const rawLines = (String(ocrText || '')).split(/\r?\n/).map((l) => l.replace(/\t+/g, ' ').trim());
+  // Preprocess: merge lines that are clearly split numbers (e.g., '12\n345')
+  const lines = [];
+  for (let i = 0; i < rawLines.length; i++) {
+    const line = rawLines[i];
+    if (!line) continue;
+    // if line is short and next line is also short and both contain digits, merge
+    const next = rawLines[i+1] || '';
+    if (/^\d+$/.test(line.replace(/\s+/g, '')) && /^\d+$/.test(next.replace(/\s+/g, ''))) {
+      lines.push((line + ' ' + next).trim());
+      i += 1;
+      continue;
+    }
+    // if line ends with a hyphenated word, merge with next
+    if (line.endsWith('-') && next) {
+      lines.push((line.slice(0, -1) + next).trim());
+      i += 1;
+      continue;
+    }
+    lines.push(line);
+  }
+
+  const items = [];
+  const priceRegex = /([\$€£¥]?\s*[0-9]{1,3}(?:[,\.\s][0-9]{3})*(?:[\.,][0-9]{2}))/;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (!/[0-9]/.test(line)) continue; // skip lines without digits
+    if (/\b(total|subtotal|tax|amount due|amount|change|cash)\b/i.test(line)) continue;
+
+    // Try to find price in the same line
+    const m = line.match(priceRegex);
+    if (m) {
+      const price = m[1].replace(/\s+/g, '');
+      const name = line.replace(m[0], '').replace(/[-:\s]+$/, '').trim();
+      // if name is empty, try previous non-empty line that contains letters
+      if (!name) {
+        let j = i - 1;
+        while (j >= 0) {
+          const cand = lines[j].trim();
+          if (!cand) { j--; continue; }
+          if (/[A-Za-z]/.test(cand)) {
+            items.push({ name: cand, price });
+            break;
+          }
+          j -= 1;
+        }
+        if (j < 0) items.push({ name: line, price });
+      } else {
+        items.push({ name: name, price });
+      }
+      continue;
+    }
+
+    // If no price found, but next line looks like price, combine
+    const next = lines[i+1] || '';
+    const m2 = next.match(/^\s*([\$€£¥]?\s*[0-9]{1,3}(?:[,\.\s][0-9]{3})*(?:[\.,][0-9]{2}))/);
+    if (m2) {
+      const price = m2[1].replace(/\s+/g, '');
+      items.push({ name: line.trim(), price });
+      i += 1;
+      continue;
+    }
+
+    // As a fallback, if the line contains a number-looking token, capture it
+    const m3 = line.match(/([0-9]{1,3}(?:[,\.\s][0-9]{3})*(?:[\.,][0-9]{2}))/);
+    if (m3) {
+      const price = m3[1].replace(/\s+/g, '');
+      const name = line.replace(m3[0], '').trim();
+      items.push({ name: name || line, price });
+    }
+  }
+  // Filter out false positives: lines where name is numeric only (likely codes)
+  const filtered = items.filter((it) => /[A-Za-z\u00C0-\u017F]/.test(String(it.name)) || (/\d/.test(String(it.price)) && String(it.name).length <= 6 && /\d/.test(String(it.name))));
+  return filtered.slice(0, 60);
+}
+
+// Extract date and time strings from OCR text using common patterns
+function extractDateTimeFromText(ocrText) {
+  const txt = String(ocrText || '');
+  // Date patterns: YYYY-MM-DD, DD/MM/YYYY, MM/DD/YYYY, DD Mon YYYY, Mon DD, YYYY
+  const datePatterns = [
+    /([0-9]{4}-[0-9]{2}-[0-9]{2})/,
+    /([0-9]{2}[/.-][0-9]{2}[/.-][0-9]{4})/,
+    /([0-9]{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+[0-9]{4})/i,
+    /([0-9]{1,2}[\/\.-][0-9]{1,2}[\/\.-][0-9]{2})/, // e.g., 1/2/21
+  ];
+  let foundDate = '';
+  for (const p of datePatterns) {
+    const m = txt.match(p);
+    if (m) { foundDate = m[1]; break; }
+  }
+  // Time patterns: HH:MM or H:MMam/pm
+  const timeMatch = txt.match(/([0-2]?[0-9]:[0-5][0-9](?:\s?(?:AM|PM|am|pm))?)/);
+  const timeStr = timeMatch ? timeMatch[1] : '';
+  return { date: foundDate || '', time: timeStr || '' };
+}
+
+// Vision + Gemini Flash parsing: accepts base64 image and returns structured JSON
+exports.parseReceiptVision = onCall({ region: REGION }, async (request) => {
+  const imageBase64 = String(request.data?.imageBase64 || '');
+  const targetLanguage = String(request.data?.targetLanguage || 'en');
+  if (!imageBase64) throw new HttpsError('invalid-argument', 'imageBase64 required');
+
+  const projectId = process.env.GCP_PROJECT || process.env.GCLOUD_PROJECT || process.env.PROJECT_ID || process.env.FUNCTIONS_PROJECT_ID;
+  const location = process.env.GEMINI_LOCATION || REGION;
+  const model = process.env.GEMINI_MODEL || GEMINI_MODEL;
+  if (!projectId) throw new HttpsError('failed-precondition', 'GCP project ID not configured');
+
+  const prompt = `You are a precise receipt parser. Given the image provided, extract and return ONLY JSON with these keys: totals (array of {raw, value}), total (preferred single total string), date (ISO or readable), time (HH:MM or readable), items (array of {name, price}), currency (string). Translate item names into the target language if requested. Return values as strings where appropriate.`;
+
+  try {
+    console.log('parseReceiptVision: request received, targetLanguage=', targetLanguage, 'imageBase64 length=', imageBase64.length);
+    const client = await googleAuth.getClient();
+    const atRes = await client.getAccessToken();
+    const accessToken = (atRes && atRes.token) || atRes || '';
+    if (!accessToken) throw new HttpsError('internal', 'Failed to obtain access token');
+    async function callVertex(modelToUse, locationToUse) {
+      const url = `https://${locationToUse}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${locationToUse}/publishers/google/models/${modelToUse}:predict`;
+      const body = {
+        instances: [
+          {
+            content: prompt + `\nTarget language: ${targetLanguage || 'en'}`,
+            input_image: { bytesBase64: imageBase64 },
+          },
+        ],
+        parameters: { temperature: 0, maxOutputTokens: 512 },
+      };
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
+      let json;
+      try {
+        json = await resp.json();
+      } catch (e) {
+        json = { error: { message: 'invalid json response', status: 'ERROR' } };
+      }
+      return { ok: resp.ok, status: resp.status, json };
+    }
+
+    // First, if a GEMINI_API_KEY is available, try the GenAI SDK path (direct gemini 2.5 flash)
+    if (process.env.GEMINI_API_KEY) {
+      try {
+        const llmParsed = await parseWithGenAI(imageBase64, targetLanguage);
+        if (llmParsed && (Array.isArray(llmParsed.items) || Array.isArray(llmParsed.totals) || llmParsed.total)) {
+          return {
+            total: llmParsed.total || (Array.isArray(llmParsed.totals) && llmParsed.totals[0]?.raw) || '',
+            totals: llmParsed.totals || [],
+            date: llmParsed.date || '',
+            time: llmParsed.time || '',
+            items: llmParsed.items || [],
+            currency: llmParsed.currency || '',
+            shopName: llmParsed.shopName || llmParsed.vendor || '',
+            rawText: llmParsed.rawText || '',
+          };
+        }
+      } catch (e) {
+        console.warn('GenAI SDK parse attempt failed, will continue to Vertex HTTP path', e);
+      }
+    }
+
+    // Try configured model first, then a safe fallback (text-bison) if not available
+    let callResult = await callVertex(model, location).catch((e) => ({ ok: false, status: 499, json: { error: String(e) } }));
+    if (!callResult.ok && (callResult.status === 404 || (callResult.json && callResult.json.error && String(callResult.json.error.message || '').toLowerCase().includes('not found')))) {
+      console.warn('Primary Vertex model not found or inaccessible, attempting fallback to text-bison@001 in us-central1');
+      callResult = await callVertex('text-bison@001', 'us-central1').catch((e) => ({ ok: false, status: 499, json: { error: String(e) } }));
+    }
+    const json = callResult.json;
+    console.log('parseReceiptVision: vertex response json=', JSON.stringify(json).slice(0, 2000));
+    const rawText = (json?.predictions && (json.predictions[0]?.content || json.predictions[0]?.output || json.predictions[0])) || json?.result || JSON.stringify(json);
+    console.log('parseReceiptVision: rawText preview=', (typeof rawText === 'string' ? rawText.slice(0, 2000) : JSON.stringify(rawText).slice(0,2000)));
+    const text = typeof rawText === 'string' ? rawText : JSON.stringify(rawText);
+    const m = text.match(/\{[\s\S]*\}/);
+    if (m) {
+      try {
+        const parsed = JSON.parse(m[0]);
+        // If model returned an error object, force fallback to Vision OCR
+        if (parsed && parsed.error) {
+          console.warn('Model returned error object, will fallback to Vision OCR', parsed.error);
+        } else {
+          return {
+            total: parsed.total || parsed.amount || parsed.totals?.[0]?.raw || '',
+            totals: parsed.totals || parsed.amountCandidates || [],
+            date: parsed.date || parsed.purchase_date || '',
+            time: parsed.time || parsed.purchase_time || '',
+            items: parsed.items || parsed.lines || [],
+            currency: parsed.currency || '',
+          };
+        }
+      } catch (err) {
+        console.warn('Failed parsing model JSON', err);
+      }
+    }
+
+    // Fallback: use Cloud Vision OCR then heuristics
+    console.log('parseReceiptVision: falling back to Vision OCR');
+    const ocrText = await runVisionOCR(imageBase64);
+    // First try: call LLM on OCR text for structured parse
+    const llmParsed = await callLLMParse(ocrText);
+    if (llmParsed && (Array.isArray(llmParsed.items) || Array.isArray(llmParsed.totals) || llmParsed.total)) {
+      return {
+        total: llmParsed.total || (Array.isArray(llmParsed.totals) && llmParsed.totals[0]?.raw) || '',
+        totals: llmParsed.totals || [],
+        date: llmParsed.date || '',
+        time: llmParsed.time || '',
+        items: llmParsed.items || [],
+        currency: llmParsed.currency || '',
+        shopName: llmParsed.shopName || llmParsed.vendor || '',
+        rawText: ocrText,
+      };
+    }
+
+    // Fallback heuristics if LLM not available or returned nothing
+    const totals = findAmountCandidates(ocrText);
+    const items = extractItemsFromText(ocrText);
+    // Better shopName detection: find first line with letters (not just digits)
+    const firstLines = String(ocrText).split(/\r?\n/).map((l) => l.trim()).filter(Boolean).slice(0, 8);
+    let shopName = '';
+    for (const l of firstLines) {
+      if (/[A-Za-z\u00C0-\u017F]/.test(l) && !/^\d+$/.test(l.replace(/\s+/g, '')) && !/address|tel|phone|fax/i.test(l)) {
+        shopName = l;
+        break;
+      }
+    }
+    const dt = extractDateTimeFromText(ocrText);
+    return {
+      total: totals[0]?.valueString || '',
+      totals: totals,
+      date: dt.date || '',
+      time: dt.time || '',
+      items,
+      currency: totals[0]?.code || totals[0]?.symbol || '',
+      shopName: shopName || '',
+      rawText: ocrText,
+    };
+  } catch (err) {
+    console.error('Vision parse failed', err);
+    throw new HttpsError('internal', 'Vision parse failed');
+  }
+});
+
+// HTTP test endpoint for debugging: POST JSON { imageBase64, targetLanguage }
+exports.parseReceiptVisionRaw = onRequest({ region: REGION }, async (req, res) => {
+  // CORS: allow requests from the hosted app and permit Content-Type header
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.set('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') return res.status(204).send('');
+  try {
+    const imageBase64 = String(req.body?.imageBase64 || '');
+    const targetLanguage = String(req.body?.targetLanguage || 'en');
+    if (!imageBase64) return res.status(400).json({ error: 'imageBase64 required' });
+
+    console.log('parseReceiptVisionRaw: received, image length=', imageBase64.length);
+    const projectId = process.env.GCP_PROJECT || process.env.GCLOUD_PROJECT || process.env.PROJECT_ID || process.env.FUNCTIONS_PROJECT_ID;
+    const location = process.env.GEMINI_LOCATION || REGION;
+    const model = process.env.GEMINI_MODEL || GEMINI_MODEL;
+    const client = await googleAuth.getClient();
+    const atRes = await client.getAccessToken();
+    const accessToken = (atRes && atRes.token) || atRes || '';
+    if (!accessToken) return res.status(500).json({ error: 'Failed to obtain access token' });
+
+    const prompt = `You are a precise receipt parser. Given the image provided, extract and return ONLY JSON with these keys: totals (array of {raw, value}), total (preferred single total string), date (ISO or readable), time (HH:MM or readable), items (array of {name, price}), currency (string). Translate item names into the target language if requested. Return values as strings where appropriate.`;
+
+    async function callVertex(modelToUse, locationToUse) {
+      const url = `https://${locationToUse}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${locationToUse}/publishers/google/models/${modelToUse}:predict`;
+      const body = { instances: [{ content: prompt + `\nTarget language: ${targetLanguage || 'en'}`, input_image: { bytesBase64: imageBase64 } }], parameters: { temperature: 0, maxOutputTokens: 512 } };
+      const resp = await fetch(url, { method: 'POST', headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      let json;
+      try { json = await resp.json(); } catch (e) { json = { error: { message: 'invalid json response', status: 'ERROR' } }; }
+      return { ok: resp.ok, status: resp.status, json };
+    }
+
+    let callResult = await callVertex(model, location).catch((e) => ({ ok: false, status: 499, json: { error: String(e) } }));
+    if (!callResult.ok && (callResult.status === 404 || (callResult.json && callResult.json.error && String(callResult.json.error.message || '').toLowerCase().includes('not found')))) {
+      console.warn('Primary Vertex model not found or inaccessible, attempting fallback to text-bison@001 in us-central1');
+      callResult = await callVertex('text-bison@001', 'us-central1').catch((e) => ({ ok: false, status: 499, json: { error: String(e) } }));
+    }
+    const json = callResult.json;
+    console.log('parseReceiptVisionRaw: vertex json preview=', JSON.stringify(json).slice(0,2000));
+    const rawText = (json?.predictions && (json.predictions[0]?.content || json.predictions[0]?.output || json.predictions[0])) || json?.result || JSON.stringify(json);
+    const text = typeof rawText === 'string' ? rawText : JSON.stringify(rawText);
+    const m = text.match(/\{[\s\S]*\}/);
+    if (m) {
+      try {
+        const parsed = JSON.parse(m[0]);
+        return res.json({ total: parsed.total || parsed.amount || parsed.totals?.[0]?.raw || '', totals: parsed.totals || parsed.amountCandidates || [], date: parsed.date || parsed.purchase_date || '', time: parsed.time || parsed.purchase_time || '', items: parsed.items || parsed.lines || [], currency: parsed.currency || '' });
+      } catch (err) {
+        console.warn('parseReceiptVisionRaw: JSON parse failed', err);
+      }
+    }
+
+    // Fallback: Vision OCR + heuristics
+    console.log('parseReceiptVisionRaw: falling back to Vision OCR');
+    const ocrText = await runVisionOCR(imageBase64);
+    // Try LLM parse on OCR text first (OpenAI) or GenAI via GEMINI_API_KEY
+    let llmParsed = null;
+    if (process.env.GEMINI_API_KEY) {
+      try {
+        llmParsed = await parseWithGenAI(Buffer.from(ocrText || '').toString('base64'), targetLanguage);
+      } catch (e) {
+        console.warn('GenAI SDK OCR->LLM parse failed', e);
+      }
+    }
+    if (!llmParsed) llmParsed = await callLLMParse(ocrText);
+    if (llmParsed && (Array.isArray(llmParsed.items) || Array.isArray(llmParsed.totals) || llmParsed.total)) {
+      return res.json({ total: llmParsed.total || (Array.isArray(llmParsed.totals) && llmParsed.totals[0]?.raw) || '', totals: llmParsed.totals || [], date: llmParsed.date || '', time: llmParsed.time || '', items: llmParsed.items || [], currency: llmParsed.currency || '', shopName: llmParsed.shopName || llmParsed.vendor || '', rawText: ocrText });
+    }
+
+    const totals = findAmountCandidates(ocrText);
+    const items = extractItemsFromText(ocrText);
+    const shopName = (String(ocrText).split(/\r?\n/).map((l) => l.trim()).find((l) => l && l.length > 2) || '').slice(0, 120);
+    return res.json({ total: totals[0]?.valueString || '', totals, date: '', time: '', items, currency: totals[0]?.code || totals[0]?.symbol || '', shopName, rawText: ocrText });
+  } catch (err) {
+    console.error('parseReceiptVisionRaw failed', err);
+    return res.status(500).json({ error: String(err) });
+  }
+});
+
+const HOSTING_ORIGIN = 'https://mytinerary.site';
 
 function escapeMarkup(value) {
   return String(value || '').replace(/[&<>"']/g, (character) => ({
@@ -751,7 +1284,36 @@ exports.searchKoreaPlaces = onCall({
   memory: '256MiB',
 }, async (request) => {
   if (!request.auth) throw new HttpsError('unauthenticated', 'Sign in before searching Korea places.');
-  const query = cleanText(request.data?.query, 180);
+  let query = cleanText(request.data?.query, 180);
+  
+  // Resolve short Naver URL redirections to find the actual location names and addresses
+  if (query.toLowerCase().includes('naver.me') || query.toLowerCase().includes('naver.com')) {
+    try {
+      const response = await fetch(query, {
+        method: 'GET',
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+        redirect: 'follow'
+      });
+      // Parse redirected URL or HTML contents to extract exact place keywords
+      const finalUrl = response.url;
+      if (finalUrl && finalUrl !== query) {
+        const urlObj = new URL(finalUrl);
+        // Ex: https://m.map.naver.com/place.nhn?id=12345 or https://map.naver.com/v5/entry/place/12345?c=...
+        // Nominatim can't search raw IDs, so let's parse the page title/meta to find the exact place name keyword
+        const html = await response.text();
+        const titleMatch = html.match(/<title>([^<]+)<\/title>/i);
+        if (titleMatch && titleMatch[1]) {
+          const titleText = titleMatch[1].replace(/[:：|｜-].*$/, '').trim();
+          if (titleText && !titleText.toLowerCase().includes('naver') && !titleText.toLowerCase().includes('네이버')) {
+            query = titleText;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to resolve Naver redirected URL, falling back to original query', e);
+    }
+  }
+
   const preferredName = cleanText(request.data?.preferredName, 160);
   const latitude = Number(request.data?.latitude);
   const longitude = Number(request.data?.longitude);

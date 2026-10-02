@@ -23,6 +23,9 @@
   --weather-shadow: rgba(30, 33, 29, 0.25);
   --app-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
   --app-font-size: 15px;
+  --app-title-font-size: 1.05rem;
+  --app-title-font-weight: 600;
+  --app-title-letter-spacing: 0.02em;
 }
 
 :root[data-theme='violet'] {
@@ -108,9 +111,22 @@ body {
   color: var(--theme-ink);
 }
 
+/* Unified title styling — use app font and title variables so font picker affects titles */
 h1, h2, h3 {
-  font-family: 'Georgia', 'Iowan Old Style', 'Times New Roman', serif;
-  font-weight: 500;
+  font-family: var(--app-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif);
+  font-size: var(--app-title-font-size);
+  font-weight: var(--app-title-font-weight);
+  letter-spacing: var(--app-title-letter-spacing);
+  margin: 0 0 0.45rem 0;
+}
+
+/* Explicit class to apply the same title UI to other elements */
+.app-title {
+  font-family: var(--app-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif);
+  font-size: var(--app-title-font-size);
+  font-weight: var(--app-title-font-weight);
+  letter-spacing: var(--app-title-letter-spacing);
+  margin: 0 0 0.45rem 0;
 }
 
 .navbar {
@@ -254,6 +270,14 @@ h1, h2, h3 {
   display: flex;
   align-items: center;
   gap: 0.22rem;
+  max-width: 140px;
+  overflow-x: auto;
+  scrollbar-width: none; /* Hide standard Firefox scrollbars */
+  -ms-overflow-style: none;  /* Hide IE scrollbars */
+}
+
+.trip-member-avatars::-webkit-scrollbar {
+  display: none; /* Hide WebKit, Chrome, and Safari scrollbars */
 }
 
 .trip-member-avatar {
@@ -268,6 +292,123 @@ h1, h2, h3 {
   color: var(--theme-accent-dark);
   font: 700 0.62rem/1 Georgia, serif;
   object-fit: cover;
+}
+
+.trip-member-avatar-wrapper {
+  position: relative;
+  display: inline-flex;
+}
+
+.itinerary-avatar-stack {
+  position: relative;
+}
+
+.online-indicator {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 8px;
+  height: 8px;
+  background-color: #26de81;
+  border: 1.5px solid var(--theme-surface, #ffffff);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.online-indicator-large {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  width: 11px;
+  height: 11px;
+  background-color: #26de81;
+  border: 2px solid var(--theme-surface, #ffffff);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.crown-badge {
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  z-index: 10;
+  pointer-events: none;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.25));
+}
+
+.speech-bubble {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--theme-surface, #ffffff);
+  border: 1px solid var(--theme-accent-border, #ccc);
+  border-radius: 12px;
+  padding: 4px 8px;
+  font-size: 1.2rem;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+  white-space: nowrap;
+  animation: popFade 0.3s ease-out;
+  pointer-events: none;
+  z-index: 100;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.speech-bubble::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 5px;
+  border-style: solid;
+  border-color: var(--theme-surface, #ffffff) transparent transparent transparent;
+}
+
+.emoji-picker-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  background: var(--theme-surface, #ffffff);
+  border: 1px solid var(--theme-accent-border, #ccc);
+  border-radius: 20px;
+  padding: 4px 8px;
+  display: flex;
+  gap: 6px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
+  z-index: 1000;
+  animation: popFadeDown 0.2s ease-out;
+}
+
+.emoji-picker-btn {
+  border: none;
+  background: none;
+  font-size: 1.25rem;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 50%;
+  transition: transform 0.1s ease;
+  user-select: none;
+}
+
+.emoji-picker-btn:hover {
+  transform: scale(1.25);
+}
+
+@keyframes popFade {
+  0% { opacity: 0; transform: translate(-50%, 8px) scale(0.85); }
+  100% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+}
+
+@keyframes popFadeDown {
+  0% { opacity: 0; transform: translate(0, -6px) scale(0.9); }
+  100% { opacity: 1; transform: translate(0, 0) scale(1); }
 }
 
 .trip-member-avatar-overflow {
@@ -1104,6 +1245,111 @@ input[type='time'] {
   overflow: hidden;
 }
 
+/* Hotel date range picker inside activity modal */
+.hotel-date-range {
+  background: transparent;
+}
+.hotel-date-range input {
+  padding: 0.4rem 0.5rem;
+  border-radius: 8px;
+  border: 1px solid var(--theme-border);
+}
+.hotel-details .opening-hours-btn {
+  padding: 0.5rem 0.7rem;
+}
+
+.hotel-card-details .hotel-stay-range {
+  font-weight: 600;
+  color: var(--theme-accent);
+  margin-bottom: 0.25rem;
+}
+
+.item-card > .hotel-stay-range {
+  margin: 0.2rem 0 0.45rem;
+  color: var(--theme-accent-dark);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+/* Floating right-side toggle for spot selectors (map A/B) */
+.map-toggle-panel {
+  position: absolute;
+  left: 12px;
+  top: 12px;
+  right: auto;
+  transform: none;
+  z-index: 1400;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.map-toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  width: 56px;
+  height: 86px; /* Align height with toolbar */
+  padding: 6px 8px;
+  border-radius: 12px; /* Smoother corner for matching toolbar */
+  background: var(--theme-accent-dark, #10285f);
+  border: 1px solid rgba(16,35,76,0.08);
+  box-shadow: 0 8px 20px rgba(16,35,76,0.12);
+  cursor: pointer;
+  color: #ffffff;
+  gap: 4px; /* Slightly tighter gap */
+}
+.map-toggle-btn .map-toggle-icon {
+  display: block;
+  font-size: 18px;
+}
+.map-toggle-btn .map-toggle-label {
+  font-size: 0.72rem;
+  text-align: center;
+}
+.map-toggle-btn[aria-pressed='true'] {
+  background: linear-gradient(#fff,#f3f3f3);
+  color: var(--theme-accent-dark, #10285f);
+  border-color: rgba(16,35,76,0.08);
+}
+
+/* small variant used near map controls */
+.map-toggle-small {
+  width: 44px;
+  height: 86px;
+  border-radius: 12px;
+  padding: 6px 6px;
+}
+.map-toggle-small .map-toggle-icon svg { width: 16px; height: 16px; }
+.map-toggle-small .map-toggle-label { font-size: 0.68rem; }
+
+/* Hidden state for toolbar selectors */
+.spot-select-hidden .map-route-toolbar {
+  display: none !important;
+}
+
+.map-route-toolbar {
+  position: absolute;
+  z-index: 1100;
+  top: 12px; /* Decreased upper space to align perfectly with left buttons */
+  right: 12px;
+  left: 74px; /* Offset left by 74px to preserve spacing for the left-hand toggle button */
+  height: 86px; /* Same height as spot toggle button */
+  padding: 0.35rem 0.85rem 0.5rem; /* tighter padding for alignment */
+  border: 1px solid color-mix(in srgb, var(--theme-border) 90%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--theme-surface) 94%, transparent);
+  box-shadow: 0 8px 24px rgba(30, 33, 29, 0.16);
+  backdrop-filter: blur(12px);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+}
+.map-route-toolbar {
+  transition: max-height 220ms ease, padding 220ms ease, opacity 180ms ease, transform 180ms ease;
+  overflow: hidden;
+}
+
 .trip-map.leaflet-container,
 .trip-map .leaflet-map-pane,
 .trip-map .leaflet-tile-pane {
@@ -1181,10 +1427,10 @@ input[type='time'] {
 .map-route-toolbar {
   position: absolute;
   z-index: 1100;
-  top: 0.85rem;
+  top: 0.5rem;
   right: 0.85rem;
-  left: 0.85rem;
-  padding: 0.75rem;
+  left: 68px; /* Offset left by 68px to preserve spacing for the left-hand toggle button */
+  padding: 0.25rem 0.75rem 0.45rem;
   border: 1px solid color-mix(in srgb, var(--theme-border) 90%, transparent);
   border-radius: 8px;
   background: color-mix(in srgb, var(--theme-surface) 94%, transparent);
@@ -1297,23 +1543,34 @@ input[type='time'] {
 }
 
 .spot-route-fields label {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   min-width: 0;
-  gap: 0.25rem;
-  font-size: 0.7rem;
+  gap: 0;
+}
+
+.spot-route-fields label span {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--theme-accent-dark, #10285f);
+  font-family: var(--app-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
+  text-align: left;
+  transform: translateY(-5px);
 }
 
 .spot-route-fields label select {
   width: 100%;
   min-width: 0;
-  padding: 0.45rem 0.55rem;
+  padding: 0.35rem 0.45rem;
   font-size: 0.75rem;
+  border-radius: 12px;
 }
 
 .spot-route-arrow {
   align-self: center;
   justify-self: center;
-  transform: translateY(0.45rem);
+  transform: translateY(0.35rem);
   color: var(--theme-accent);
   font-size: 1.1rem;
 }
@@ -1331,7 +1588,7 @@ input[type='time'] {
 .route-summary-sheet {
   position: relative;
   z-index: 1001;
-  margin-top: -30px;
+  margin-top: -204px; /* Moved route panel further up, overlaying the map smoothly */
   padding: 0.65rem 1rem 1.75rem;
   border-radius: 20px 20px 0 0;
   background: var(--theme-surface);
@@ -2222,6 +2479,70 @@ body[data-active-view='map'] .map-card {
   height: 5px;
 }
 
+.spending-category-section {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--theme-border);
+}
+
+.spending-category-section h4 {
+  margin: 0 0 0.55rem;
+  color: var(--theme-ink);
+  font-size: 0.78rem;
+}
+
+.spending-category-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+}
+
+.spending-category-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.spending-category-table th,
+.spending-category-table td {
+  padding: 0.42rem 0.5rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--theme-border) 72%, transparent);
+  text-align: right;
+}
+
+.spending-category-table thead th {
+  color: var(--theme-muted);
+  font-size: 0.62rem;
+  font-weight: 600;
+}
+
+.spending-category-table th:first-child,
+.spending-category-table td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--theme-surface);
+  text-align: left;
+}
+
+.spending-category-table tbody th {
+  color: var(--theme-ink);
+  font-weight: 600;
+}
+
+.spending-category-table .spending-category-total {
+  color: var(--theme-accent-dark);
+  font-weight: 700;
+}
+
+.spending-category-empty {
+  margin: 0;
+  color: var(--theme-muted);
+  font-size: 0.72rem;
+}
+
 .spending-metrics {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2467,6 +2788,52 @@ body[data-active-view='map'] .map-card {
   font-family: 'Nimbus Mono PS', 'Courier New', monospace;
 }
 
+.expense-list.all-dates-scroll {
+  max-height: min(52vh, 430px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.expense-list.all-dates-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.expense-list.all-dates-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--theme-accent) 38%, transparent);
+}
+
+.expense-total-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.55rem;
+  padding: 0.65rem 0.2rem;
+  border-top: 1px solid #e6e3d8;
+  color: var(--theme-ink);
+  font-size: 0.78rem;
+  font-family: 'Nimbus Mono PS', 'Courier New', monospace;
+}
+
+.expense-total-values {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.15rem;
+  text-align: right;
+}
+
+.expense-total-values strong {
+  font-size: 0.86rem;
+}
+
+.expense-total-bar .expense-row-converted {
+  margin: 0;
+}
+
 .expense-list.hidden {
   display: none;
 }
@@ -2588,8 +2955,8 @@ body[data-active-view='map'] .map-card {
   position: absolute;
   top: 3px;
   left: 3px;
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
   background: var(--theme-muted);
   transition: transform 160ms ease, background 160ms ease;
@@ -2601,7 +2968,7 @@ body[data-active-view='map'] .map-card {
 }
 
 .checkbox-field input:checked + .toggle-switch::after {
-  transform: translateX(18px);
+  transform: translateX(16px);
   background: var(--theme-surface);
 }
 
@@ -2611,7 +2978,74 @@ body[data-active-view='map'] .map-card {
 }
 
 .payment-settled-field {
-  flex-direction: row-reverse;
+  flex-direction: row;
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.45rem 0.6rem;
+  min-height: 36px;
+}
+
+/* Specific visual tweaks for the small payment toggle inside the pill */
+.payment-settled-field {
+  justify-content: flex-start;
+}
+.payment-settled-field > .toggle-switch {
+  order: 0;
+  width: 34px;
+  height: 18px;
+  flex: 0 0 34px;
+  margin-right: 0.75rem;
+  border-width: 1px;
+}
+
+.payment-settled-field > .toggle-switch::after {
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+}
+
+.checkbox-field input:checked + .toggle-switch::after {
+  transform: translateX(16px);
+}
+
+.payment-settled-field > span:not(.toggle-switch) {
+  order: 1;
+  flex: 0 0 auto;
+  font-size: 0.92rem;
+  text-align: left;
+  padding: 0;
+}
+
+#expenseModalOverlay .activity-section-grid > label.payment-settled-field {
+  grid-column: 1 / -1 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 0.55rem !important;
+  width: fit-content !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  white-space: nowrap;
+}
+
+#expenseModalOverlay .payment-settled-field > .toggle-switch {
+  display: block !important;
+  flex: 0 0 34px !important;
+  width: 34px !important;
+  min-width: 34px !important;
+  margin: 0 !important;
+}
+
+/* Make Add Expense action button match compact centered style from second screenshot */
+@media (max-width: 640px) {
+  .activity-form-actions .btn-primary {
+    width: min(260px, 84%);
+    margin: 0.6rem auto 0 auto !important;
+    display: block !important;
+    padding: 0.65rem 1.1rem !important;
+    border-radius: 999px !important;
+  }
 }
 
 .expense-row-meta {
@@ -2968,20 +3402,13 @@ body[data-active-view='map'] .map-card {
 }
 
 .map-legend {
-  position: absolute;
-  z-index: 1100;
-  right: 0;
-  bottom: 0;
-  left: 0;
   display: flex;
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  gap: 0.32rem;
-  margin: 0;
-  padding: 0.55rem 0.85rem 0.65rem;
-  background: linear-gradient(to top, rgba(255, 253, 248, 0.96), rgba(255, 253, 248, 0.78) 72%, transparent);
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
+  flex-direction: column; /* Vertically stack expanded day pills */
+  gap: 0.3rem;
+  margin: 6px 0 0 0;
+  padding: 0;
+  background: none;
+  overflow: visible;
 }
 
 .map-legend::-webkit-scrollbar {
@@ -2989,36 +3416,32 @@ body[data-active-view='map'] .map-card {
 }
 
 .trip-map .leaflet-control-attribution {
-  margin-bottom: 42px !important;
+  margin-bottom: 10px !important; /* Reset layout attribution because bottom legend is moved */
 }
 
 .legend-chip {
   display: flex;
   align-items: center;
+  justify-content: center;
   flex: 0 0 auto;
-  gap: 0.25rem;
-  min-height: 25px;
-  padding: 0.22rem 0.5rem;
-  border: 1px solid color-mix(in srgb, var(--day-color) 78%, #fff);
+  width: 44px; /* match the toggle button width perfectly */
+  height: 28px;
+  box-sizing: border-box;
+  padding: 0;
   border-radius: 999px;
-  background: var(--day-color);
-  color: #fff;
-  box-shadow: 0 3px 9px color-mix(in srgb, var(--day-color) 28%, transparent);
-  cursor: pointer;
-  font-size: 0.62rem;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.legend-chip:hover,
-.legend-chip.selected {
-  border-color: #fff;
-  background: var(--day-color);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--day-color) 32%, #fff), 0 4px 11px rgba(30, 33, 29, 0.18);
+  font-size: 0.65rem;
+  font-weight: 700;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  background: var(--theme-surface, #ffffff);
+  color: var(--theme-text-dark, #333333);
 }
 
 .legend-chip.selected {
-  transform: translateY(-1px);
+  background: var(--day-color, var(--theme-accent)) !important;
+  color: #ffffff !important;
+  border-color: var(--day-color, var(--theme-accent)) !important;
+  box-shadow: 0 3px 8px color-mix(in srgb, var(--day-color, var(--theme-accent)) 40%, transparent);
 }
 
 .info-toggle {
@@ -3378,6 +3801,16 @@ select:focus {
 .itinerary-actions {
   display: flex;
   gap: 0.6rem;
+  justify-content: center;
+  width: 100%;
+}
+
+.itinerary-actions .btn-primary,
+.itinerary-actions .btn-secondary {
+  max-width: 180px;
+  width: auto !important;
+  margin: 0 auto;
+  text-align: center;
 }
 
 .wallet-expense-actions {
@@ -3509,6 +3942,49 @@ body.trip-access-pending {
   max-width: 520px;
 }
 
+/* Enforce the attached RWD layout for Add Expense modal across small and mid widths
+   — keep this outside small-only media queries so <=420px and slightly larger
+   devices share the same two-column fields with heading above. */
+#expenseModalOverlay .modal-card,
+#expenseModalOverlay .modal-card.add-activity {
+  max-width: 420px !important;
+  padding: 0.6rem 0.6rem calc(0.9rem + env(safe-area-inset-bottom)) !important;
+  border-radius: 12px !important;
+}
+
+#expenseModalOverlay .activity-section-heading {
+  grid-column: 1 / -1 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+  padding-left: 0.15rem !important;
+}
+
+#expenseModalOverlay .activity-section-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 0.55rem !important;
+  align-items: start !important;
+}
+
+/* Prevent grow labels from spanning full width inside expense modal */
+#expenseModalOverlay .activity-section-grid > label.grow {
+  grid-column: auto !important;
+}
+
+#expenseModalOverlay .activity-section-grid label {
+  display: block !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+}
+
+#expenseModalOverlay .activity-section-grid input,
+#expenseModalOverlay .activity-section-grid select,
+#expenseModalOverlay .activity-section-grid .receipt-actions {
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
 #aiPlannerModal .modal-card {
   max-width: 520px;
   padding: 0;
@@ -3522,6 +3998,50 @@ body.trip-access-pending {
   background: rgba(5, 6, 5, 0.7);
   backdrop-filter: blur(8px);
 }
+
+.receipt-preview { max-width: 100%; margin-top: 0.5rem; border-radius: 6px; display:block; }
+.receipt-preview.hidden { display: none; }
+.receipt-actions { display:flex; gap:0.5rem; align-items:center; margin-top:0.25rem; }
+
+.receipt-details { margin-top:0.5rem; font-size:0.9rem; color:var(--theme-muted); }
+.receipt-details .suggestion { display:block; margin:0.25rem 0; }
+.receipt-apply-btn { margin-top:0.25rem; display:inline-block; }
+
+.receipt-suggestions { display:flex; flex-direction:column; gap:0.5rem; width:100%; }
+.receipt-totals { display:flex; flex-direction:column; gap:0.25rem; }
+.receipt-amount-suggestion { margin:0.15rem; padding:0.35rem 0.6rem; border-radius:8px; border:1px solid var(--theme-accent-border); background:transparent; cursor:pointer; }
+.receipt-amount-suggestion.selected { background:var(--theme-accent); color:var(--theme-surface); }
+.receipt-datetime { display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap; }
+.receipt-shop { font-weight:600; font-size:1rem; margin-bottom:0.25rem; color:var(--theme-ink); }
+.receipt-items { max-height:340px; overflow:auto; padding:0.5rem; border-radius:8px; background:color-mix(in srgb, var(--theme-surface) 92%, transparent); }
+.receipt-items ul { list-style:none; padding:0; margin:0; }
+.receipt-items li { display:flex; align-items:center; gap:0.5rem; padding:0.35rem 0; border-bottom:1px dashed rgba(0,0,0,0.04); }
+.receipt-items .item-left { display:flex; align-items:center; gap:0.5rem; flex:1; min-width:0; }
+.receipt-items .item-text { font-size:0.92rem; color:var(--theme-ink); overflow-wrap:break-word; word-break:break-word; display:block; }
+.receipt-items .item-price { white-space:nowrap; margin-left:0.5rem; color:var(--theme-muted); }
+.receipt-item-action { margin-left:0.5rem; padding:0.35rem 0.6rem; font-size:0.85rem; }
+
+/* Booking confirmation code reveal toggle */
+.booking-code-wrapper { display: flex; align-items: center; gap: 0.5rem; }
+.booking-code-input { flex: 1; padding: 0.5rem; border-radius: 6px; border: 1px solid var(--theme-accent-border); }
+.booking-code-input.hidden { display: none; }
+.booking-mask { flex: 1; padding: 0.5rem; border-radius: 6px; background: color-mix(in srgb, var(--theme-surface) 96%, transparent); color: var(--theme-muted); border: 1px solid transparent; }
+.reveal-toggle { border: 1px solid var(--theme-accent-border); background: transparent; padding: 0.4rem 0.6rem; border-radius: 6px; cursor: pointer; font-size: 1rem; }
+.reveal-toggle[aria-pressed="true"] { background: var(--theme-accent); color: var(--theme-surface); }
+
+/* Activity card booking display */
+.item-booking-reference { display: flex; align-items: center; gap: 0.6rem; margin-top: 0.5rem; }
+.item-booking-reference > span { font-weight: 600; margin-right: 0.6rem; color: var(--theme-muted); }
+.booking-inline-wrapper { display: flex; align-items: center; gap: 0.5rem; }
+.booking-inline-wrapper .booking-mask { padding: 0.35rem 0.6rem; border-radius: 6px; background: color-mix(in srgb, var(--theme-surface) 96%, transparent); color: var(--theme-muted); border: 1px solid transparent; }
+.booking-inline-wrapper .booking-code-text { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Roboto Mono', monospace; padding: 0.35rem 0.6rem; border-radius: 6px; background: color-mix(in srgb, var(--theme-surface) 98%, transparent); border: 1px solid rgba(0,0,0,0.03); }
+.booking-code-text.hidden { display: none; }
+.reveal-btn { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 1px solid transparent; background: transparent; padding: 0; border-radius: 6px; cursor: pointer; }
+.reveal-btn svg { width: 14px; height: 14px; display: inline-block; }
+.reveal-btn[aria-pressed="true"] { background: var(--theme-accent); color: var(--theme-surface); }
+
+/* keep reveal icon visually aligned with other inline action icons (paperclip, clock) */
+.attachment-actions .opening-hours-btn, .opening-hours-btn, .reveal-btn { height: 36px; }
 
 #aiPlannerForm {
   gap: 0;
@@ -4065,7 +4585,7 @@ input[type=number]::-webkit-inner-spin-button {
 
 .aitinerary-assistant-dock {
   position: fixed;
-  z-index: 60;
+  z-index: 55;
   left: 50%;
   bottom: calc(max(1rem, env(safe-area-inset-bottom)) + 116px);
   display: flex;
@@ -4492,6 +5012,148 @@ input[type=number]::-webkit-inner-spin-button {
   flex-wrap: wrap;
   gap: 0.35rem;
   margin-top: 0.4rem;
+}
+
+/* Small-device layout fixes: standardize modal + form layout at <=420px */
+@media (max-width: 420px) {
+  /* Center modal like larger screens while keeping compact spacing */
+  .modal-overlay {
+    align-items: center;
+    padding: 0.75rem;
+  }
+
+  .modal-card {
+    width: auto;
+    max-width: 420px;
+    max-height: min(calc(var(--app-visual-height, 100dvh) - 2rem), 92vh);
+    margin: 1rem auto;
+    padding: 0.95rem 0.95rem calc(1rem + env(safe-area-inset-bottom));
+    border-radius: 14px;
+  }
+
+  /* Ensure expense and activity modals match the compact layout */
+  #expenseModalOverlay .modal-card,
+  #activityModalOverlay .modal-card,
+  #shoppingHaulModal .modal-card {
+    padding: 0.9rem;
+  }
+
+  /* Stack form columns into a single column for clarity on small screens */
+  .activity-form,
+  .activity-section-grid,
+  .activity-form-section,
+  .booking-details,
+  .modal-detail-form {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 0.6rem;
+  }
+
+  .activity-form input,
+  .activity-form select,
+  .modal-detail-form input,
+  .modal-detail-form select {
+    height: 44px;
+    min-height: 44px;
+  }
+
+  /* Flight details layout for small screens: heading full-width, fields in two columns below */
+  .flight-details {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    padding: 0.7rem;
+    gap: 0.6rem;
+    align-items: start !important;
+  }
+
+  .flight-details > .activity-section-heading {
+    grid-column: 1 / -1;
+    align-self: start;
+    padding-right: 0 !important;
+  }
+
+  .flight-details > .activity-section-heading .activity-section-icon {
+    width: 30px !important;
+    height: 30px !important;
+    margin-right: 0.5rem !important;
+  }
+
+  .flight-details > .activity-section-grid {
+    grid-column: 1 / -1;
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.6rem !important;
+    align-items: start;
+  }
+
+  /* Make sure labels sit above inputs and inputs stretch full column */
+  .flight-details label {
+    display: block !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+  }
+
+  .flight-details label > input,
+  .flight-details label > select,
+  .flight-details input,
+  .flight-details select {
+    width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Make each label a proper grid cell and inputs full width inside flight-details */
+  .flight-details .activity-section-grid,
+  .flight-details > .activity-section-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.6rem !important;
+    align-items: start;
+  }
+
+  .flight-details label {
+    min-width: 0 !important;
+    display: block !important;
+  }
+
+  .flight-details label > input,
+  .flight-details label > select,
+  .flight-details input,
+  .flight-details select {
+    width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Keep small helper text left-aligned and compact */
+  .flight-details .activity-section-heading p {
+    margin-top: 0.2rem;
+    font-size: 0.72rem;
+  }
+
+  .activity-form > .flight-details,
+  .activity-form > .shopping-details {
+    grid-column: 1 / -1;
+  }
+
+  /* Make action buttons full-width and consistent */
+  .btn-add-expense,
+  .activity-form-actions .btn-primary,
+  .activity-form-actions .btn-secondary,
+  .activity-form-actions .btn-danger {
+    width: 100%;
+    min-width: unset;
+    display: block;
+  }
+
+  .modal-header {
+    padding-bottom: 0.5rem;
+    margin-bottom: 0.6rem;
+  }
+
+  .modal-header .icon-btn {
+    width: 36px;
+    height: 36px;
+  }
 }
 
 .ai-route-preview-metrics span {
@@ -5818,6 +6480,10 @@ input[type=number]::-webkit-inner-spin-button {
   white-space: nowrap;
 }
 
+/* standard icon inside pills */
+.item-contact-pill .pill-icon,
+.item-contact-pill svg.pill-icon { width: 12px; height: 12px; margin-right: 6px; display: inline-block; vertical-align: middle; }
+
 .item-contact-pill:hover {
   background: #d8e7ff;
 }
@@ -7047,6 +7713,83 @@ body[data-active-view='profile'] .profile-collaboration .profile-share-trip-btn 
   }
 }
 
+/* Strong final overrides for very small screens to prevent earlier rules being overridden */
+@media (max-width: 420px) {
+  .modal-card,
+  .modal-overlay .modal-card {
+    width: 100% !important;
+    max-width: none !important;
+    padding: 0.95rem 0.95rem calc(1rem + env(safe-area-inset-bottom)) !important;
+    border-radius: 14px 14px 0 0 !important;
+  }
+
+  .activity-form, .activity-section-grid, .activity-section-grid > label, .activity-section-grid > .grow {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  /* Force flight-details to use two columns; keep booking and modal details stacked */
+  .flight-details {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.6rem !important;
+    padding: 0.7rem !important;
+  }
+
+  .booking-details,
+  .modal-detail-form {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 0.6rem !important;
+    padding: 0.7rem !important;
+  }
+
+  /* Touch targets */
+  .activity-form input,
+  .activity-form select,
+  .modal-detail-form input,
+  .modal-detail-form select {
+    height: 46px !important;
+    min-height: 46px !important;
+  }
+
+  .activity-form-actions .btn-primary,
+  .activity-form-actions .btn-secondary,
+  .btn-add-expense {
+    width: 100% !important;
+    display: block !important;
+  }
+
+  /* Specific: make Add Expense modal use a two-column grid like the design */
+  #expenseModalOverlay .activity-section-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.6rem !important;
+    align-items: start !important;
+  }
+
+  /* Prevent `.grow` labels (Title, Amount, Receipt) from forcing a full-width row
+     inside the expense modal — let them occupy a single column so pairs align */
+  #expenseModalOverlay .activity-section-grid > label.grow {
+    grid-column: auto !important;
+  }
+
+  /* Ensure labels and inputs inside the expense modal stretch to their grid cell */
+  #expenseModalOverlay .activity-section-grid label {
+    display: block !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+  }
+
+  #expenseModalOverlay .activity-section-grid input,
+  #expenseModalOverlay .activity-section-grid select,
+  #expenseModalOverlay .activity-section-grid .receipt-actions {
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Make the receipt file input area visually compact but keep full-width controls */
+  #expenseModalOverlay .activity-section-grid input[type="file"] {
+    width: 100% !important;
+  }
+}
+
 @media (max-width: 480px) {
   .shopping-haul-layout {
     grid-template-columns: minmax(0, 1fr);
@@ -7381,7 +8124,7 @@ body[data-active-view='profile'] .profile-collaboration .profile-share-trip-btn 
   }
 
   .route-summary-sheet {
-    margin-top: 0;
+    margin-top: -204px;
   }
 
   .trip-map {
@@ -7603,7 +8346,7 @@ body[data-active-view='profile'] .profile-collaboration .profile-share-trip-btn 
   }
 
   .booking-details {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .itinerary-actions {
@@ -7622,9 +8365,12 @@ body[data-active-view='profile'] .profile-collaboration .profile-share-trip-btn 
 
 @media (max-width: 420px) {
   .activity-form,
-  .activity-section-grid,
+  .activity-section-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .flight-details {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   }
 
   .activity-section-grid.ai-planner-fields {
@@ -10511,3 +11257,269 @@ body[data-active-view='profile'] .profile-route-place strong {
     height: 2.53rem;
   }
 }
+
+/* Flatpickr Beautiful Date Picker Overrides matching Shadcn/UI exactly */
+.flatpickr-calendar {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+  border: 1px solid #e4e4e7 !important; /* hsl(var(--border)) */
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05) !important; /* shadow-md */
+  border-radius: 12px !important; /* rounded-xl */
+  background: #ffffff !important;
+  padding: 12px 14px 12px 14px !important;
+}
+
+.flatpickr-months {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important; /* Centered layout */
+  position: relative !important;
+  margin-bottom: 8px !important;
+  height: 28px !important;
+}
+
+.flatpickr-months .flatpickr-month {
+  height: 28px !important;
+  color: #09090b !important; /* slate-900 / foreground */
+  fill: #09090b !important;
+  flex: none !important; /* Prevent month from expanding */
+  position: static !important;
+}
+
+.flatpickr-current-month {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+  font-size: 0.875rem !important; /* text-sm */
+  font-weight: 500 !important;
+  color: #09090b !important;
+  line-height: 1 !important;
+  width: auto !important;
+  left: auto !important;
+  position: static !important; /* Absolute layout removal for centering */
+}
+
+.flatpickr-current-month .numInputWrapper {
+  display: none !important; /* Hide year spinner for simpler Shadcn UI look */
+}
+
+/* Format inner month name */
+.flatpickr-current-month span.cur-month {
+  font-weight: 500 !important;
+  color: #09090b !important;
+  margin: 0 !important;
+}
+
+/* Shadcn-like Navigation Arrows */
+.flatpickr-months .flatpickr-prev-month,
+.flatpickr-months .flatpickr-next-month {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 28px !important;
+  height: 28px !important;
+  border: 1px solid #e4e4e7 !important; /* border */
+  background: transparent !important;
+  border-radius: 6px !important; /* rounded-md */
+  color: #52525b !important; /* muted-foreground */
+  padding: 0 !important;
+  cursor: pointer !important;
+  top: 0 !important;
+  z-index: 10 !important;
+  transition: background-color 0.15s, color 0.15s !important;
+}
+
+.flatpickr-months .flatpickr-prev-month:hover,
+.flatpickr-months .flatpickr-next-month:hover {
+  background: #f4f4f5 !important; /* accent */
+  color: #09090b !important; /* accent-foreground */
+}
+
+.flatpickr-months .flatpickr-prev-month {
+  left: 0 !important;
+}
+
+.flatpickr-months .flatpickr-next-month {
+  right: 0 !important;
+}
+
+/* Make sure inner arrow SVGs are beautifully centered and matches custom icon setting */
+.flatpickr-months .flatpickr-prev-month svg,
+.flatpickr-months .flatpickr-next-month svg {
+  width: 14px !important;
+  height: 14px !important;
+  fill: none !important;
+  display: block !important;
+  position: absolute !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+}
+
+/* Weekday labels style */
+.flatpickr-weekdays {
+  height: 28px !important;
+  margin-top: 4px !important;
+}
+
+span.flatpickr-weekday {
+  font-weight: 400 !important;
+  color: #71717a !important; /* muted-foreground */
+  font-size: 0.8rem !important; /* text-[0.8rem] */
+  text-transform: capitalize !important;
+  width: 14.28% !important;
+}
+
+/* Calendar Days Grid Container */
+.flatpickr-days {
+  width: auto !important;
+}
+
+.dayContainer {
+  min-width: 0 !important;
+  max-width: none !important;
+  width: 252px !important;
+  justify-content: space-between !important;
+}
+
+/* Normal day style matching Shadcn Calendar buttons */
+.flatpickr-day {
+  transition: all 0.15s ease !important;
+  border-radius: 6px !important; /* Shadcn UI calendar buttons are rounded-md, not round circles */
+  font-size: 0.8rem !important; /* text-[0.8rem] */
+  font-weight: 450 !important;
+  line-height: 32px !important;
+  height: 32px !important;
+  width: 32px !important;
+  max-width: 32px !important;
+  color: #09090b !important;
+  border: none !important;
+  margin: 2px 2px !important;
+}
+
+.flatpickr-day:hover,
+.flatpickr-day:focus {
+  background: #f4f4f5 !important; /* bg-accent */
+  color: #09090b !important;
+  border-radius: 6px !important;
+}
+
+/* Today style indicator */
+.flatpickr-day.today {
+  background: #f4f4f5 !important;
+  color: #09090b !important;
+  border-radius: 6px !important;
+}
+
+/* Selected Start and End of the Range in Shadcn State (Slate-950/primary) */
+.flatpickr-day.selected,
+.flatpickr-day.startRange,
+.flatpickr-day.endRange,
+.flatpickr-day.selected.inRange,
+.flatpickr-day.startRange.inRange,
+.flatpickr-day.endRange.inRange {
+  background: #18181b !important; /* primary (slate-900) */
+  color: #fafafa !important; /* primary-foreground */
+  border-radius: 6px !important; /* rounded-md */
+  box-shadow: none !important;
+  border: none !important;
+}
+
+.flatpickr-day.selected:hover,
+.flatpickr-day.startRange:hover,
+.flatpickr-day.endRange:hover {
+  background: #18181b !important;
+  color: #fafafa !important;
+}
+
+/* Disabled/Prev/Next Month days styled to faded slate gray */
+.flatpickr-day.prevMonthDay,
+.flatpickr-day.nextMonthDay,
+.flatpickr-day.notAllowed,
+.flatpickr-day.disabled {
+  color: #d4d4d8 !important; /* slate-300 / faded */
+  background: transparent !important;
+  pointer-events: none !important;
+}
+
+/* Connecting stay/strip for the range in between styled like the Shadcn/UI selection bar */
+.flatpickr-calendar .flatpickr-day.inRange {
+  background: #f4f4f5 !important; /* bg-accent in range */
+  color: #09090b !important;
+  border-radius: 0 !important; /* squared edges in range */
+  box-shadow: none !important;
+}
+
+/* Action button footer matching image design (Cancel/Apply style of confirmDate plugin) */
+.flatpickr-confirm {
+  border-top: 1px solid #e4e4e7 !important; /* border */
+  padding: 10px 0 0 0 !important;
+  margin-top: 10px !important;
+  display: flex !important;
+  justify-content: space-between !important;
+  gap: 8px !important;
+  background: #fff !important;
+  box-sizing: border-box !important;
+}
+
+.flatpickr-confirm svg {
+  display: none !important;
+}
+
+/* Cancel custom styling - beautiful light grey rounded button */
+.flatpickr-confirm::before {
+  content: 'Cancel';
+  flex: 1;
+  text-align: center;
+  padding: 8px 12px;
+  background: #f4f4f5 !important; /* bg-secondary / grey */
+  color: #18181b !important; /* foreground */
+  border: 1px solid #e4e4e7;
+  border-radius: 6px !important; /* rounded-md */
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  display: block;
+  box-sizing: border-box !important;
+  transition: background-color 0.15s;
+}
+
+.flatpickr-confirm::before:hover {
+  background: #e4e4e7 !important;
+}
+
+/* Apply button replacment fitting primary styling */
+.flatpickr-confirm {
+  cursor: default !important;
+}
+
+.flatpickr-confirm .flatpickr-confirm-btn,
+.flatpickr-confirm .flatpickr-confirm-btn:hover {
+  flex: 1;
+  text-align: center;
+  padding: 8px 12px !important;
+  background: #18181b !important; /* primary (slate-900) */
+  color: #fafafa !important; /* primary-foreground */
+  border-radius: 6px !important; /* rounded-md */
+  font-size: 0.8rem !important;
+  font-weight: 500 !important;
+  cursor: pointer !important;
+  border: none !important;
+  display: block !important;
+  box-sizing: border-box !important;
+  transition: opacity 0.15s;
+}
+
+.flatpickr-confirm .flatpickr-confirm-btn:hover {
+  opacity: 0.9 !important;
+}
+
+/* Remove default flatpickr triangle */
+.flatpickr-calendar.arrowUp:after,
+.flatpickr-calendar.arrowUp:before,
+.flatpickr-calendar.arrowDown:after,
+.flatpickr-calendar.arrowDown:before {
+  display: none !important;
+}
+
+

@@ -48,7 +48,7 @@ const userProfile = loadUserProfile();
 const tripOwnership = loadTripOwnership();
 const ownedTripIds = tripOwnership.tripIds;
 let ownershipUid = tripOwnership.uid;
-const requestedTripId = new URLSearchParams(window.location.search).get('trip');
+let requestedTripId = new URLSearchParams(window.location.search).get('trip');
 if (/^[a-zA-Z0-9_-]{8,80}$/.test(requestedTripId || '')) state.activeTripId = requestedTripId;
 let selectedDayIndex = 0;
 const weatherCache = {};
@@ -69,6 +69,7 @@ let pendingAIReferencePlaceList = null;
 let aiReferencePlaces = [];
 let tripPinTargetId = '';
 let activeAccessMembers = {};
+let activeOnlineMembers = {};
 let activeTripPinEnabled = false;
 let creatingTripDraft = false;
 let newTripDraft = null;
@@ -139,6 +140,7 @@ const locationSuggestions = document.getElementById('locationSuggestions');
 const activityCategoryInput = document.getElementById('activityCategory');
 const flightDetails = document.getElementById('flightDetails');
 const shoppingDetails = document.getElementById('shoppingDetails');
+let activityDatePicker = null;
 const shoppingNameInput = document.getElementById('shoppingNameInput');
 const shoppingImageInput = document.getElementById('shoppingImageInput');
 const shoppingProductUrlInput = document.getElementById('shoppingProductUrlInput');
@@ -158,17 +160,25 @@ const currencyResult = document.getElementById('currencyResult');
 const currencyRateStatus = document.getElementById('currencyRateStatus');
 const spendingSummaryTotal = document.getElementById('spendingSummaryTotal');
 const spendingHeatmap = document.getElementById('spendingHeatmap');
+const spendingCategoryBreakdown = document.getElementById('spendingCategoryBreakdown');
 const spendingMetrics = document.getElementById('spendingMetrics');
 const spendingInsight = document.getElementById('spendingInsight');
+const billCategoryInput = document.getElementById('billCategory');
 const expenseList = document.getElementById('expenseList');
 const memberOwesSummary = document.getElementById('memberOwesSummary');
 const billTabs = document.getElementById('billTabs');
 const billDateTabs = document.getElementById('billDateTabs');
+const expenseTotalBar = document.getElementById('expenseTotalBar');
+const expenseTotalLabel = document.getElementById('expenseTotalLabel');
+const expenseTotalAmount = document.getElementById('expenseTotalAmount');
+const expenseTotalConverted = document.getElementById('expenseTotalConverted');
 const settlementLog = document.getElementById('settlementLog');
 const addExpenseBtn = document.getElementById('addExpenseBtn');
 const expenseModalOverlay = document.getElementById('expenseModalOverlay');
 const closeExpenseModalBtn = document.getElementById('closeExpenseModalBtn');
 const expenseForm = document.getElementById('expenseForm');
+// Receipt upload/scan elements removed per request
+let receiptScanStatus = document.getElementById('receiptScanStatus');
 const billMemberInput = document.getElementById('billMember');
 const billPaidByInput = document.getElementById('billPaidBy');
 const billSettledInput = document.getElementById('billSettled');
@@ -179,7 +189,6 @@ const billCardNetworkInput = document.getElementById('billCardNetwork');
 const billCardMarkupField = document.getElementById('billCardMarkupField');
 const billCardMarkupInput = document.getElementById('billCardMarkup');
 const billCardRateHint = document.getElementById('billCardRateHint');
-const removeExpenseBtn = document.getElementById('removeExpenseBtn');
 const splitBillModalOverlay = document.getElementById('splitBillModalOverlay');
 const closeSplitBillModalBtn = document.getElementById('closeSplitBillModalBtn');
 const cancelSplitBillBtn = document.getElementById('cancelSplitBillBtn');
@@ -239,6 +248,7 @@ let currentPlaceAddress = '';
 let currentPlaceId = '';
 let currentPlaceCoordinates = null;
 let currentNaverPlaceName = '';
+let currentNaverUrl = '';
 let currentGoogleReviewCount = 0;
 let currentPlaceWebsite = '';
 let currentPlaceOpeningHours = null;
@@ -537,7 +547,8 @@ async function reconcileTripLibraryFromCloud() {
       savedAt: trip.updatedAt ? new Date(trip.updatedAt).toISOString() : new Date().toISOString(),
       data: trip.state || {},
     }));
-    const activeStillAvailable = cloudEntries.some((trip) => trip.id === state.activeTripId);
+    const activeStillAvailable = cloudEntries.some((trip) => trip.id === state.activeTripId) 
+      || (requestedTripId && state.activeTripId === requestedTripId);
     ownedTripIds.clear();
     cloudTrips.filter((trip) => trip.owner).forEach((trip) => ownedTripIds.add(trip.id));
     ownershipUid = result.uid || '';
@@ -587,24 +598,102 @@ function loadUserProfile() {
 function renderTripMemberAvatars() {
   if (!tripMemberAvatars) return;
   tripMemberAvatars.innerHTML = '';
-  const memberNames = [...new Set((state.members || []).filter((name) => name && name !== userProfile.name))];
-  const visibleMembers = memberNames.slice(0, 3);
+  
+  // Render every member of the trip (including ourselves so the owner is always visible here)
+  const memberNames = [...new Set((state.members || []).filter((name) => name))];
+  
+  // Display all members if we want to scroll them horizontally of there are more than 5
+  // We no longer slice the list to a maximum of 4 elements or render overflows
+  const visibleMembers = memberNames;
   visibleMembers.forEach((name) => {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'trip-member-avatar-wrapper';
+
     const image = document.createElement('img');
     image.className = 'trip-member-avatar';
-    image.src = getTravelerAvatarDataUri(state.memberProfiles?.[name], name);
+    
+    const isMe = name.trim().toLowerCase() === userProfile.name.trim().toLowerCase();
+    const avatarId = isMe ? userProfile.avatarId : state.memberProfiles?.[name];
+    image.src = getTravelerAvatarDataUri(avatarId, name);
     image.alt = name;
     image.title = name;
-    tripMemberAvatars.appendChild(image);
+    wrapper.appendChild(image);
+
+    // Resolve owner credentials either by ownershipUid or local owned flag
+    const accessMember = Object.entries(activeAccessMembers).find(([, member]) => member?.name === name);
+    const isMeOwner = isMe && ownedTripIds.has(state.activeTripId);
+    const isPartnerOwner = accessMember && accessMember[0] === ownershipUid;
+    const isOwner = isMeOwner || isPartnerOwner || (name === state.members[0]); // fallback first member as owner
+
+    // Check if the current member is online
+    const memberPresence = Object.values(activeOnlineMembers || {}).find(
+      (user) => user.name && user.name.trim().toLowerCase() === name.trim().toLowerCase()
+    );
+    const isOnline = isMe || !!memberPresence;
+
+    if (isOnline) {
+      const dot = document.createElement('span');
+      dot.className = 'online-indicator';
+      wrapper.appendChild(dot);
+
+      // Only allow tapping other online members (not ourselves) to send emojis
+      if (!isMe) {
+        image.style.cursor = 'pointer';
+        image.addEventListener('click', (event) => {
+          event.stopPropagation();
+          // Remove any open pickers
+          document.querySelectorAll('.emoji-picker-popover').forEach((el) => el.remove());
+
+          // Create a secure custom emoji popover
+          const picker = document.createElement('div');
+          picker.className = 'emoji-picker-popover';
+
+          const emojiSet = ['👋', '❤️', '👍', '😂', '🎉', '🔥'];
+          emojiSet.forEach((emoji) => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'emoji-picker-btn';
+            btn.textContent = emoji;
+            btn.addEventListener('click', async (e) => {
+              e.stopPropagation();
+              picker.remove();
+
+              if (window.itinerarySync && typeof window.itinerarySync.sendPresenceEmoji === 'function') {
+                await window.itinerarySync.sendPresenceEmoji(emoji, name);
+              }
+            });
+            picker.appendChild(btn);
+          });
+
+          wrapper.appendChild(picker);
+        });
+      }
+    }
+
+    // Render incoming speech bubble above this online member's avatar
+    const now = Date.now();
+    
+    // Check if this specific member sent an emoji targeted to us OR targeted to everyone
+    const hasIncomingEmoji = memberPresence && memberPresence.emoji && memberPresence.emojiTime 
+      && (now - memberPresence.emojiTime) < 5000 
+      && (!memberPresence.emojiTarget || memberPresence.emojiTarget.trim().toLowerCase() === userProfile.name.trim().toLowerCase());
+
+    if (hasIncomingEmoji) {
+      const bubble = document.createElement('div');
+      bubble.className = 'speech-bubble';
+      bubble.textContent = memberPresence.emoji;
+      wrapper.appendChild(bubble);
+
+      // Fade/Auto remove
+      setTimeout(() => {
+        bubble.remove();
+      }, 5000);
+    }
+
+    tripMemberAvatars.appendChild(wrapper);
   });
-  if (memberNames.length > visibleMembers.length) {
-    const overflow = document.createElement('span');
-    overflow.className = 'trip-member-avatar trip-member-avatar-overflow';
-    overflow.textContent = `+${memberNames.length - visibleMembers.length}`;
-    overflow.title = memberNames.slice(visibleMembers.length).join(', ');
-    tripMemberAvatars.appendChild(overflow);
-  }
-  tripMemberStrip.classList.toggle('hidden', memberNames.length === 0);
+  // The strip is visible if there is at least one trip member (our list includes ourselves now)
+  tripMemberStrip.classList.toggle('hidden', memberNames.length <= 1);
 }
 
 function renderUserProfile() {
@@ -619,6 +708,26 @@ function renderUserProfile() {
     image.classList.remove('hidden');
   });
   itineraryUserInitial.classList.add('hidden');
+
+  // Render our own speech bubble if we sent an emoji recently
+  const myUid = window.itinerarySync?.getUid?.();
+  const myPresence = myUid ? activeOnlineMembers[myUid] : null;
+  const now = Date.now();
+  if (myPresence && myPresence.emoji && myPresence.emojiTime && (now - myPresence.emojiTime) < 5000) {
+    const existingBubble = itineraryProfileBtn.querySelector('.speech-bubble');
+    if (!existingBubble) {
+      const bubble = document.createElement('div');
+      bubble.className = 'speech-bubble';
+      bubble.textContent = myPresence.emoji;
+      itineraryProfileBtn.appendChild(bubble);
+      setTimeout(() => {
+        bubble.remove();
+      }, 5000);
+    } else {
+      existingBubble.textContent = myPresence.emoji;
+    }
+  }
+
   renderTripMemberAvatars();
 }
 
@@ -702,14 +811,43 @@ function finishAccountSignIn(account) {
 async function initializeAccountGate() {
   loginError.textContent = '';
   try {
+    // Check if there is an active valid user session restored synchronously by Google and keep it in mind
+    const preCheckUser = window.itinerarySync?.getCurrentUser?.();
+    if (preCheckUser && !preCheckUser.anonymous) {
+      window.__IS_AUTHENTICATED__ = true;
+      finishAccountSignIn(preCheckUser);
+      return;
+    }
+
+    // Call authenticate synchronously to let the Firebase SDK restore the state 
+    // from indexDB/cookies BEFORE calling any fallback behaviors
+    await window.itinerarySync.authenticate();
+
     const redirectAccount = await window.itinerarySync.completeGoogleRedirect();
     if (redirectAccount && !redirectAccount.anonymous) {
+      // Re-evaluate and restore the requested trip ID from history URL recovered from localStorage
+      requestedTripId = new URLSearchParams(window.location.search).get('trip');
+      if (requestedTripId && /^[a-zA-Z0-9_-]{8,80}$/.test(requestedTripId)) {
+        state.activeTripId = requestedTripId;
+        document.body.classList.add('trip-access-pending');
+      }
       finishAccountSignIn(redirectAccount);
       return;
     }
-    await window.itinerarySync.authenticate();
+    
+    // Explicitly fallback if anonymous session was restored instead of Google Redirect result
+    const currentRestoredUser = window.itinerarySync.getCurrentUser();
+    if (currentRestoredUser && !currentRestoredUser.anonymous) {
+      window.__IS_AUTHENTICATED__ = true;
+      finishAccountSignIn(currentRestoredUser);
+      return;
+    }
+
     const account = window.itinerarySync.getCurrentUser();
-    if (account && !account.anonymous) finishAccountSignIn(account);
+    if (account && !account.anonymous) {
+      window.__IS_AUTHENTICATED__ = true;
+      finishAccountSignIn(account);
+    }
   } catch (error) {
     loginError.textContent = 'Could not connect to sign in. Check your connection and try again.';
   }
@@ -749,14 +887,19 @@ legalPanel.addEventListener('click', (event) => {
   if (event.target === legalPanel) closeLoginLegalPanel();
 });
 
-googleSignInBtn.addEventListener('click', async () => {
+googleSignInBtn.addEventListener('click', () => {
+  loginError.textContent = '';
+  
+  // Call signInWithGoogle IMMEDIATELY in the click thread.
+  // We do NOT disable the button or use "await" before calling it, to satisfy Apple's strict popup security rules.
+  const loginPromise = window.itinerarySync.signInWithGoogle();
+  
   googleSignInBtn.disabled = true;
   googleSignInText.textContent = 'Opening Google…';
-  loginError.textContent = '';
-  try {
-    const account = await window.itinerarySync.signInWithGoogle();
+  
+  loginPromise.then((account) => {
     if (account) finishAccountSignIn(account);
-  } catch (error) {
+  }).catch((error) => {
     const popupIssue = error?.code === 'auth/popup-blocked'
       || error?.code === 'auth/cancelled-popup-request';
     loginError.textContent = popupIssue
@@ -764,10 +907,10 @@ googleSignInBtn.addEventListener('click', async () => {
       : error?.code === 'auth/popup-closed-by-user'
         ? 'Google sign-in was closed. Please try again.'
         : 'Could not complete Google sign-in. Please try again.';
-  } finally {
+  }).finally(() => {
     googleSignInBtn.disabled = false;
     googleSignInText.textContent = 'Continue with Google';
-  }
+  });
 });
 
 guestSignInBtn.addEventListener('click', async () => {
@@ -783,21 +926,26 @@ guestSignInBtn.addEventListener('click', async () => {
   }
 });
 
-profileGoogleLoginBtn.addEventListener('click', async () => {
-  profileGoogleLoginBtn.disabled = true;
+profileGoogleLoginBtn.addEventListener('click', () => {
   profileAccountError.textContent = '';
-  try {
-    const account = await window.itinerarySync.signInWithGoogle();
+  
+  // Call signInWithGoogle IMMEDIATELY in the click thread.
+  // We do NOT disable the button or use "await" before calling it, to satisfy Apple's strict popup security rules.
+  const loginPromise = window.itinerarySync.signInWithGoogle();
+  
+  profileGoogleLoginBtn.disabled = true;
+  
+  loginPromise.then(async (account) => {
     renderAccountControls(account);
     const switchedTrip = await reconcileTripLibraryFromCloud();
     if (switchedTrip) await connectActiveTrip();
-  } catch (error) {
+  }).catch((error) => {
     profileAccountError.textContent = error?.code === 'auth/popup-closed-by-user'
       ? 'Google sign-in was closed.'
       : 'Could not complete Google sign-in. Please try again.';
-  } finally {
+  }).finally(() => {
     profileGoogleLoginBtn.disabled = false;
-  }
+  });
 });
 
 profileLogoutBtn.addEventListener('click', async () => {
@@ -876,6 +1024,14 @@ function applyFontSettings() {
   document.documentElement.style.setProperty('--app-font-size', `${size}px`);
 }
 
+// Apply the unified title class to headings and kicker elements so they match Traveler profile
+function applyTitleStyling() {
+  const selectors = 'h1,h2,h3,.trip-access-kicker';
+  document.querySelectorAll(selectors).forEach((el) => {
+    if (!el.classList.contains('app-title')) el.classList.add('app-title');
+  });
+}
+
 if (profileFontOptions) {
   profileFontOptions.querySelectorAll('.font-option').forEach((btn) => {
     const font = btn.dataset.font;
@@ -889,6 +1045,8 @@ if (profileFontOptions) {
       saveState();
       // apply immediately to the CSS variable so fallbacks update; then try to load font face
       document.documentElement.style.setProperty('--app-font-family', font);
+        // re-apply title styling so any dynamic elements pick up the new font variables
+        applyTitleStyling();
       // attempt to load primary font name via Font Loading API for a smoother switch
       try {
         const primary = (font.split(',')[0] || '').replace(/^["']|["']$/g, '').trim();
@@ -921,6 +1079,79 @@ if (profileFontOptions) {
 
 // apply on load
 applyFontSettings();
+applyTitleStyling();
+
+// Map spot selectors toggle (Spot A / Spot B)
+(function initMapSpotToggle() {
+  const mapStage = document.querySelector('.map-stage');
+  const toggleBtn = document.getElementById('mapToggleSpotSelectBtn');
+  const toolbar = document.querySelector('.map-route-toolbar');
+  const toggleLegendBtn = document.getElementById('mapToggleLegendBtn');
+  const mapLegend = document.getElementById('mapLegend');
+  if (!toggleBtn || !mapStage || !toolbar) return;
+
+  // set initial state from saved state
+  const hidden = !!state.mapSpotSelectHidden;
+  if (hidden) mapStage.classList.add('spot-select-hidden');
+  toggleBtn.setAttribute('aria-pressed', hidden ? 'true' : 'false');
+  toggleBtn.title = hidden ? 'Show spot selectors' : 'Hide spot selectors';
+
+  toggleBtn.addEventListener('click', () => {
+    const nowHidden = mapStage.classList.toggle('spot-select-hidden');
+    toggleBtn.setAttribute('aria-pressed', nowHidden ? 'true' : 'false');
+    toggleBtn.title = nowHidden ? 'Show spot selectors' : 'Hide spot selectors';
+    state.mapSpotSelectHidden = !!nowHidden;
+    saveState();
+  });
+  // Update visible label/icon to save space when collapsed
+  const labelSpan = toggleBtn.querySelector('.map-toggle-label');
+  function refreshToggleLabel(hiddenState) {
+    if (!labelSpan) return;
+    if (hiddenState) {
+      labelSpan.style.display = 'none';
+    } else {
+      labelSpan.style.display = '';
+      labelSpan.textContent = ''; // Keep label text empty to match the clean design in the reference image
+    }
+  }
+  // apply initial label state
+  refreshToggleLabel(hidden);
+  // observe changes
+  toggleBtn.addEventListener('click', () => refreshToggleLabel(mapStage.classList.contains('spot-select-hidden')));
+
+  // Map Legend toggle setup
+  if (toggleLegendBtn && mapLegend) {
+    const legendHidden = !!state.mapLegendHidden;
+    if (legendHidden) {
+      mapLegend.style.display = 'none';
+      toggleLegendBtn.setAttribute('aria-pressed', 'true');
+      toggleLegendBtn.style.background = 'linear-gradient(#fff,#f3f3f3)';
+      toggleLegendBtn.style.color = 'var(--theme-accent-dark, #10285f)';
+    } else {
+      mapLegend.style.display = '';
+      toggleLegendBtn.setAttribute('aria-pressed', 'false');
+      toggleLegendBtn.style.background = 'var(--theme-accent-dark, #10285f)';
+      toggleLegendBtn.style.color = '#ffffff';
+    }
+
+    toggleLegendBtn.addEventListener('click', () => {
+      const nowLegendHidden = mapLegend.style.display === '';
+      if (nowLegendHidden) {
+        mapLegend.style.display = 'none';
+        toggleLegendBtn.setAttribute('aria-pressed', 'true');
+        toggleLegendBtn.style.background = 'linear-gradient(#fff,#f3f3f3)';
+        toggleLegendBtn.style.color = 'var(--theme-accent-dark, #10285f)';
+      } else {
+        mapLegend.style.display = '';
+        toggleLegendBtn.setAttribute('aria-pressed', 'false');
+        toggleLegendBtn.style.background = 'var(--theme-accent-dark, #10285f)';
+        toggleLegendBtn.style.color = '#ffffff';
+      }
+      state.mapLegendHidden = nowLegendHidden;
+      saveState();
+    });
+  }
+})();
 
 function saveState() {
   if (creatingTripDraft) return;
@@ -958,8 +1189,8 @@ function syncCurrentTripToLibrary() {
 function updateCollaborationStatus(status) {
   if (!collaborationStatus || !collaborationStatusText) return;
   const labels = state.language === 'zh'
-    ? { 'not-configured': '需要設定 Firebase', connecting: '連線中…', saving: '儲存中…', online: '已同步', locked: '需要密碼', error: '同步無法使用' }
-    : { 'not-configured': 'Firebase setup required', connecting: 'Connecting…', saving: 'Saving…', online: 'Synced', locked: 'PIN required', error: 'Sync unavailable' };
+    ? { 'not-configured': '需要設定 Firebase', connecting: '連線中…', saving: '儲存中…', online: '已連線', locked: '需要密碼', error: '同步無法使用', update: '有更新版本可供檢視 (請重新整理頁面)' }
+    : { 'not-configured': 'Firebase setup required', connecting: 'Connecting…', saving: 'Saving…', online: 'Connected', locked: 'PIN required', error: 'Sync unavailable', update: 'Updates available (Refresh to view)' };
   collaborationStatus.dataset.status = status;
   collaborationStatusText.textContent = labels[status] || labels.error;
   if (shareTripBtn) {
@@ -970,6 +1201,19 @@ function updateCollaborationStatus(status) {
 
 function applyRemoteTrip(remoteState) {
   if (!remoteState || typeof remoteState !== 'object') return;
+  
+  // To avoid interrupting the current user's active session, disrupting inputs or jumping pages,
+  // we do not force-merge the remote state automatically if other members are online/modifying.
+  // Instead, block immediate sync override and notify the user with a non-intrusive indicator/status update.
+  const activeOnlineUids = Object.keys(activeOnlineMembers || {});
+  const currentUid = window.itinerarySync?.getUid?.() || '';
+  const otherMembersActive = activeOnlineUids.filter(uid => uid !== currentUid).length > 0;
+  
+  if (otherMembersActive) {
+    updateCollaborationStatus('update');
+    return;
+  }
+
   applyingRemoteState = true;
   const tripLibrary = state.tripLibrary || [];
   const activeTripId = state.activeTripId;
@@ -992,6 +1236,17 @@ async function connectActiveTrip() {
     memberName: userProfile.name,
     onRemoteState: applyRemoteTrip,
     onStatus: updateCollaborationStatus,
+    onPresence: (presenceUsers) => {
+      activeOnlineMembers = presenceUsers || {};
+      renderTripMemberAvatars();
+      // Ensure the online indicator on the user profiles (or top bar) also displays as online/green.
+      const existingIndicator = itineraryProfileBtn.querySelector('.online-indicator-large');
+      if (!existingIndicator) {
+        const dot = document.createElement('span');
+        dot.className = 'online-indicator-large';
+        itineraryProfileBtn.appendChild(dot);
+      }
+    },
     onAccessRequired: (access) => {
       activeTripPinEnabled = access.pinEnabled === true;
       openTripAccessModal('join');
@@ -1438,6 +1693,19 @@ function setActiveAppView(viewName) {
     tab.toggleAttribute('aria-current', isActive);
   });
   updateAppTabIndicator();
+  // Show Aitinerary only on the itinerary view
+  try {
+    const shouldShowAitinerary = viewName === 'itinerary';
+    if (aitineraryAssistantDock) {
+      aitineraryAssistantDock.classList.toggle('hidden', !shouldShowAitinerary);
+      // Ensure the restore button (small version) is also fully hidden when not on itinerary
+      if (!shouldShowAitinerary && showAitineraryBtn) {
+        showAitineraryBtn.style.display = 'none';
+      } else if (showAitineraryBtn) {
+        showAitineraryBtn.style.display = '';
+      }
+    }
+  } catch (e) { /* ignore when elements not present */ }
   if (viewName === 'map' && mapsApiLoaded) {
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
@@ -1755,28 +2023,46 @@ activityForm.addEventListener('submit', async (e) => {
   const date = document.getElementById('activityDate').value;
   if (!date) return;
   const submissionId = ++activitySubmissionId;
+  
+  // Prompt user to type dynamic location name if address is selected/filled but location remains blank!
+  const hasFullAddress = activityDescriptionInput.value.trim().length > 0;
+  const isLocationBlank = activityLocationInput.value.trim().length === 0;
+  if (hasFullAddress && isLocationBlank) {
+    placeLookupStatus.textContent = state.language === 'zh'
+      ? '請輸入該地點名稱，以便系統定位！'
+      : 'Please type the location name to assist the system in locating the spot.';
+    activityLocationInput.focus();
+    return;
+  }
+
   if (getMapProviderForDate(date) === 'naver') {
-    await koreaPlaceLocalizationPromise;
-    if (submissionId !== activitySubmissionId || document.getElementById('activityDate').value !== date) return;
-    const localizedLocation = activityLocationInput.value.trim();
-    const localizedAddress = activityDescriptionInput.value.trim() || currentPlaceAddress;
-    if (!/[가-힣]/.test(localizedLocation) || !/[가-힣]/.test(localizedAddress)) {
-      if (localizedLocation && !currentPlaceId && !/[가-힣]/.test(localizedLocation)) {
-        const requestId = ++placeLookupRequestId;
-        placeLookupStatus.textContent = state.language === 'zh' ? '正在轉換搜尋字詞為韓文…' : 'Translating the search to Korean…';
-        const translated = await retryGooglePlacesInKorean(localizedLocation, requestId);
-        if (submissionId !== activitySubmissionId || document.getElementById('activityDate').value !== date) return;
-        if (translated) return;
+    // If we resolved via Naver pasted URL, we already have exact Korean details, skip Google suggestion warning!
+    if (currentNaverUrl) {
+      // Skip the warning and allow submitting
+    } else {
+      await koreaPlaceLocalizationPromise;
+      if (submissionId !== activitySubmissionId || document.getElementById('activityDate').value !== date) return;
+      const localizedLocation = activityLocationInput.value.trim();
+      const localizedAddress = activityDescriptionInput.value.trim() || currentPlaceAddress;
+      if (!/[가-힣]/.test(localizedLocation) || !/[가-힣]/.test(localizedAddress)) {
+        if (localizedLocation && !currentPlaceId && !/[가-힣]/.test(localizedLocation)) {
+          const requestId = ++placeLookupRequestId;
+          placeLookupStatus.textContent = state.language === 'zh' ? '正在轉換搜尋字詞為韓文…' : 'Translating the search to Korean…';
+          const translated = await retryGooglePlacesInKorean(localizedLocation, requestId);
+          if (submissionId !== activitySubmissionId || document.getElementById('activityDate').value !== date) return;
+          if (translated) return;
+        }
+        placeLookupStatus.textContent = state.language === 'zh'
+          ? '請先從 Google 建議中選擇地點，以轉換為韓文名稱與地址。'
+          : 'Choose a place from the Google suggestions to convert its name and address to Korean.';
+        return;
       }
-      placeLookupStatus.textContent = state.language === 'zh'
-        ? '請先從 Google 建議中選擇地點，以轉換為韓文名稱與地址。'
-        : 'Choose a place from the Google suggestions to convert its name and address to Korean.';
-      return;
     }
   }
   const time = document.getElementById('activityTime').value;
   const enteredTitle = document.getElementById('activityTitle').value.trim();
   const category = document.getElementById('activityCategory').value;
+  const activityTime = category === 'hotel' ? (time || '08:00') : time;
   const location = document.getElementById('activityLocation').value.trim();
   const rating = document.getElementById('activityRating').value.trim();
   const description = document.getElementById('activityDescription').value.trim();
@@ -1790,8 +2076,52 @@ activityForm.addEventListener('submit', async (e) => {
     : null;
   const title = enteredTitle || existingActivity?.title || location || (state.language === 'zh' ? '未命名項目' : 'Untitled item');
 
+  let datesToCreate = [date];
+  let checkIn = '';
+  let checkOut = '';
+  if (category === 'hotel') {
+    const selectedHotelDates = activityDatePicker?.selectedDates
+      .map((selectedDate) => activityDatePicker.formatDate(selectedDate, 'Y-m-d'))
+      .sort() || [];
+    if (selectedHotelDates.length > 1) {
+      [checkIn, checkOut] = [selectedHotelDates[0], selectedHotelDates[selectedHotelDates.length - 1]];
+    } else if (existingActivity?.hotelStayStart && existingActivity?.hotelStayEnd) {
+      checkIn = existingActivity.hotelStayStart;
+      checkOut = existingActivity.hotelStayEnd;
+    } else if (existingActivity?.checkIn && existingActivity?.checkOut) {
+      checkIn = existingActivity.checkIn;
+      checkOut = existingActivity.checkOut;
+    } else {
+      checkIn = selectedHotelDates[0] || date;
+    }
+
+    if (checkOut) {
+      const start = new Date(checkIn + 'T00:00:00');
+      const end = new Date(checkOut + 'T00:00:00');
+      let cursor = new Date(start);
+      datesToCreate = [];
+      while (cursor <= end) {
+        datesToCreate.push(toISODate(cursor));
+        cursor.setDate(cursor.getDate() + 1);
+      }
+    } else {
+      datesToCreate = [checkIn];
+    }
+  }
+
+  const hotelStayId = category === 'hotel'
+    ? (existingActivity?.hotelStayId || `hotel-stay-${existingActivity?.id || Date.now().toString(36)}`)
+    : '';
   const activityData = {
-    date, time, title, category, location, rating, description, expense, remarks,
+    date: category === 'hotel' && existingActivity && datesToCreate.length > 1
+      ? existingActivity.date
+      : datesToCreate[0] || date,
+    checkIn,
+    checkOut,
+    hotelStayStart: category === 'hotel' ? (checkOut ? checkIn : existingActivity?.hotelStayStart || checkIn) : '',
+    hotelStayEnd: category === 'hotel' ? (checkOut || existingActivity?.hotelStayEnd || checkIn) : '',
+    hotelStayId,
+    time: activityTime, title, category, location, rating, description, expense, remarks,
     paidBy: activityPaidByInput.value,
     billMember: activityBillMemberInput.value,
     settled: Boolean(existingActivity?.settled),
@@ -1807,7 +2137,7 @@ activityForm.addEventListener('submit', async (e) => {
     googleReviewCount: currentGoogleReviewCount,
     mapProvider: activityMapProviderInput.value || getMapProviderForDate(date),
     koreaCoordinateSource: getMapProviderForDate(date) === 'naver' ? 'korea-localized' : '',
-    naverUrl: existingActivity?.naverUrl || '',
+    naverUrl: currentNaverUrl || existingActivity?.naverUrl || '',
     website: activityWebsiteInput.value.trim() || currentPlaceWebsite,
     openingHours: currentPlaceOpeningHours,
     enableOpeningHours: currentPlaceOpeningHoursEnabled,
@@ -1833,15 +2163,82 @@ activityForm.addEventListener('submit', async (e) => {
   if (editingActivityId) {
     const activity = state.activities.find((item) => item.id === editingActivityId);
     if (activity) {
-      Object.assign(activity, activityData);
+      const editedDate = category === 'hotel' && datesToCreate.length > 1
+        ? activity.date
+        : datesToCreate[0] || date;
+      Object.assign(activity, activityData, { date: editedDate, hotelStayId });
       savedActivity = activity;
+
+      if (category === 'hotel' && datesToCreate.length > 1) {
+        const stayStart = activityData.hotelStayStart;
+        const stayEnd = activityData.hotelStayEnd;
+        const relatedHotelCards = state.activities.filter((item) => (
+          item !== activity
+          && item.category === 'hotel'
+          && (item.hotelStayId === hotelStayId
+            || (item.title === activity.title
+              && item.location === activity.location
+              && (item.hotelStayStart || item.checkIn) === stayStart
+              && (item.hotelStayEnd || item.checkOut || stayStart) === stayEnd))
+        ));
+        relatedHotelCards.forEach((item) => { item.hotelStayId = hotelStayId; });
+        const existingStayDates = new Set([activity, ...relatedHotelCards].map((item) => item.date));
+        datesToCreate.forEach((stayDate, index) => {
+          if (existingStayDates.has(stayDate)) return;
+          state.activities.push({
+            id: `${hotelStayId}-${stayDate}`,
+            date: stayDate,
+            checkIn: stayDate,
+            checkOut: '',
+            hotelStayStart: stayStart,
+            hotelStayEnd: stayEnd,
+            hotelStayId,
+            time: '08:00',
+            title,
+            category: 'hotel',
+            location,
+            mapProvider: activityData.mapProvider,
+            address: activityData.address,
+            placeId: activityData.placeId,
+            naverPlaceName: activityData.naverPlaceName,
+            latitude: activityData.latitude,
+            longitude: activityData.longitude,
+            naverUrl: activityData.naverUrl,
+            website: activityData.website,
+            rating,
+            description,
+            remarks,
+            enableOpeningHours: activityData.enableOpeningHours,
+            openingHours: activityData.openingHours,
+          });
+          existingStayDates.add(stayDate);
+        });
+      }
     }
   } else {
-    savedActivity = {
-      id: Date.now().toString(36) + Math.random().toString(36).slice(2),
-      ...activityData,
-    };
-    state.activities.push(savedActivity);
+    // Create an independent card for each date in the range
+    datesToCreate.forEach((targetDate, index) => {
+      const isPrimaryCard = category !== 'hotel' || index === 0;
+      const card = {
+        id: (Date.now() + index).toString(36) + Math.random().toString(36).slice(2),
+        ...(isPrimaryCard ? activityData : {
+          date: targetDate,
+          checkIn: targetDate,
+          checkOut: '',
+          hotelStayStart: checkIn,
+          hotelStayEnd: checkOut || checkIn,
+          time: activityTime,
+          title,
+          category,
+          location,
+          mapProvider: activityData.mapProvider,
+        }),
+      };
+      if (index === 0) {
+        savedActivity = card;
+      }
+      state.activities.push(card);
+    });
   }
   saveState();
   render();
@@ -3347,7 +3744,9 @@ closeActivityModalBtn.addEventListener('click', () => {
 });
 
 activityModalOverlay.addEventListener('click', (e) => {
-  if (e.target === activityModalOverlay) e.stopPropagation();
+  if (e.target === activityModalOverlay) {
+    closeActivityModal();
+  }
 });
 
 document.getElementById('activityToggleOpeningHours').addEventListener('click', () => {
@@ -3490,6 +3889,7 @@ function openActivityModal(activity = null) {
     ? { lat: activity.latitude, lng: activity.longitude }
     : null;
   currentNaverPlaceName = activity?.naverPlaceName || getLegacyNaverSearchName(activity?.naverUrl) || '';
+  currentNaverUrl = activity?.naverUrl || '';
   currentGoogleReviewCount = Number(activity?.googleReviewCount) || 0;
   currentPlaceWebsite = activity?.website || '';
   currentPlaceOpeningHours = activity?.openingHours || null;
@@ -3514,11 +3914,25 @@ function openActivityModal(activity = null) {
   renderShoppingEditor();
   const days = getTripDays();
   const selectedDate = days[selectedDayIndex];
+
+  // Initialize datepicker based on the activity category (or select single mode if creating new)
+  const initialCategory = activity?.category || 'other';
+  initActivityDatePicker(initialCategory === 'hotel' ? 'range' : 'single');
+
   if (activity) {
     document.getElementById('activityDate').value = activity.date || '';
     document.getElementById('activityTime').value = activity.time || '';
     document.getElementById('activityTitle').value = activity.title || '';
     document.getElementById('activityCategory').value = activity.category || 'other';
+    if (activity.category === 'hotel') {
+      if (activity.checkIn) {
+        activityDatePicker.setDate([activity.checkIn, activity.checkOut].filter(Boolean));
+      } else {
+        activityDatePicker.setDate([activity.date].filter(Boolean));
+      }
+    } else {
+      activityDatePicker.setDate([activity.date].filter(Boolean));
+    }
     document.getElementById('activityLocation').value = activity.location || '';
     document.getElementById('activityRating').value = activity.rating || '';
     document.getElementById('activityDescription').value = activity.address || activity.description || '';
@@ -3547,13 +3961,14 @@ function openActivityModal(activity = null) {
     document.getElementById('arrivalTerminal').value = activity.arrivalTerminal || '';
     document.getElementById('arrivalGate').value = activity.arrivalGate || '';
   } else if (selectedDate) {
-    document.getElementById('activityDate').value = selectedDate;
+    activityDatePicker.setDate(selectedDate);
     activityMapProviderInput.value = getMapProviderForDate(selectedDate);
   }
   updatePlaceAutocompleteRestrictions(document.getElementById('activityDate').value);
   activityWebsiteInput.value = currentPlaceWebsite;
   placeLookupStatus.textContent = '';
   updateOpeningHoursUI();
+  
   if (!activity) toggleCardFields(activityPaymentMethodInput, activityCardNetworkField, activityCardMarkupField, activityCardRateHint);
   activityModalOverlay.classList.remove('hidden');
 }
@@ -3569,6 +3984,83 @@ function toggleShoppingDetails(category) {
 function toggleBookingDetails(category) {
   // Show booking details for all categories
   bookingDetails.classList.remove('hidden');
+}
+
+function initActivityDatePicker(mode = 'single') {
+  const activityDateInput = document.getElementById('activityDate');
+  if (!activityDateInput) return;
+  if (typeof flatpickr === 'undefined') return;
+
+  if (activityDatePicker) {
+    activityDatePicker.destroy();
+    activityDatePicker = null;
+  }
+
+  try {
+    activityDatePicker = flatpickr(activityDateInput, {
+      mode: mode,
+      dateFormat: 'Y-m-d',
+      altInput: true,
+      altFormat: 'Y-m-d',
+      allowInput: true,
+      // Minimal SVG Chevrons matching Shadcn UI / Radix Lucide icons
+      prevArrow: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-left"><path d="m15 18-6-6 6-6"/></svg>`,
+      nextArrow: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-right"><path d="m9 18 6-6-6-6"/></svg>`,
+      plugins: (typeof confirmDate !== 'undefined') ? [new confirmDate({
+        confirmIcon: '',
+        confirmText: 'Apply',
+        showAlways: true,
+        theme: 'light'
+      })] : [],
+      onChange: (selectedDates, dateStr, instance) => {
+        activityDateInput.dispatchEvent(new Event('change'));
+      },
+      onReady: function(selectedDates, dateStr, instance) {
+        // Setup simple cancel event binding when confirmDate plugin renders
+        setTimeout(() => {
+          const confirmContainer = instance.calendarContainer.querySelector('.flatpickr-confirm');
+          if (confirmContainer) {
+            confirmContainer.addEventListener('click', (e) => {
+              if (e.target.classList.contains('flatpickr-confirm') && e.offsetX < confirmContainer.offsetWidth / 2) {
+                instance.close();
+              } else if (window.getComputedStyle(e.target, '::before').content !== 'none' && e.target === confirmContainer) {
+                // If clicked region matches our Cancel visual button region
+                instance.close();
+              }
+            });
+          }
+        }, 0);
+      }
+    });
+  } catch (e) {
+    console.warn('flatpickr init failed on activityDate', e);
+  }
+}
+
+function handleCategoryDatePickerSwitch(category) {
+  const activityDateInput = document.getElementById('activityDate');
+  if (!activityDatePicker || !activityDateInput) return;
+
+  const currentDates = activityDatePicker.selectedDates;
+  const currentMode = activityDatePicker.config.mode;
+
+  if (category === 'hotel') {
+    if (currentMode !== 'range') {
+      const savedDate = currentDates[0] ? activityDatePicker.formatDate(currentDates[0], 'Y-m-d') : '';
+      initActivityDatePicker('range');
+      if (savedDate) {
+        activityDatePicker.setDate([savedDate]);
+      }
+    }
+  } else {
+    if (currentMode !== 'single') {
+      const savedDate = currentDates[0] ? activityDatePicker.formatDate(currentDates[0], 'Y-m-d') : '';
+      initActivityDatePicker('single');
+      if (savedDate) {
+        activityDatePicker.setDate(savedDate);
+      }
+    }
+  }
 }
 
 function convertKoreanOpeningHoursToEnglish(text) {
@@ -3841,6 +4333,7 @@ activityCategoryInput.addEventListener('change', () => {
   toggleFlightDetails(activityCategoryInput.value);
   toggleShoppingDetails(activityCategoryInput.value);
   toggleBookingDetails(activityCategoryInput.value);
+  handleCategoryDatePickerSwitch(activityCategoryInput.value);
   renderShoppingEditor();
 });
 
@@ -3921,8 +4414,13 @@ function formatCityDaySummaries(days, fallbackDestination) {
     .join(state.language === 'zh' ? ' · ' : ' · ');
 }
 
+function isActivityOnDate(activity, date) {
+  return activity.date === date;
+}
+
 function getCityForDate(date) {
   if (!date) return state.tripDestination || '';
+  const singleDate = date.includes(' to ') ? date.split(' to ')[0] : date;
   const periods = state.multipleCities ? state.cities : [{
     destination: state.tripDestination,
     startDate: state.tripStartDate,
@@ -3930,7 +4428,7 @@ function getCityForDate(date) {
   }];
   const matchingPeriod = periods.find((period) => (
     period.destination && period.startDate && period.endDate
-    && date >= period.startDate && date <= period.endDate
+    && singleDate >= period.startDate && singleDate <= period.endDate
   ));
   return matchingPeriod?.destination || state.tripDestination || '';
 }
@@ -4261,6 +4759,7 @@ let activeActivityInfoMarker = null;
 let mapsApiLoaded = false;
 let mapsApiLoading = false;
 let placeAutocomplete = null;
+let addressAutocomplete = null;
 let activeMapProvider = '';
 let koreaMapResizeObserver = null;
 let googleMapsLanguage = '';
@@ -4508,8 +5007,28 @@ function setupPlaceAutocomplete() {
     const place = placeAutocomplete.getPlace();
     if (!place || !place.name) return;
     placeLookupRequestId += 1;
-    activityLocationInput.value = place.name;
+    
+    // Extract address details
     currentPlaceAddress = getKoreanGoogleAddress(place) || place.formatted_address || '';
+    
+    // Prevent duplicate address values in the Location name field from Google Places suggestions.
+    // If the suggestion title name contains street level details (like "논현로" or "78번지"), but we are looking up a real venue,
+    // we should NOT override the user's custom location name with a generic fallback unless the field was originally empty or exactly identical.
+    let cleanPlaceName = place.name.trim();
+    const isNameAddress = /^[가-힣0-9-\s]+(?:구|동|로|길|도|시)(?:\s+[0-9]+)?/.test(cleanPlaceName);
+    
+    if (isNameAddress && currentPlaceAddress) {
+      // Keep the user's custom typed location name if they have already entered a distinct name or address in the input field!
+      const currentLocInput = activityLocationInput.value.trim();
+      const hasDistinctCustomName = currentLocInput && !currentLocInput.includes('구') && !currentLocInput.includes('로') && !currentLocInput.includes('동');
+      if (hasDistinctCustomName) {
+        cleanPlaceName = currentLocInput;
+      } else {
+        cleanPlaceName = '';
+      }
+    }
+    
+    activityLocationInput.value = cleanPlaceName;
     currentPlaceId = place.place_id || '';
     currentPlaceCoordinates = place.geometry?.location
       ? { lat: place.geometry.location.lat(), lng: place.geometry.location.lng() }
@@ -4539,18 +5058,89 @@ function setupPlaceAutocomplete() {
       koreaPlaceLocalizationPromise = Promise.resolve();
     }
   });
+
+  // Setup address input autocomplete mirroring location autocomplete fields & options
+  addressAutocomplete = new google.maps.places.Autocomplete(activityDescriptionInput, autocompleteOptions);
+  if (getMapProviderForDate(document.getElementById('activityDate').value) === 'naver') {
+    addressAutocomplete.setComponentRestrictions({ country: 'kr' });
+  }
+  addressAutocomplete.addListener('place_changed', () => {
+    const place = addressAutocomplete.getPlace();
+    if (!place || !place.name) return;
+    placeLookupRequestId += 1;
+    
+    // Extract address details
+    currentPlaceAddress = getKoreanGoogleAddress(place) || place.formatted_address || '';
+    
+    // Keep user's custom venue/shop name in Location field if they typed one in first!
+    let cleanPlaceName = place.name.trim();
+    const isNameAddress = /^[가-힣0-9-\s]+(?:구|동|로|길|도|시)(?:\s+[0-9]+)?/.test(cleanPlaceName);
+    if (isNameAddress && currentPlaceAddress) {
+      const currentLocInput = activityLocationInput.value.trim();
+      const hasDistinctCustomName = currentLocInput && currentLocInput !== 'Map Spot' && currentLocInput !== '地圖地點' && !/^[A-Za-z0-9-\s]*$/.test(currentLocInput);
+      if (hasDistinctCustomName || (currentLocInput && !/^[가-힣0-9-\s]+(?:구|동|로|길|도|시)/.test(currentLocInput))) {
+        cleanPlaceName = currentLocInput;
+      } else {
+        cleanPlaceName = '';
+      }
+    }
+    
+    activityLocationInput.value = cleanPlaceName;
+    activityDescriptionInput.value = currentPlaceAddress;
+    
+    currentPlaceId = place.place_id || '';
+    currentPlaceCoordinates = place.geometry?.location
+      ? { lat: place.geometry.location.lat(), lng: place.geometry.location.lng() }
+      : null;
+    currentGoogleReviewCount = Number(place.user_ratings_total) || 0;
+    currentPlaceWebsite = place.website || '';
+    activityWebsiteInput.value = currentPlaceWebsite;
+    currentPlaceOpeningHours = place.opening_hours?.weekday_text || null;
+    currentPlaceOpeningHoursEnabled = Boolean(currentPlaceOpeningHours && currentPlaceOpeningHours.length);
+    updateOpeningHoursUI();
+    activityRatingInput.value = place.rating || '';
+    activityCategoryInput.value = inferActivityCategory(place.types, activityCategoryInput.value || 'other');
+    toggleFlightDetails(activityCategoryInput.value);
+    toggleShoppingDetails(activityCategoryInput.value);
+    toggleBookingDetails(activityCategoryInput.value);
+    document.getElementById('activityContactDetails').value = place.international_phone_number || place.formatted_phone_number || '';
+    placeLookupStatus.textContent = '';
+    const isKoreaPlace = getMapProviderForDate(document.getElementById('activityDate').value) === 'naver';
+    const hasGoogleKoreanName = /[가-힣]/.test(place.name || '');
+    const hasGoogleKoreanAddress = /[가-힣]/.test(currentPlaceAddress);
+    if (isKoreaPlace && (!hasGoogleKoreanName || !hasGoogleKoreanAddress)) {
+      placeLookupStatus.textContent = state.language === 'zh' ? '正在轉換為韓文地點資料…' : 'Converting to Korean place details…';
+      koreaPlaceLocalizationPromise = localizeKoreaActivityPlace(place, place.name, placeLookupRequestId);
+    } else {
+      if (isKoreaPlace) currentNaverPlaceName = place.name;
+      koreaPlaceLocalizationPromise = Promise.resolve();
+    }
+  });
 }
 
 function updatePlaceAutocompleteRestrictions(date) {
-  if (!placeAutocomplete?.setComponentRestrictions) return;
-  if (getMapProviderForDate(date) === 'naver') {
-    placeAutocomplete.setComponentRestrictions({ country: 'kr' });
-    return;
+  if (placeAutocomplete?.setComponentRestrictions) {
+    if (getMapProviderForDate(date) === 'naver') {
+      placeAutocomplete.setComponentRestrictions({ country: 'kr' });
+    } else {
+      placeAutocomplete.setComponentRestrictions({ country: [] });
+    }
   }
-  placeAutocomplete.setComponentRestrictions({ country: [] });
+  if (addressAutocomplete?.setComponentRestrictions) {
+    if (getMapProviderForDate(date) === 'naver') {
+      addressAutocomplete.setComponentRestrictions({ country: 'kr' });
+    } else {
+      addressAutocomplete.setComponentRestrictions({ country: [] });
+    }
+  }
 }
 
 function getKoreanGoogleAddress(place) {
+  // If the suggestion name is already a clean address string (starts with road/metro patterns or contains street markers),
+  // do not duplicate it as the primary "Location (shop name)" field to prevent double addresses.
+  if (place?.name && /^[가-힣0-9-\s]+(?:구|동|로|길|도|시)\s+[0-9]+/.test(place.name.trim())) {
+    // Attempt to extract of a cleaner location name if available in the address components, otherwise keep it clean.
+  }
   const activityDate = document.getElementById('activityDate').value;
   if (getMapProviderForDate(activityDate) !== 'naver') return '';
   const formattedAddress = String(place?.formatted_address || '').trim();
@@ -4663,6 +5253,13 @@ let koreaPlaceLocalizationId = 0;
 let koreaPlaceLocalizationPromise = Promise.resolve();
 
 activityLocationInput.addEventListener('input', () => {
+  // If the address field is currently populated/selected from a Google Suggestion, 
+  // do not wipe it out when the user is typing/customizing the Location name!
+  if (activityDescriptionInput.value.trim().length > 0) {
+    placeLookupRequestId += 1;
+    placeLookupStatus.textContent = '';
+    return;
+  }
   placeLookupRequestId += 1;
   placeLookupStatus.textContent = '';
   currentPlaceAddress = '';
@@ -4670,6 +5267,7 @@ activityLocationInput.addEventListener('input', () => {
   currentPlaceId = '';
   currentPlaceCoordinates = null;
   currentNaverPlaceName = '';
+  currentNaverUrl = '';
   currentGoogleReviewCount = 0;
   currentPlaceWebsite = '';
   activityWebsiteInput.value = '';
@@ -4856,7 +5454,7 @@ async function updateKoreaMapMarkers() {
   const renderToken = ++mapRenderToken;
   const days = getTripDays();
   const selectedDate = days[selectedDayIndex];
-  const locatable = state.activities.filter((activity) => activity.location && activity.date === selectedDate);
+  const locatable = state.activities.filter((activity) => activity.location && isActivityOnDate(activity, selectedDate));
   if (!locatable.length) {
     mapStatus.textContent = state.language === 'zh' ? '這一天尚未新增地點。' : 'Add a location to this day to see its pin here.';
     mapStatus.style.display = 'block';
@@ -5069,7 +5667,7 @@ function clearSuggestedRouteDisplay() {
 function renderSpotRouteSelectors(days) {
   const selectedDate = days[selectedDayIndex];
   const spots = state.activities
-    .filter((activity) => activity.date === selectedDate && activity.location)
+    .filter((activity) => isActivityOnDate(activity, selectedDate) && activity.location)
     .sort((a, b) => (a.time || '').localeCompare(b.time || ''));
   const previousA = spotASelect.value;
   const previousB = spotBSelect.value;
@@ -5822,7 +6420,7 @@ function renderMapLegend(days) {
     chip.addEventListener('click', () => selectDay(index));
 
     const label = document.createElement('span');
-    label.textContent = `Day ${index + 1}`;
+    label.textContent = `D${index + 1}`;
     chip.appendChild(label);
 
     mapLegend.appendChild(chip);
@@ -5939,7 +6537,7 @@ function renderRoutePanel(days) {
 
   const selectedDate = days[selectedDayIndex];
   const dayActivities = state.activities
-    .filter((a) => a.date === selectedDate && a.location)
+    .filter((a) => isActivityOnDate(a, selectedDate) && a.location)
     .sort((a, b) => (a.time || '').localeCompare(b.time || ''));
 
   if (dayActivities.length < 2) {
@@ -6071,7 +6669,6 @@ if (routeSheetHandle) {
   // Initialize sheet as statically positioned and fully expanded
   sheet.style.position = 'relative';
   sheet.style.transform = 'none';
-  sheet.style.marginTop = '-24px';
   updateToggleButtonState(true);
 }
 
@@ -6098,7 +6695,7 @@ function renderGreetingAndDaySelector(days) {
   greetingSub.textContent = formatCityDaySummaries(days, destination);
 
   const dayActivities = state.activities
-    .filter((a) => a.date === selectedDate)
+    .filter((a) => isActivityOnDate(a, selectedDate))
     .sort((a, b) => (a.time || '').localeCompare(b.time || ''));
 
   const dateLabel = new Date(selectedDate + 'T00:00:00').toLocaleDateString(state.language === 'zh' ? 'zh-TW' : 'en-US', {
@@ -6634,6 +7231,14 @@ function loadTripFromLibrary(tripId) {
   const tripUrl = new URL(window.location.href);
   tripUrl.searchParams.set('trip', tripId);
   
+  // Mark as authenticated in memory before reloading so the login gate is bypassed on load.
+  try {
+    const currentRestoredUser = window.itinerarySync?.getCurrentUser?.();
+    if (currentRestoredUser && !currentRestoredUser.anonymous) {
+      window.__IS_AUTHENTICATED__ = true;
+    }
+  } catch (e) {}
+
   // Perform a full hard page reload so that all Google Maps, local variables, 
   // and autocomplete components are clean and correctly configured to either 
   // Korea or Non-Korea Logic from scratch.
@@ -6662,6 +7267,17 @@ function getBillEntries() {
     .filter((activity) => activity.expense)
     .concat(state.bills)
     .sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.time || '').localeCompare(b.time || ''));
+}
+
+function inferBillCategory(expense) {
+  if (expense.category) return expense.category;
+  if (state.activities.some((activity) => activity.id === expense.id)) return 'other';
+  if (String(expense.id || '').startsWith('route-')) return 'transport';
+  const title = String(expense.title || '').toLowerCase();
+  if (/meal|breakfast|brunch|lunch|dinner|supper|coffee|cafe|restaurant|food|snack|tea|juice|grocer|bakery|noodle|pizza|sushi/.test(title)) return 'meal';
+  if (/taxi|cab|uber|lyft|bus|train|metro|subway|rail|flight|airfare|ferry|parking|transport|transit|shuttle|fuel|gasoline|toll/.test(title)) return 'transport';
+  if (/shopping|shop|market|mall|store|souvenir|gift|clothing|clothes|cosmetic|makeup|skincare|handcream|lipbalm|grocery|purchase/.test(title)) return 'shopping';
+  return 'bills';
 }
 
 function renderBillTabs() {
@@ -7179,6 +7795,11 @@ function renderExpenseList() {
   syncRouteBills();
   renderSpendingSummary();
   expenseList.innerHTML = '';
+  expenseList.classList.toggle('all-dates-scroll', selectedBillDate === 'all');
+  expenseTotalBar.classList.toggle('hidden', false);
+  expenseTotalLabel.textContent = state.language === 'zh' ? '總計' : 'Total';
+  expenseTotalAmount.textContent = '—';
+  expenseTotalConverted.textContent = '';
   renderBillTabs();
 
   const allExpenses = getBillEntries();
@@ -7197,9 +7818,11 @@ function renderExpenseList() {
   ));
   if (expenses.length === 0) {
     expenseList.classList.add('hidden');
+    expenseTotalBar.classList.add('hidden');
     return;
   }
   expenseList.classList.remove('hidden');
+  expenseTotalBar.classList.remove('hidden');
 
   let total = 0;
   const totalCurrencies = new Set();
@@ -7316,28 +7939,16 @@ function renderExpenseList() {
     expenseList.appendChild(row);
   }
 
-  const totalRow = document.createElement('div');
-  totalRow.className = 'expense-row expense-row-total';
-  const totalLabel = document.createElement('span');
-  totalLabel.textContent = totalCurrencies.size > 1 ? 'Total (mixed currencies)' : 'Total';
-  totalRow.appendChild(totalLabel);
-
-  const totalAmounts = document.createElement('div');
-  totalAmounts.className = 'expense-row-amounts';
-  const totalAmount = document.createElement('span');
-  totalAmount.textContent = totalCurrencies.size === 1
+  expenseTotalLabel.textContent = totalCurrencies.size > 1
+    ? (state.language === 'zh' ? '總計（多種貨幣）' : 'Total (mixed currencies)')
+    : (state.language === 'zh' ? '總計' : 'Total');
+  expenseTotalAmount.textContent = totalCurrencies.size === 1
     ? `${[...totalCurrencies][0]} ${total.toFixed(2)}`
     : '—';
-  totalAmounts.appendChild(totalAmount);
-  const allConvertedTotal = document.createElement('span');
-  allConvertedTotal.className = 'expense-row-converted';
-  allConvertedTotal.textContent = state.language === 'zh' ? '正在換算總額…' : 'Converting total…';
-  totalAmounts.appendChild(allConvertedTotal);
-  totalRow.appendChild(totalAmounts);
-  expenseList.appendChild(totalRow);
+  expenseTotalConverted.textContent = state.language === 'zh' ? '正在換算總額…' : 'Converting total…';
 
   calculateAllBillsConvertedTotal(expenses, selectedBillMember).then((convertedTotalValue) => {
-    allConvertedTotal.textContent = isFinite(convertedTotalValue)
+    expenseTotalConverted.textContent = isFinite(convertedTotalValue)
       ? `All expenses ≈ ${convertedTotalValue.toFixed(2)} ${currencyToInput.value}`
       : (state.language === 'zh' ? '無法換算總額' : 'Total conversion unavailable');
   });
@@ -7348,7 +7959,15 @@ let spendingSummaryRenderId = 0;
 async function renderSpendingSummary() {
   const renderId = ++spendingSummaryRenderId;
   const currency = currencyToInput.value || 'USD';
-  const expenses = getBillEntries();
+  const allExpenses = getBillEntries();
+  const expenses = allExpenses.filter((expense) => (
+    selectedBillMember === 'all'
+    || (expense.billMember && expense.billMember === selectedBillMember)
+    || (!expense.billMember
+      && (!Array.isArray(expense.splitMembers)
+        || !expense.splitMembers.length
+        || expense.splitMembers.includes(selectedBillMember)))
+  ));
   const tripDays = getTripDays();
   const datedExpenses = expenses.filter((expense) => expense.date);
   const dates = tripDays.length
@@ -7357,6 +7976,7 @@ async function renderSpendingSummary() {
 
   spendingSummaryTotal.textContent = state.language === 'zh' ? '計算中…' : 'Calculating…';
   spendingHeatmap.innerHTML = '';
+  spendingCategoryBreakdown.innerHTML = '';
   spendingMetrics.innerHTML = '';
 
   const weekdays = state.language === 'zh'
@@ -7374,13 +7994,22 @@ async function renderSpendingSummary() {
       const amount = parseFloat(String(expense.expense || '').replace(/[^0-9.]/g, ''));
       if (!isFinite(amount)) return { expense, amount: 0 };
       const rate = await getGroupConversionRate(getExpenseRateGroupKey(expense), currency);
-      return { expense, amount: amount * rate };
+      const memberAmount = selectedBillMember !== 'all' && getBillShareMembers(expense).includes(selectedBillMember)
+        ? getBillMemberAmount(expense, selectedBillMember)
+        : amount;
+      return { expense, amount: memberAmount * rate };
     }));
     if (renderId !== spendingSummaryRenderId) return;
 
     const totalsByDate = new Map(dates.map((date) => [date, 0]));
+    const totalsByCategoryAndDate = new Map();
     convertedEntries.forEach(({ expense, amount }) => {
-      if (expense.date) totalsByDate.set(expense.date, (totalsByDate.get(expense.date) || 0) + amount);
+      if (!expense.date) return;
+      totalsByDate.set(expense.date, (totalsByDate.get(expense.date) || 0) + amount);
+      const category = inferBillCategory(expense);
+      if (!totalsByCategoryAndDate.has(category)) totalsByCategoryAndDate.set(category, new Map());
+      const categoryDates = totalsByCategoryAndDate.get(category);
+      categoryDates.set(expense.date, (categoryDates.get(expense.date) || 0) + amount);
     });
     const total = convertedEntries.reduce((sum, entry) => sum + entry.amount, 0);
     const activeDays = [...totalsByDate.values()].filter((amount) => amount > 0).length;
@@ -7389,10 +8018,67 @@ async function renderSpendingSummary() {
     const maxDaily = peak[1] || 0;
     const totalsByCategory = new Map();
     convertedEntries.forEach(({ expense, amount }) => {
-      const category = expense.category || (state.activities.some((activity) => activity.id === expense.id) ? 'other' : 'bills');
+      const category = inferBillCategory(expense);
       totalsByCategory.set(category, (totalsByCategory.get(category) || 0) + amount);
     });
     const topCategory = [...totalsByCategory.entries()].sort((first, second) => second[1] - first[1])[0] || ['', 0];
+
+    if (!totalsByCategoryAndDate.size) {
+      const emptyMessage = document.createElement('p');
+      emptyMessage.className = 'spending-category-empty';
+      emptyMessage.textContent = state.language === 'zh' ? '尚無依日期分類的支出。' : 'No dated category spending yet.';
+      spendingCategoryBreakdown.appendChild(emptyMessage);
+    } else {
+      const categoryLabels = state.language === 'zh'
+        ? { flight: '航班', sight: '景點', meal: '餐飲', transport: '交通', hotel: '住宿', shopping: '購物', bills: '其他帳單', other: '其他活動' }
+        : { flight: 'Flights', sight: 'Sightseeing', meal: 'Meals', transport: 'Transport', hotel: 'Hotels', shopping: 'Shopping', bills: 'Other bills', other: 'Other activities' };
+      const table = document.createElement('table');
+      table.className = 'spending-category-table';
+      const head = document.createElement('thead');
+      const headingRow = document.createElement('tr');
+      const categoryHeading = document.createElement('th');
+      categoryHeading.scope = 'col';
+      categoryHeading.textContent = state.language === 'zh' ? '類別' : 'Category';
+      headingRow.appendChild(categoryHeading);
+      dates.forEach((date) => {
+        const dateHeading = document.createElement('th');
+        dateHeading.scope = 'col';
+        dateHeading.textContent = new Date(`${date}T00:00:00`).toLocaleDateString(state.language === 'zh' ? 'zh-TW' : 'en-US', { month: 'numeric', day: 'numeric' });
+        headingRow.appendChild(dateHeading);
+      });
+      const allDatesHeading = document.createElement('th');
+      allDatesHeading.scope = 'col';
+      allDatesHeading.textContent = state.language === 'zh' ? '總計' : 'All dates';
+      headingRow.appendChild(allDatesHeading);
+      head.appendChild(headingRow);
+      table.appendChild(head);
+
+      const body = document.createElement('tbody');
+      [...totalsByCategoryAndDate.entries()]
+        .sort((first, second) => (totalsByCategory.get(second[0]) || 0) - (totalsByCategory.get(first[0]) || 0))
+        .forEach(([category, categoryDates]) => {
+          const row = document.createElement('tr');
+          const categoryCell = document.createElement('th');
+          categoryCell.scope = 'row';
+          categoryCell.textContent = categoryLabels[category] || category;
+          row.appendChild(categoryCell);
+          let categoryTotal = 0;
+          dates.forEach((date) => {
+            const amount = categoryDates.get(date) || 0;
+            categoryTotal += amount;
+            const cell = document.createElement('td');
+            cell.textContent = amount ? amount.toFixed(2) : '—';
+            row.appendChild(cell);
+          });
+          const totalCell = document.createElement('td');
+          totalCell.className = 'spending-category-total';
+          totalCell.textContent = categoryTotal.toFixed(2);
+          row.appendChild(totalCell);
+          body.appendChild(row);
+        });
+      table.appendChild(body);
+      spendingCategoryBreakdown.appendChild(table);
+    }
 
     dates.forEach((date) => {
       const amount = totalsByDate.get(date) || 0;
@@ -7526,8 +8212,8 @@ function renderItineraryForSelectedDay(days) {
   }
 
   const activities = state.activities
-    .filter((a) => a.date === selectedDate)
-    .sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+    .filter((a) => isActivityOnDate(a, selectedDate))
+    .sort((a, b) => (a.time || (a.category === 'hotel' ? '08:00' : '')).localeCompare(b.time || (b.category === 'hotel' ? '08:00' : '')));
 
   if (activities.length === 0) {
     emptyState.textContent = 'No items yet. Click "Add Item" to get started!';
@@ -7549,7 +8235,7 @@ function renderItineraryForSelectedDay(days) {
     const timeEl = document.createElement('button');
     timeEl.type = 'button';
     timeEl.className = 'activity-time';
-    const formattedTime = formatTime(activity.time);
+    const formattedTime = formatTime(activity.time || (activity.category === 'hotel' ? '08:00' : ''));
     const [clock, period] = formattedTime.split(' ');
     const clockEl = document.createElement('span');
     clockEl.className = 'activity-time-clock';
@@ -7592,6 +8278,20 @@ function renderItineraryForSelectedDay(days) {
     titleEl.title = state.language === 'zh' ? '編輯項目' : 'Edit item';
     titleEl.addEventListener('click', () => openActivityModal(activity));
     itemCard.appendChild(titleEl);
+    if (activity.category === 'hotel' && (activity.hotelStayStart || activity.checkIn)) {
+      const stayStart = activity.hotelStayStart || activity.checkIn;
+      const stayEnd = activity.hotelStayEnd || activity.checkOut || stayStart;
+      const stayRange = document.createElement('p');
+      stayRange.className = 'hotel-stay-range';
+      const formatStayDate = (stayDate) => new Date(`${stayDate}T00:00:00`).toLocaleDateString(
+        state.language === 'zh' ? 'zh-TW' : 'en-US',
+        { month: 'short', day: 'numeric', year: 'numeric' },
+      );
+      stayRange.textContent = state.language === 'zh'
+        ? `入住期間：${formatStayDate(stayStart)} – ${formatStayDate(stayEnd)}`
+        : `Stay: ${formatStayDate(stayStart)} – ${formatStayDate(stayEnd)}`;
+      itemCard.appendChild(stayRange);
+    }
 
     if (activity.location) {
       const locationEl = document.createElement('p');
@@ -7733,10 +8433,61 @@ function renderItineraryForSelectedDay(days) {
       bookingInfo.className = 'item-booking-reference';
       const bookingLabel = document.createElement('span');
       bookingLabel.textContent = state.language === 'zh' ? '確認碼' : 'Confirmation';
+
+      // display mask and reveal button inside the activity card (per-item)
+      const bookingContainer = document.createElement('div');
+      bookingContainer.className = 'booking-inline-wrapper';
+
+      const bookingMask = document.createElement('span');
+      bookingMask.className = 'booking-mask';
+      const makeMask = (code) => {
+        if (!code) return '';
+        // show one bullet per character, group spaces as is
+        return String(code).replace(/\S/g, '•');
+      };
+      bookingMask.textContent = makeMask(activity.bookingDetails);
+
       const bookingCode = document.createElement('code');
+      bookingCode.className = 'booking-code-text hidden';
       bookingCode.textContent = activity.bookingDetails;
-      bookingInfo.append(bookingLabel, bookingCode);
+
+      const revealBtn = document.createElement('button');
+      revealBtn.type = 'button';
+      revealBtn.className = 'icon-btn reveal-btn';
+      revealBtn.setAttribute('aria-pressed', 'false');
+      revealBtn.setAttribute('aria-label', state.language === 'zh' ? '顯示確認碼' : 'Show confirmation code');
+      // embed inline SVG for the eye icon so it remains stable across re-renders
+      revealBtn.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>
+          <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></circle>
+        </svg>
+      `;
+
+      // Toggle visibility per activity
+      revealBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const pressed = revealBtn.getAttribute('aria-pressed') === 'true';
+        if (pressed) {
+          // currently visible -> mask it
+          bookingCode.classList.add('hidden');
+          bookingMask.style.display = '';
+          bookingMask.textContent = makeMask(bookingCode.textContent);
+          revealBtn.setAttribute('aria-pressed', 'false');
+        } else {
+          // show code
+          bookingCode.classList.remove('hidden');
+          bookingMask.style.display = 'none';
+          revealBtn.setAttribute('aria-pressed', 'true');
+        }
+      });
+
+      bookingContainer.append(bookingMask, bookingCode, revealBtn);
+      bookingInfo.append(bookingLabel, bookingContainer);
       itemCard.appendChild(bookingInfo);
+
+      // ensure lucide renders the dynamic icon and keeps it stable
+      // no lucide call needed when using inline SVGs
     }
 
     if (activity.remarks) {
@@ -7777,7 +8528,9 @@ function renderItineraryForSelectedDay(days) {
         const getMapLabel = (provider) => provider === 'naver' && !getNaverPlaceUrl(activity.naverUrl)
           ? 'Find on Naver'
           : mapLabels[provider];
-        mapLink.textContent = getMapLabel(mapProvider);
+        // prepend map pin SVG and label
+        const pinSvg = `<svg class="pill-icon" viewBox="0 0 24 24" style="width:12px;height:12px;fill:currentColor;margin-right:6px;display:inline-block;vertical-align:middle"><path d="M12 2C8 2 5 5 5 9c0 6 7 13 7 13s7-7 7-13c0-4-3-7-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z"></path></svg>`;
+        mapLink.innerHTML = `${pinSvg}<span style="vertical-align: middle;">${getMapLabel(mapProvider)}</span>`;
         mapLink.addEventListener('click', () => {
           const latestCoordinates = Number.isFinite(activity.latitude) && Number.isFinite(activity.longitude)
             ? { lat: activity.latitude, lng: activity.longitude }
@@ -7802,7 +8555,8 @@ function renderItineraryForSelectedDay(days) {
         const contactLink = document.createElement('a');
         contactLink.className = 'item-contact-pill';
         contactLink.href = `tel:${activity.contactDetails.replace(/[^+\d]/g, '')}`;
-        contactLink.textContent = activity.contactDetails;
+        const phoneSvg = `<svg class="pill-icon" viewBox="0 0 24 24" style="width:12px;height:12px;fill:currentColor;margin-right:6px;display:inline-block;vertical-align:middle"><path d="M6.6 10.2a15.05 15.05 0 0 0 7.2 7.2l1.8-1.8a1 1 0 0 1 1-.3c1.1.4 2.3.6 3.5.6a1 1 0 0 1 1 1V20a1 1 0 0 1-1 1C9.9 21 3 14.1 3 6a1 1 0 0 1 1-1h2.3a1 1 0 0 1 1 1c0 1.2.2 2.4.6 3.5a1 1 0 0 1-.3 1 1 1 0 0 1-1 .7l-1.8.1z"></path></svg>`;
+        contactLink.innerHTML = `${phoneSvg}<span style="vertical-align: middle;">${activity.contactDetails}</span>`;
         footerRow.appendChild(contactLink);
       }
 
@@ -7812,7 +8566,8 @@ function renderItineraryForSelectedDay(days) {
         websiteLink.href = activity.website;
         websiteLink.target = '_blank';
         websiteLink.rel = 'noopener noreferrer';
-        websiteLink.textContent = 'Website';
+        const globeSvg = `<svg class="pill-icon" viewBox="0 0 24 24" style="width:12px;height:12px;fill:currentColor;margin-right:6px;display:inline-block;vertical-align:middle"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm-1 2v2.1A15.3 15.3 0 0 0 7.1 11H5a8 8 0 0 1 6-7zm0 16v-2.1c2-.3 3.6-1 5-1.9V19a8 8 0 0 1-5 1zM4.2 13h2.1c.1.7.4 1.4.8 2H6a8 8 0 0 1-1.8-2zM18 11h-2.1c-.1-.7-.4-1.4-.8-2H18a8 8 0 0 1 0 2z"></path></svg>`;
+        websiteLink.innerHTML = `${globeSvg}<span style="vertical-align: middle;">Website</span>`;
         footerRow.appendChild(websiteLink);
       }
 
@@ -8162,17 +8917,26 @@ function setDefaultWalletCurrencies(destination) {
 }
 
 function populateCurrencyOptions() {
+  // Shortlist of commonly used currencies to keep the dropdown concise
   const currencies = [
-    { code: 'USD', symbol: '$' }, { code: 'EUR', symbol: '€' }, { code: 'GBP', symbol: '£' }, { code: 'JPY', symbol: '¥' },
-    { code: 'CNY', symbol: '¥' }, { code: 'HKD', symbol: '$' }, { code: 'TWD', symbol: '$' }, { code: 'KRW', symbol: '₩' },
-    { code: 'THB', symbol: '฿' }, { code: 'SGD', symbol: '$' }, { code: 'AUD', symbol: '$' }, { code: 'CAD', symbol: '$' },
-    { code: 'CHF', symbol: 'Fr' }, { code: 'NZD', symbol: '$' }, { code: 'VND', symbol: '₫' }, { code: 'IDR', symbol: 'Rp' },
-    { code: 'MYR', symbol: 'RM' }, { code: 'PHP', symbol: '₱' }, { code: 'INR', symbol: '₹' }, { code: 'MOP', symbol: '$' },
-    { code: 'SEK', symbol: 'kr' }, { code: 'NOK', symbol: 'kr' }, { code: 'DKK', symbol: 'kr' }, { code: 'PLN', symbol: 'zł' },
-    { code: 'CZK', symbol: 'Kč' }, { code: 'HUF', symbol: 'Ft' }, { code: 'RUB', symbol: '₽' }, { code: 'BRL', symbol: 'R$' },
-    { code: 'ARS', symbol: '$' }, { code: 'CLP', symbol: '$' }, { code: 'MXN', symbol: '$' }, { code: 'ZAR', symbol: 'R' },
-    { code: 'ILS', symbol: '₪' }, { code: 'AED', symbol: 'د.إ' }, { code: 'SAR', symbol: '﷼' }, { code: 'KWD', symbol: 'د.ك' },
-    { code: 'QAR', symbol: '﷼' }, { code: 'BHD', symbol: '.د.ب' }, { code: 'OMR', symbol: '﷼' }, { code: 'TRY', symbol: '₺' },
+    { code: 'USD', symbol: '$' },
+    { code: 'EUR', symbol: '€' },
+    { code: 'GBP', symbol: '£' },
+    { code: 'JPY', symbol: '¥' },
+    { code: 'CNY', symbol: '¥' },
+    { code: 'HKD', symbol: '$' },
+    { code: 'TWD', symbol: '$' },
+    { code: 'KRW', symbol: '₩' },
+    { code: 'SGD', symbol: '$' },
+    { code: 'AUD', symbol: '$' },
+    { code: 'CAD', symbol: '$' },
+    { code: 'THB', symbol: '฿' },
+    { code: 'VND', symbol: '₫' },
+    { code: 'MYR', symbol: 'RM' },
+    { code: 'IDR', symbol: 'Rp' },
+    { code: 'INR', symbol: '₹' },
+    { code: 'PHP', symbol: '₱' },
+    { code: 'NZD', symbol: '$' },
   ];
   const optionsHtml = currencies
     .map(({ code, symbol }) => `<option value="${code}">${code} ${symbol}</option>`)
@@ -8235,7 +8999,9 @@ splitBillModalOverlay.addEventListener('click', (event) => {
 });
 
 expenseModalOverlay.addEventListener('click', (e) => {
-  if (e.target === expenseModalOverlay) e.stopPropagation();
+  if (e.target === expenseModalOverlay) {
+    closeExpenseModal();
+  }
 });
 
 function openExpenseModal() {
@@ -8247,11 +9013,14 @@ function openExpenseModal() {
   populateExpenseCurrencyOptions(billExpenseCurrencyInput, getExpenseCurrency(bill?.expense) || getCurrencyForDestination(getCityForDate(bill?.date || getTripDays()[selectedDayIndex])));
   document.getElementById('expenseModalTitle').textContent = editingBillId ? (state.language === 'zh' ? '編輯支出' : 'Edit Expense') : 'Add Expense';
   document.getElementById('expenseSubmitBtn').textContent = editingBillId ? (state.language === 'zh' ? '儲存變更' : 'Save Changes') : 'Add Expense';
-  removeExpenseBtn.classList.toggle('hidden', !editingBillId);
+  // removed removeExpense button
   const days = getTripDays();
   const selectedDate = days[selectedDayIndex];
   if (bill) {
     document.getElementById('billTitle').value = bill.title || '';
+    billCategoryInput.value = ['meal', 'transport', 'shopping', 'bills'].includes(inferBillCategory(bill))
+      ? inferBillCategory(bill)
+      : 'bills';
     document.getElementById('billDate').value = bill.date || '';
     document.getElementById('billTime').value = bill.time || '';
     document.getElementById('billAmount').value = getExpenseNumber(bill.expense);
@@ -8273,20 +9042,10 @@ function openExpenseModal() {
 
 function closeExpenseModal() {
   expenseModalOverlay.classList.add('hidden');
-  removeExpenseBtn.classList.add('hidden');
+  // removed removeExpense button
 }
 
-removeExpenseBtn.addEventListener('click', () => {
-  if (!editingBillId) return;
-  const message = state.language === 'zh' ? '確定要移除此支出嗎？' : 'Remove this expense?';
-  if (!confirm(message)) return;
-  state.bills = state.bills.filter((bill) => bill.id !== editingBillId);
-  state.settlementLogs = (state.settlementLogs || []).filter((log) => log.entryId !== editingBillId);
-  saveState();
-  editingBillId = null;
-  closeExpenseModal();
-  renderExpenseList();
-});
+// removeExpense button removed per request
 
 expenseForm.addEventListener('submit', (e) => {
   e.preventDefault();
@@ -8301,6 +9060,7 @@ expenseForm.addEventListener('submit', (e) => {
 
   const billData = {
     title,
+    category: billCategoryInput.value,
     date,
     time,
     expense: amount,
@@ -8337,6 +9097,13 @@ expenseForm.addEventListener('submit', (e) => {
   editingBillId = null;
   closeExpenseModal();
 });
+
+// Receipt scanning removed — feature disabled per request
+
+// helper to avoid HTML injection into details area
+function escapeHtml(str) {
+  return String(str || '').replace(/[&<>\"]/g, (s) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[s]));
+}
 
 if (destinationClockTimer) clearInterval(destinationClockTimer);
 destinationClockTimer = setInterval(refreshDestinationClock, 60 * 1000);
